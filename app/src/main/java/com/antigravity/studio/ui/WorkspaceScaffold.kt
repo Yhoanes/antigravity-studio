@@ -70,6 +70,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.antigravity.studio.core.auth.AuthState
+import com.antigravity.studio.ui.auth.GoogleAuthTopBarAction
 import com.antigravity.studio.model.AgentSessionState
 import com.antigravity.studio.model.AgentStatus
 import com.antigravity.studio.model.GitFileStatus
@@ -214,6 +216,9 @@ fun WorkspaceScaffold(
     onCloseSession: (TerminalSession) -> Unit,
     onThemePresetSelected: (AppThemePreset) -> Unit,
     agentState: AgentSessionState = AgentSessionState(status = AgentStatus.READY),
+    activeUserEmail: String? = null,
+    onGoogleSignInClick: () -> Unit = {},
+    onSignOutClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -318,7 +323,10 @@ fun WorkspaceScaffold(
             onSelectTheme = onThemePresetSelected,
             updateStatus = updateStatus,
             onShowUpdateDialog = { showUpdateDialog = true },
-            onCheckUpdates = { UpdateManager.checkForUpdates(coroutineScope) }
+            onCheckUpdates = { UpdateManager.checkForUpdates(coroutineScope) },
+            activeUserEmail = activeUserEmail,
+            onGoogleSignInClick = onGoogleSignInClick,
+            onSignOutClick = onSignOutClick
         )
 
         // --- 2. CENTRAL WORKSPACE LAYOUT (Scaffold) ---
@@ -426,7 +434,10 @@ private fun TopBarSection(
     onSelectTheme: (AppThemePreset) -> Unit,
     updateStatus: UpdateStatus,
     onShowUpdateDialog: () -> Unit,
-    onCheckUpdates: () -> Unit
+    onCheckUpdates: () -> Unit,
+    activeUserEmail: String? = null,
+    onGoogleSignInClick: () -> Unit = {},
+    onSignOutClick: () -> Unit = {}
 ) {
     var showThemeMenu by remember { mutableStateOf(false) }
 
@@ -527,6 +538,27 @@ private fun TopBarSection(
                     fontWeight = FontWeight.Bold
                 )
             }
+
+            // Separator
+            Box(
+                modifier = Modifier
+                    .height(20.dp)
+                    .width(1.dp)
+                    .background(BorderObsidian)
+            )
+
+            // Google OAuth Action Component (SPEC-002)
+            val authState = if (activeUserEmail != null) {
+                AuthState.Authenticated(email = activeUserEmail)
+            } else {
+                AuthState.Unauthenticated
+            }
+            GoogleAuthTopBarAction(
+                authState = authState,
+                onSignInClick = onGoogleSignInClick,
+                onSignOutClick = onSignOutClick,
+                onSwitchAccountClick = onGoogleSignInClick
+            )
         }
 
         // Right: In-App OTA Update Button & Settings

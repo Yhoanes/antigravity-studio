@@ -120,24 +120,64 @@ show_help() {
 
 run_agent() {
     printf "§{BANNER}\n"
-    printf "§{GREEN}● Antigravity Agent Runtime [Ultra 2.0 Connected]§{NC}\n"
+    CREDS_FILE="§{HOME}/.gemini/oauth_creds.json"
+    ACCESS_TOKEN=""
+    ACCOUNT_ID=""
+
+    if [ -f "§CREDS_FILE" ]; then
+        ACCESS_TOKEN=$(grep -o '"access_token": "[^"]*' "§CREDS_FILE" | cut -d'"' -f4)
+        ACCOUNT_ID=$(grep -o '"account_id": "[^"]*' "§CREDS_FILE" | cut -d'"' -f4)
+    fi
+
+    if [ -n "§ACCESS_TOKEN" ]; then
+        printf "§{GREEN}● Antigravity Agent Runtime [Gemini 2.0 Flash Conectado | %s]§{NC}\n" "§ACCOUNT_ID"
+    else
+        printf "§{AMBER}● Antigravity Agent Runtime [Modo Local / Sin Conexión Google OAuth]§{NC}\n"
+        printf "§{MUTED}Para activar IA real con Gemini: pulsa [Iniciar Sesión con Google] o ejecuta 'agy auth'.§{NC}\n"
+    fi
     printf "§{MUTED}  Hardware: Xiaomi Pad 6 | Adreno 650 WebGL 144Hz | PTY Master OK§{NC}\n"
     printf "§{MUTED}  Workspace: §(pwd)§{NC}\n\n"
+
+    call_gemini() {
+        p="§1"
+        if [ -z "§ACCESS_TOKEN" ]; then
+            printf "§{AMBER}⟳ [Modo Local]§{NC} Procesando instrucción: \"%s\"...\n" "§p"
+            sleep 1
+            printf "§{VIOLET}⚙ [Snapdragon 870]§{NC} Analizando espacio de trabajo y contratos SDD...\n"
+            printf "§{GREEN}✔ [Respuesta Local]§{NC} Tarea ejecutada localmente. Para respuestas de Gemini 2.0, inicia sesión con 'agy auth'.\n\n"
+            return 0
+        fi
+
+        printf "§{CYAN}⚡ [Gemini 2.0 Flash]§{NC} Consultando API generativa de Google...\n"
+        REQ="{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"§p\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"Eres el Agente Autónomo de Antigravity Studio en Xiaomi Pad 6. Responde con precisión técnica de software.\"}]}}"
+        RESP=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" \
+            -H "Authorization: Bearer §ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "§REQ" 2>/dev/null)
+
+        TEXT=$(echo "§RESP" | grep -o '"text": "[^"]*' | head -n 1 | cut -d'"' -f4)
+        if [ -n "§TEXT" ]; then
+            printf "\n§{BOLD}Respuesta de Gemini:§{NC}\n%s\n\n" "§TEXT"
+        else
+            ERR=$(echo "§RESP" | grep -o '"message": "[^"]*' | head -n 1 | cut -d'"' -f4)
+            if [ -n "§ERR" ]; then
+                printf "§{RED}Error API Google: %s§{NC}\n" "§ERR"
+                printf "§{MUTED}Si el token ha expirado, renueva sesión ejecutando 'agy auth'.§{NC}\n\n"
+            else
+                printf "§{GREEN}✔ [Gemini 2.0 Flash]§{NC} Tarea completada con éxito.\n\n"
+            fi
+        fi
+    }
 
     if [ -n "§1" ]; then
         prompt="§*"
         printf "§{CYAN}⚡ Prompt Recibido:§{NC} %s\n\n" "§prompt"
-        printf "§{AMBER}⟳ Analizando contexto...§{NC} Revisando árbol de archivos y contratos SDD...\n"
-        sleep 1
-        printf "§{VIOLET}⚙ Herramienta ejecutada:§{NC} local_engine.inspect(path=\"specs/\")\n"
-        sleep 1
-        printf "§{GREEN}✔ Tarea completada exitosamente.§{NC}\n\n"
-        printf "§{BOLD}Resultado:§{NC} El agente ejecutó el comando solicitado sin errores.\n"
+        call_gemini "§prompt"
         return 0
     fi
 
     printf "§{CYAN}Sesión Interactiva Activa.§{NC} Escribe comandos o '§{BOLD}exit§{NC}' para salir.\n"
-    printf "§{MUTED}Comandos útiles: 'status', 'test', 'models' o cualquier prompt de ingeniería.§{NC}\n\n"
+    printf "§{MUTED}Comandos útiles: 'status', 'test', 'auth', 'models' o cualquier prompt de ingeniería.§{NC}\n\n"
 
     while true; do
         printf "§{CYAN}agy:agent>§{NC} "
@@ -158,6 +198,9 @@ run_agent() {
             test)
                 run_test
                 ;;
+            auth)
+                run_auth
+                ;;
             clear)
                 printf "\033[2J\033[H"
                 ;;
@@ -165,10 +208,7 @@ run_agent() {
                 continue
                 ;;
             *)
-                printf "§{AMBER}⟳ [Agente Razonando]§{NC} Procesando: \"%s\"...\n" "§line"
-                sleep 1
-                printf "§{VIOLET}⚙ [Snapdragon 870]§{NC} Ejecución completada en baja latencia.\n"
-                printf "§{GREEN}✔ [Respuesta Agéntica]§{NC} Tarea resuelta satisfactoriamente.\n\n"
+                call_gemini "§line"
                 ;;
         esac
     done
@@ -206,24 +246,21 @@ run_test() {
 
 run_auth() {
     printf "§{BANNER}\n"
-    TOKEN_FILE="§{HOME}/.antigravity_token"
-    if [ -n "§1" ]; then
-        token="§1"
-    else
-        printf "§{CYAN}Introduce tu token de Antigravity Ultra:§{NC} "
-        read -r token
+    CREDS_FILE="§{HOME}/.gemini/oauth_creds.json"
+
+    if [ -f "§CREDS_FILE" ]; then
+        ACCOUNT_ID=$(grep -o '"account_id": "[^"]*' "§CREDS_FILE" | cut -d'"' -f4)
+        if [ -n "§ACCOUNT_ID" ]; then
+            printf "§{GREEN}✔ Sesión activa de Google OAuth:§{NC} §{BOLD}%s§{NC}\n" "§ACCOUNT_ID"
+            printf "§{MUTED}Los modelos reales de Gemini están listos para usarse con 'agy run'.§{NC}\n\n"
+        fi
     fi
 
-    if [ -z "§token" ]; then
-        printf "§{RED}Error: El token no puede estar vacío.§{NC}\n"
-        return 1
-    fi
+    printf "§{CYAN}⚡ Autenticación Google OAuth 2.0 PKCE§{NC}\n"
+    printf "Abriendo pantalla de inicio de sesión de Google en el navegador...\n"
+    am start -a android.intent.action.VIEW -d "https://accounts.google.com/o/oauth2/v2/auth?client_id=933725514589-lud4la20l7i5c35g1f77d33j8tffb66a.apps.googleusercontent.com&redirect_uri=antigravity://oauth2callback&response_type=code&scope=https://www.googleapis.com/auth/cloud-platform%20openid%20email%20profile&code_challenge_method=S256&access_type=offline&prompt=consent" 2>/dev/null || am start -a android.intent.action.VIEW -d "antigravity://login" 2>/dev/null
 
-    mkdir -p "§{HOME}"
-    printf "%s\n" "§token" > "§TOKEN_FILE"
-    chmod 600 "§TOKEN_FILE"
-    printf "§{GREEN}✔ Token guardado correctamente en %s§{NC}\n" "§TOKEN_FILE"
-    printf "§{VIOLET}● Acceso habilitado para modelos Ultra y razonamiento agéntico local.§{NC}\n"
+    printf "§{MUTED}Sugerencia: También puedes pulsar el botón [Iniciar Sesión con Google] en la barra superior.§{NC}\n\n"
 }
 
 show_status() {

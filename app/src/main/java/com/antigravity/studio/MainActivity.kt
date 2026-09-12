@@ -1,6 +1,8 @@
 package com.antigravity.studio
 
+import android.content.Intent
 import android.content.res.Configuration
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
@@ -8,6 +10,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
@@ -57,6 +61,10 @@ class MainActivity : ComponentActivity() {
         // 0. Bootstrap local Antigravity environment (bin/agy, workspace, .profile)
         com.antigravity.studio.core.AgyBootstrap.setupEnvironment(this)
 
+        // 0.1 Initialize Google OAuth PKCE manager
+        com.antigravity.studio.auth.GoogleOAuthManager.init(this)
+        handleOAuthIntent(intent)
+
         // 1. Hardware acceleration & edge-to-edge window insets
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.setFlags(
@@ -77,6 +85,8 @@ class MainActivity : ComponentActivity() {
                     color = CyberObsidian
                 ) {
                     val currentSession = activeSessionState.value ?: primarySession
+
+                    val activeUserEmail by com.antigravity.studio.auth.GoogleOAuthManager.activeAccountEmail.collectAsState()
 
                     WorkspaceScaffold(
                         activeSession = currentSession,
@@ -102,7 +112,27 @@ class MainActivity : ComponentActivity() {
                         onThemePresetSelected = { preset ->
                             currentThemePreset.value = preset
                         },
-                        agentState = agentState.value
+                        agentState = agentState.value,
+                        activeUserEmail = activeUserEmail,
+                        onGoogleSignInClick = {
+                            lifecycleScope.launch {
+                                try {
+                                    val authUrl = com.antigravity.studio.auth.GoogleOAuthManager.createAuthorizationUrl()
+                                    val authIntent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl)).apply {
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    }
+                                    startActivity(authIntent)
+                                } catch (e: Exception) {
+                                    Log.e(TAG, "Failed launching Google OAuth: ${e.message}", e)
+                                }
+                            }
+                        },
+                        onSignOutClick = {
+                            lifecycleScope.launch {
+                                com.antigravity.studio.auth.GoogleOAuthManager.signOut()
+                                currentSession.writeCommand("echo 'Google Account Signed Out.'\r")
+                            }
+                        }
                     )
                 }
             }
@@ -179,6 +209,46 @@ class MainActivity : ComponentActivity() {
         // Handle tablet orientation changes without destroying active terminal sessions
         activeSessionState.value?.let { session ->
             session.resize(session.cols.value, session.rows.value)
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handleOAuthIntent(intent)
+    }
+
+    private fun handleOAuthIntent(intent: Intent?) {
+        val data = intent?.data ?: return
+        if (data.scheme == "antigravity") {
+            when (data.host) {
+                "login" -> {
+                    com.antigravity.studio.auth.GoogleOAuthManager.startLogin(this)
+                }
+                "oauth2callback" -> {
+                    lifecycleScope.launch {
+                        val result = com.antigravity.studio.auth.GoogleOAuthManager.handleAuthCallback(data)
+                        result.onSuccess { email ->
+                            Log.i(TAG, "Google OAuth login successful: $email")
+                            val msg = (
+                                "\r\n\u001b[1;32m✔ [Google OAuth 2.0 PKCE] Sesión iniciada con éxito.\u001b[0m\r\n" +
+                                "\u001b[38;2;139;92;246m● Cuenta activa: $email\u001b[0m\r\n" +
+                                "\u001b[1;36m● Modelos Gemini 2.0 Flash / Pro conectados directamente.\u001b[0m\r\n\r\n" +
+                                "\u001b[1;36magy:workspace$ \u001b[0m"
+                            ).toByteArray(Charsets.UTF_8)
+                            activeSessionState.value?.emitOutput(msg)
+                        }
+                        result.onFailure { error ->
+                            Log.e(TAG, "Google OAuth callback error", error)
+                            val msg = (
+                                "\r\n\u001b[1;31m✖ [Google OAuth Error] Fallo al completar la autenticación: ${error.message}\u001b[0m\r\n\r\n" +
+                                "\u001b[1;36magy:workspace$ \u001b[0m"
+                            ).toByteArray(Charsets.UTF_8)
+                            activeSessionState.value?.emitOutput(msg)
+                        }
+                    }
+                }
+            }
         }
     }
 

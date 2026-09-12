@@ -99,6 +99,10 @@ dependencies {
     // WebKit for xterm.js WebView container
     implementation("androidx.webkit:webkit:1.11.0")
 
+    // Networking (OkHttp & SSE for Google Generative AI streaming)
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp-sse:4.12.0")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")

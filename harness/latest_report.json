@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-12T06:56:28.164195+00:00",
+  "timestamp": "2026-09-12T07:37:19.195580+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,20 +7,20 @@
     "passed_suites": 3,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 50.18
+    "total_duration_ms": 51.37
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 3.9,
-      "summary": "2/2 especificaciones SDD válidas | 20 Criterios de Aceptación (AC) verificados",
+      "duration_ms": 4.72,
+      "summary": "3/3 especificaciones SDD válidas | 28 Criterios de Aceptación (AC) verificados",
       "details": {
-        "total_specs": 2,
-        "passed_specs": 2,
+        "total_specs": 3,
+        "passed_specs": 3,
         "failed_specs": 0,
-        "total_acceptance_criteria": 20,
+        "total_acceptance_criteria": 28,
         "reports": [
           {
             "file_path": "specs/00-system-architecture.md",
@@ -197,6 +197,80 @@
             "contract_count": 7,
             "errors": [],
             "warnings": []
+          },
+          {
+            "file_path": "specs/02-google-oauth-agent.md",
+            "is_valid": true,
+            "metadata": {
+              "id": "SPEC-002",
+              "title": "Autenticación Google OAuth 2.0 PKCE y Motor Agéntico Real de Antigravity",
+              "author": "spec_architect",
+              "status": "APPROVED FOR IMPLEMENTATION",
+              "target_device": "Xiaomi Pad 6 (Qualcomm Snapdragon 870, ARM64-v8a, 6 GB RAM, 11\" 2.8K 144Hz, HyperOS / Android 13/14)",
+              "runtime_target": "Kotlin 2.0+ / Android Jetpack Compose / OkHttp SSE Streaming / POSIX PTY"
+            },
+            "acceptance_criteria": [
+              {
+                "id": "AC-AUTH-001",
+                "module": "OAuth PKCE",
+                "description": "`createAuthorizationUrl` genera un `code_verifier` de alta entropía (longitud entre 43 y 128 caracteres) y un `code_challenge` SHA-256 Base64URL sin relleno (*unpadded*).",
+                "verification_method": "Test unitario validando regex del verifier y cómputo de resumen criptográfico SHA-256.",
+                "line_number": 341
+              },
+              {
+                "id": "AC-AUTH-002",
+                "module": "OAuth Deep Link",
+                "description": "`handleAuthorizationCallback` procesa el URI `antigravity://oauth2callback`, verifica la correspondencia estricta del parámetro `state` y extrae el código de autorización temporal.",
+                "verification_method": "Test unitario pasando URIs simulados válidos y con `state` adulterado comprobando rechazo de seguridad.",
+                "line_number": 342
+              },
+              {
+                "id": "AC-AUTH-003",
+                "module": "Token Exchange & Storage",
+                "description": "El intercambio por `code` contra `https://oauth2.googleapis.com/token` persiste los datos en `oauth_creds.json` y `google_accounts.json` con permisos de archivo `0600`.",
+                "verification_method": "Test de integración verificando existencia de los archivos JSON y comprobación de permisos de acceso en almacenamiento privado.",
+                "line_number": 343
+              },
+              {
+                "id": "AC-AUTH-004",
+                "module": "Token Auto-Refresh",
+                "description": "`getValidAccessToken` detecta tokens a punto de expirar ($\\le 300\\,\\text{s}$) e invoca silenciosamente el refresco mediante `refresh_token`, actualizando el archivo local sin intervención del usuario.",
+                "verification_method": "Test unitario con token artificialmente caducado comprobando refresco automático antes de la llamada.",
+                "line_number": 344
+              },
+              {
+                "id": "AC-AUTH-005",
+                "module": "Multi-Usuario",
+                "description": "El registro `google_accounts.json` soporta almacenar múltiples identidades de usuario y alternar la cuenta activa sin perder las credenciales previas.",
+                "verification_method": "Test unitario agregando dos cuentas de prueba y conmutando el puntero `active_account_email`.",
+                "line_number": 345
+              },
+              {
+                "id": "AC-AUTH-006",
+                "module": "SSE Streaming to PTY",
+                "description": "`RealAgentEngine` procesa respuestas SSE de Gemini con encabezado `Authorization: Bearer` y escribe los bytes de texto directamente al PTY master con latencia de cuadro $\\le 16\\,\\text{ms}$ a 144Hz.",
+                "verification_method": "Test instrumentado conectando un mock SSE server y validando la lectura inmediata en el descriptor de PTY.",
+                "line_number": 346
+              },
+              {
+                "id": "AC-AUTH-007",
+                "module": "Workspace Tool Sandboxing",
+                "description": "Las herramientas de archivo (`write_file`, `read_file`) operan estrictamente dentro de `$filesDir/workspace`, bloqueando cualquier intento de escape o traversal (`../`).",
+                "verification_method": "Test de seguridad de herramientas locales intentando escribir en `/system/` o `/data/data/com.antigravity.studio/databases`.",
+                "line_number": 347
+              },
+              {
+                "id": "AC-AUTH-008",
+                "module": "UI Auth Integration",
+                "description": "La interfaz `GoogleAuthTopBarAction` reacciona al `AuthState`, renderizando el botón de login en estado desconectado y el badge `shadrick1212@gmail.com 🟢 ONLINE` al autenticarse.",
+                "verification_method": "Test de interfaz con `ComposeTestRule` inyectando diferentes estados de `AuthState`.",
+                "line_number": 348
+              }
+            ],
+            "diagram_count": 2,
+            "contract_count": 5,
+            "errors": [],
+            "warnings": []
           }
         ]
       },
@@ -208,7 +282,7 @@
       "name": "code_linter",
       "display_name": "Static Analysis & Syntax Linter Suite",
       "status": "PASS",
-      "duration_ms": 16.42,
+      "duration_ms": 16.22,
       "summary": "Análisis sintáctico completado sin errores en 6 archivos",
       "details": {
         "scanned_files": 6
@@ -221,7 +295,7 @@
       "name": "test_suite",
       "display_name": "Automated Unit & Regression Test Suite",
       "status": "PASS",
-      "duration_ms": 29.78,
+      "duration_ms": 30.34,
       "summary": "8 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
       "details": {
         "tests_run": 8,
