@@ -103,7 +103,7 @@ class TerminalSession(
                 "\u0003" -> { // SIGINT (^C)
                     emitOutput("^C\r\n\u001b[1;36magy:workspace$ \u001b[0m".toByteArray(Charsets.UTF_8))
                 }
-                "agy run\r" -> {
+                "agy\r", "agy run\r" -> {
                     emitOutput(
                         ("\r\n\u001b[38;2;139;92;246m[Antigravity Orchestrator]\u001b[0m Launching autonomous loop...\r\n" +
                          "\u001b[38;2;0;240;255m● Spec:\u001b[0m specs/01-app-blueprint.md\r\n" +

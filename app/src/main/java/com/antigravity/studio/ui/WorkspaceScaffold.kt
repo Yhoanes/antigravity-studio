@@ -65,6 +65,7 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -222,6 +223,7 @@ fun WorkspaceScaffold(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
+    val keyboardController = LocalSoftwareKeyboardController.current
     val coroutineScope = rememberCoroutineScope()
     val updateStatus by UpdateManager.updateStatus.collectAsState()
     var showUpdateDialog by remember { mutableStateOf(false) }
@@ -230,6 +232,7 @@ fun WorkspaceScaffold(
     var splitFraction by remember { mutableFloatStateOf(0.72f) }
     var isCtrlActive by remember { mutableStateOf(false) }
     var isAltActive by remember { mutableStateOf(false) }
+    var isKeyboardShown by remember { mutableStateOf(false) }
 
     val cols by activeSession.cols.collectAsState()
     val rows by activeSession.rows.collectAsState()
@@ -385,7 +388,13 @@ fun WorkspaceScaffold(
                                     }
                                 }
                                 is KeyAction.ToggleSoftKeyboard -> {
-                                    // Soft keyboard toggle
+                                    if (isKeyboardShown) {
+                                        keyboardController?.hide()
+                                        isKeyboardShown = false
+                                    } else {
+                                        keyboardController?.show()
+                                        isKeyboardShown = true
+                                    }
                                 }
                             }
                         }

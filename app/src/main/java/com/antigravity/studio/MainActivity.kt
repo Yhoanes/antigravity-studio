@@ -1,6 +1,9 @@
 package com.antigravity.studio
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
@@ -15,8 +18,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
+import com.antigravity.studio.agent.RealAgentEngine
 import com.antigravity.studio.model.AgentSessionState
 import com.antigravity.studio.model.AgentStatus
 import com.antigravity.studio.model.TerminalSession
@@ -36,10 +41,10 @@ private val WELCOME_BANNER = (
     "\u001b[1;35m    / ___ |/ / / / /_/ / /_/ / /  / /_/ /| |/ // // /_/ /_/ /     \r\n" +
     "\u001b[1;36m   /_/  |_/_/ /_/\\__/_/\\__, /_/   \\__,_/ |___//_/ \\__/\\__, /      \r\n" +
     "\u001b[1;36m                      /____/                         /____/       \r\n" +
-    "\u001b[38;2;139;92;246m   [Antigravity Studio v1.0.0 | Xiaomi Pad 6 2.8K 144Hz WebGL]\u001b[0m\r\n" +
+    "\u001b[38;2;139;92;246m   [Antigravity 2.0 (Gemini 2.5) | Xiaomi Pad 6 2.8K 144Hz WebGL]\u001b[0m\r\n" +
     "\u001b[38;2;34;197;94m   ● Local Agent Session Ready | PTY Engine Connected\u001b[0m\r\n" +
     "\u001b[90m   Type 'agy --help' or use the Productivity Bar below.\u001b[0m\r\n\r\n" +
-    "\u001b[1;36magy:workspace$ \u001b[0m"
+    "\u001b[1;36magy:agent> \u001b[0m"
 ).toByteArray(Charsets.UTF_8)
 
 /**
@@ -50,10 +55,27 @@ private val WELCOME_BANNER = (
  */
 class MainActivity : ComponentActivity() {
 
+    var activeNativePty: com.antigravity.studio.pty.TerminalSession? = null
+
     private val activeSessions = mutableStateListOf<TerminalSession>()
     private val activeSessionState = mutableStateOf<TerminalSession?>(null)
+    private val nativePtyMap = mutableMapOf<String, com.antigravity.studio.pty.TerminalSession>()
     private val currentThemePreset = mutableStateOf(AppThemePreset.CYBER_OBSIDIAN)
     private val agentState = mutableStateOf(AgentSessionState(status = AgentStatus.READY))
+
+    private val agentReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == "com.antigravity.studio.RUN_AGENT") {
+                val prompt = intent.getStringExtra("prompt")
+                val pty = activeNativePty
+                if (!prompt.isNullOrBlank() && pty != null && pty.isRunning) {
+                    lifecycleScope.launch {
+                        RealAgentEngine.attachToPtyStream(pty.fd, prompt)
+                    }
+                }
+            }
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -65,7 +87,16 @@ class MainActivity : ComponentActivity() {
         com.antigravity.studio.auth.GoogleOAuthManager.init(this)
         handleOAuthIntent(intent)
 
-        // 0.2 Observe Google OAuth state to announce authentication events in terminal
+        // 0.2 Register dynamic BroadcastReceiver for native agent invocation
+        val filter = IntentFilter("com.antigravity.studio.RUN_AGENT")
+        ContextCompat.registerReceiver(
+            this,
+            agentReceiver,
+            filter,
+            ContextCompat.RECEIVER_EXPORTED
+        )
+
+        // 0.3 Observe Google OAuth state to announce authentication events in terminal
         lifecycleScope.launch {
             var previousState: com.antigravity.studio.core.auth.AuthState = com.antigravity.studio.core.auth.AuthState.Unauthenticated
             com.antigravity.studio.auth.GoogleOAuthManager.authState.collect { state ->
@@ -73,14 +104,14 @@ class MainActivity : ComponentActivity() {
                     val msg = (
                         "\r\n\u001b[1;32m✔ [Google OAuth 2.0 PKCE] Sesión iniciada con éxito.\u001b[0m\r\n" +
                         "\u001b[38;2;139;92;246m● Cuenta activa: ${state.email}\u001b[0m\r\n" +
-                        "\u001b[1;36m● Modelos Gemini 1.5 Pro / Flash conectados directamente.\u001b[0m\r\n\r\n" +
-                        "\u001b[1;36magy:workspace$ \u001b[0m"
+                        "\u001b[1;36m● Modelo Gemini 2.0 Flash conectado directamente.\u001b[0m\r\n\r\n" +
+                        "\u001b[1;36magy:agent> \u001b[0m"
                     ).toByteArray(Charsets.UTF_8)
                     activeSessionState.value?.emitOutput(msg)
                 } else if (previousState is com.antigravity.studio.core.auth.AuthState.Authenticating && state is com.antigravity.studio.core.auth.AuthState.Error) {
                     val msg = (
                         "\r\n\u001b[1;31m✖ [Google OAuth Error] Fallo al completar la autenticación: ${state.message}\u001b[0m\r\n\r\n" +
-                        "\u001b[1;36magy:workspace$ \u001b[0m"
+                        "\u001b[1;36magy:agent> \u001b[0m"
                     ).toByteArray(Charsets.UTF_8)
                     activeSessionState.value?.emitOutput(msg)
                 }
@@ -116,19 +147,24 @@ class MainActivity : ComponentActivity() {
                         sessions = activeSessions,
                         onSelectSession = { session ->
                             activeSessionState.value = session
+                            activeNativePty = nativePtyMap[session.id]
                         },
                         onNewSession = {
                             val newSessionNum = activeSessions.size + 1
                             val newSession = createSession(title = "Terminal $newSessionNum")
                             activeSessions.add(newSession)
                             activeSessionState.value = newSession
+                            activeNativePty = nativePtyMap[newSession.id]
                         },
                         onCloseSession = { sessionToClose ->
                             if (activeSessions.size > 1) {
                                 sessionToClose.close()
                                 activeSessions.remove(sessionToClose)
+                                nativePtyMap.remove(sessionToClose.id)
                                 if (activeSessionState.value?.id == sessionToClose.id) {
-                                    activeSessionState.value = activeSessions.last()
+                                    val nextSession = activeSessions.last()
+                                    activeSessionState.value = nextSession
+                                    activeNativePty = nativePtyMap[nextSession.id]
                                 }
                             }
                         },
@@ -193,6 +229,11 @@ class MainActivity : ComponentActivity() {
             }
         )
 
+        if (finalPty != null) {
+            nativePtyMap[uiSession.id] = finalPty
+            activeNativePty = finalPty
+        }
+
         // Stream native PTY bytes into UI session
         if (finalPty != null) {
             lifecycleScope.launch {
@@ -202,15 +243,13 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // Emit futuristic welcome banner on terminal startup
+        // Start terminal in the interactive Antigravity agent session
         lifecycleScope.launch {
-            if (finalPty != null && finalPty.isRunning) {
-                finalPty.tryWrite(". \"$filesDirPath/.mkshrc\" 2>/dev/null; clear\r".toByteArray(Charsets.UTF_8))
-            }
             delay(100)
-            uiSession.emitOutput(WELCOME_BANNER)
             if (finalPty != null && finalPty.isRunning) {
-                finalPty.tryWrite("\r".toByteArray(Charsets.UTF_8))
+                finalPty.tryWrite(". \"$filesDirPath/.mkshrc\" 2>/dev/null; clear; agy\r".toByteArray(Charsets.UTF_8))
+            } else {
+                uiSession.emitOutput(WELCOME_BANNER)
             }
         }
 
@@ -258,9 +297,16 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        try {
+            unregisterReceiver(agentReceiver)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to unregister agent receiver: ${e.message}")
+        }
         for (session in activeSessions) {
             session.close()
         }
         activeSessions.clear()
+        nativePtyMap.clear()
+        activeNativePty = null
     }
 }

@@ -73,7 +73,7 @@ object AgyBootstrap {
         }
     }
 
-    private fun deployAgyScript(agyFile: File, homePath: String, workspacePath: String) {
+    internal fun deployAgyScript(agyFile: File, homePath: String, workspacePath: String) {
         val binPath = agyFile.parentFile?.absolutePath ?: ""
         val scriptTemplate = """#!/system/bin/sh
 # ==============================================================================
@@ -101,83 +101,48 @@ BANNER="§{CYAN}   ___         __  _                         _  __           §{
 §{VIOLET}/ ___ |/ / / / /_/ / /_/ / /  / /_/ /| |/ // // /_/ /_/ /     §{NC}\n\
 §{CYAN}/_/  |_/_/ /_/\__/_/\__, /_/   \__,_/ |___//_/ \__/\__, /      §{NC}\n\
 §{CYAN}                  /____/                         /____/       §{NC}\n\
-§{VIOLET} [Antigravity CLI v1.0.0 | Snapdragon 870 Local Agent Engine]§{NC}\n"
+§{VIOLET} [Antigravity 2.0 (Gemini 2.5) | Snapdragon 870 Local Agent Engine]§{NC}\n"
 
 show_help() {
     printf "§{BANNER}\n"
     printf "§{BOLD}USO:§{NC} agy <comando> [argumentos...]\n\n"
     printf "§{BOLD}COMANDOS DISPONIBLES:§{NC}\n"
     printf "  §{CYAN}run§{NC} [prompt]       Inicia la sesión del agente o procesa un prompt directo\n"
-    printf "  §{VIOLET}test§{NC}              Ejecuta el arnés de verificación de calidad (QA Harness)\n"
     printf "  §{GREEN}auth§{NC} [token]       Guarda la clave de autenticación en ~/.antigravity_token\n"
     printf "  §{AMBER}status§{NC}            Muestra el estado de hardware, GPU Adreno 650 y PTY\n"
     printf "  §{CYAN}setup-linux§{NC}       Prepara el rootfs minimal Ubuntu ARM64 con PRoot\n"
     printf "  §{VIOLET}models§{NC}            Lista los modelos de IA locales y cloud disponibles\n"
     printf "  §{MUTED}help, --help, -h§{NC}  Muestra este menú de ayuda\n\n"
     printf "§{BOLD}ACCESOS RÁPIDOS DE PRODUCTIVIDAD:§{NC}\n"
-    printf "  Utiliza los botones de la barra inferior: [⚡ agy run] y [🧪 agy test]\n"
+    printf "  Utiliza la barra inferior para accesos rápidos: [⚡ agy run]\n"
 }
 
 run_agent() {
     printf "§{BANNER}\n"
     CREDS_FILE="§{HOME}/.gemini/oauth_creds.json"
-    ACCESS_TOKEN=""
     ACCOUNT_ID=""
 
     if [ -f "§CREDS_FILE" ]; then
-        ACCESS_TOKEN=$(grep -o '"access_token": "[^"]*' "§CREDS_FILE" | cut -d'"' -f4)
         ACCOUNT_ID=$(grep -o '"account_id": "[^"]*' "§CREDS_FILE" | cut -d'"' -f4)
     fi
 
-    if [ -n "§ACCESS_TOKEN" ]; then
-        printf "§{GREEN}● Antigravity Agent Runtime [Gemini 2.0 Flash Conectado | %s]§{NC}\n" "§ACCOUNT_ID"
+    if [ -n "§ACCOUNT_ID" ]; then
+        printf "§{GREEN}● Antigravity 2.0 (Gemini 2.5) [Conectado | %s]§{NC}\n" "§ACCOUNT_ID"
     else
-        printf "§{AMBER}● Antigravity Agent Runtime [Modo Local / Sin Conexión Google OAuth]§{NC}\n"
+        printf "§{AMBER}● Antigravity 2.0 (Gemini 2.5) [Modo Local / Sin Conexión Google OAuth]§{NC}\n"
         printf "§{MUTED}Para activar IA real con Gemini: pulsa [Iniciar Sesión con Google] o ejecuta 'agy auth'.§{NC}\n"
     fi
     printf "§{MUTED}  Hardware: Xiaomi Pad 6 | Adreno 650 WebGL 144Hz | PTY Master OK§{NC}\n"
     printf "§{MUTED}  Workspace: §(pwd)§{NC}\n\n"
 
-    call_gemini() {
-        p="§1"
-        if [ -z "§ACCESS_TOKEN" ]; then
-            printf "§{AMBER}⟳ [Modo Local]§{NC} Procesando instrucción: \"%s\"...\n" "§p"
-            sleep 1
-            printf "§{VIOLET}⚙ [Snapdragon 870]§{NC} Analizando espacio de trabajo y contratos SDD...\n"
-            printf "§{GREEN}✔ [Respuesta Local]§{NC} Tarea ejecutada localmente. Para respuestas de Gemini 2.0, inicia sesión con 'agy auth'.\n\n"
-            return 0
-        fi
-
-        printf "§{CYAN}⚡ [Gemini 2.0 Flash]§{NC} Consultando API generativa de Google...\n"
-        REQ="{\"contents\":[{\"role\":\"user\",\"parts\":[{\"text\":\"§p\"}]}],\"systemInstruction\":{\"parts\":[{\"text\":\"Eres el Agente Autónomo de Antigravity Studio en Xiaomi Pad 6. Responde con precisión técnica de software.\"}]}}"
-        RESP=$(curl -s -X POST "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent" \
-            -H "Authorization: Bearer §ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "§REQ" 2>/dev/null)
-
-        TEXT=$(echo "§RESP" | grep -o '"text": "[^"]*' | head -n 1 | cut -d'"' -f4)
-        if [ -n "§TEXT" ]; then
-            printf "\n§{BOLD}Respuesta de Gemini:§{NC}\n%s\n\n" "§TEXT"
-        else
-            ERR=$(echo "§RESP" | grep -o '"message": "[^"]*' | head -n 1 | cut -d'"' -f4)
-            if [ -n "§ERR" ]; then
-                printf "§{RED}Error API Google: %s§{NC}\n" "§ERR"
-                printf "§{MUTED}Si el token ha expirado, renueva sesión ejecutando 'agy auth'.§{NC}\n\n"
-            else
-                printf "§{GREEN}✔ [Gemini 2.0 Flash]§{NC} Tarea completada con éxito.\n\n"
-            fi
-        fi
-    }
-
     if [ -n "§1" ]; then
         prompt="§*"
-        printf "§{CYAN}⚡ Prompt Recibido:§{NC} %s\n\n" "§prompt"
-        call_gemini "§prompt"
+        /system/bin/am broadcast -a com.antigravity.studio.RUN_AGENT --es prompt "§prompt" >/dev/null 2>&1
         return 0
     fi
 
     printf "§{CYAN}Sesión Interactiva Activa.§{NC} Escribe comandos o '§{BOLD}exit§{NC}' para salir.\n"
-    printf "§{MUTED}Comandos útiles: 'status', 'test', 'auth', 'models' o cualquier prompt de ingeniería.§{NC}\n\n"
+    printf "§{MUTED}Comandos útiles: 'status', 'auth', 'models' o cualquier consulta para el agente.§{NC}\n\n"
 
     while true; do
         printf "§{CYAN}agy:agent>§{NC} "
@@ -195,9 +160,6 @@ run_agent() {
             status)
                 show_status
                 ;;
-            test)
-                run_test
-                ;;
             auth)
                 run_auth
                 ;;
@@ -208,40 +170,11 @@ run_agent() {
                 continue
                 ;;
             *)
-                call_gemini "§line"
+                prompt="§line"
+                /system/bin/am broadcast -a com.antigravity.studio.RUN_AGENT --es prompt "§prompt" >/dev/null 2>&1
                 ;;
         esac
     done
-}
-
-run_test() {
-    printf "§{BANNER}\n"
-    printf "§{CYAN}Iniciando Arnés de Evaluación Automatizada (QA Harness)...§{NC}\n\n"
-    sleep 1
-
-    printf "  [1/5] Verificando especificaciones SDD (specs/)...     "
-    sleep 1
-    printf "§{GREEN}[PASS]§{NC} 20/20 Criterios Verificados\n"
-
-    printf "  [2/5] Análisis estático y linter de sintaxis...        "
-    sleep 1
-    printf "§{GREEN}[PASS]§{NC} 0 Errores sintácticos\n"
-
-    printf "  [3/5] Motor Pseudoterminal POSIX (PTY NDK)...          "
-    sleep 1
-    printf "§{GREEN}[PASS]§{NC} Master/Slave Allocator OK\n"
-
-    printf "  [4/5] Pipeline WebGL y aceleración GPU 144Hz...        "
-    sleep 1
-    printf "§{GREEN}[PASS]§{NC} Latencia <= 6.94ms\n"
-
-    printf "  [5/5] Subproceso Linux y aislamiento de señales...    "
-    sleep 1
-    printf "§{GREEN}[PASS]§{NC} SIGWINCH/SIGINT Manejados\n\n"
-
-    printf "§{BOLD}==============================================================================§{NC}\n"
-    printf "§{GREEN}§{BOLD}RESULTADO GLOBAL: 5/5 SUITES PASADAS (100%% CUMPLIMIENTO SDD)§{NC}\n"
-    printf "§{BOLD}==============================================================================§{NC}\n\n"
 }
 
 run_auth() {
@@ -273,7 +206,7 @@ show_status() {
     printf "  §{CYAN}Latencia Frame:§{NC}    <= 6.94 ms (Objetivo VSYNC cumplido)\n"
     printf "  §{CYAN}Motor PTY:§{NC}         POSIX Native NDK (/dev/ptmx) [CONECTADO]\n"
     printf "  §{CYAN}Virtualización:§{NC}    PRoot User-Space (sin requerimiento de root)\n"
-    printf "  §{CYAN}CLI Version:§{NC}       Antigravity CLI v1.0.0\n"
+    printf "  §{CYAN}CLI Version:§{NC}       Antigravity 2.0 (Gemini 2.5)\n"
     printf "  §{CYAN}Directorio Home:§{NC}   §HOME\n"
     printf "  §{CYAN}Espacio Trabajo:§{NC}   §WORKSPACE\n\n"
 }
@@ -296,11 +229,11 @@ setup_linux() {
 list_models() {
     printf "§{BANNER}\n"
     printf "§{BOLD}MODELOS DE IA DISPONIBLES EN ANTIGRAVITY STUDIO:§{NC}\n\n"
-    printf "  §{CYAN}gemini-2.5-pro§{NC}           (Cloud / Ultra - Máxima capacidad de razonamiento SDD)\n"
-    printf "  §{CYAN}gemini-2.5-flash§{NC}         (Cloud / Ultra - Respuesta en ultra baja latencia)\n"
+    printf "  §{CYAN}gemini-2.0-flash§{NC}         (Cloud / Ultra - Conexión directa nativa con SSE streaming)\n"
+    printf "  §{CYAN}gemini-1.5-pro§{NC}           (Cloud / Ultra - Razonamiento de contexto masivo)\n"
     printf "  §{VIOLET}antigravity-local-q8§{NC}     (Local On-Device - Acelerado por NPU Hexagon)\n"
     printf "  §{VIOLET}antigravity-coder-7b§{NC}     (Local On-Device - Especializado en Rust, Kotlin, C++)\n\n"
-    printf "§{MUTED}Configurado actualmente: gemini-2.5-pro§{NC}\n"
+    printf "§{MUTED}Configurado actualmente: gemini-2.0-flash§{NC}\n"
 }
 
 CMD="§1"
@@ -309,9 +242,6 @@ shift 2>/dev/null
 case "§CMD" in
     run|"")
         run_agent "§@"
-        ;;
-    test)
-        run_test "§@"
         ;;
     auth)
         run_auth "§@"
@@ -329,9 +259,7 @@ case "§CMD" in
         show_help
         ;;
     *)
-        printf "§{RED}Comando desconocido: '%s'§{NC}\n\n" "§CMD"
-        show_help
-        exit 1
+        run_agent "§CMD" "§@"
         ;;
 esac
 """.trimIndent()
@@ -345,7 +273,9 @@ esac
         agyFile.setReadable(true, false)
 
         try {
-            Runtime.getRuntime().exec(arrayOf("/system/bin/chmod", "755", agyFile.absolutePath)).waitFor()
+            if (File("/system/bin/chmod").exists()) {
+                Runtime.getRuntime().exec(arrayOf("/system/bin/chmod", "755", agyFile.absolutePath)).waitFor()
+            }
         } catch (e: Exception) {
             Log.w(TAG, "chmod 755 failed via Runtime.exec: ${e.message}")
         }

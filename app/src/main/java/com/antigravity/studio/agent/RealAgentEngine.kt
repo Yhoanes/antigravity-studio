@@ -36,8 +36,8 @@ interface IRealAgentEngine {
 }
 
 /**
- * RealAgentEngine connects Antigravity Studio directly to Google Generative Language
- * APIs (`gemini-2.0-flash` / `gemini-1.5-pro`) using the authenticated user's Google OAuth token.
+ * RealAgentEngine connects Antigravity Agent directly to Google Generative Language
+ * APIs (`gemini-2.0-flash`) using the authenticated user's Google OAuth token.
  *
  * Streams tokens via SSE with sub-16ms frame latency directly to the PTY master descriptor.
  */
@@ -66,16 +66,16 @@ object RealAgentEngine : IRealAgentEngine {
 
         if (accessToken.isNullOrEmpty()) {
             val unauthMessage = """
-                [1;33m[!] No se ha detectado una sesión activa de Google OAuth.[0m
+                \u001b[1;33m[!] Antigravity Agent: No se ha detectado una sesión activa de Google OAuth.\u001b[0m
                 
-                [38;2;139;92;246mAntigravity Studio se conecta directamente a los modelos reales de Gemini[0m
-                [38;2;139;92;246mutilizando tu cuenta de Google mediante OAuth 2.0 PKCE.[0m
+                \u001b[38;2;139;92;246mAntigravity Agent se conecta directamente a Gemini 2.0 Flash\u001b[0m
+                \u001b[38;2;139;92;246mutilizando tu cuenta de Google mediante OAuth 2.0 PKCE.\u001b[0m
                 
-                [1;36mPara activar el agente con IA real:[0m
-                1. Pulsa el botón [1;32m[Iniciar Sesión con Google][0m en la barra superior.
-                2. O escribe [1;36magy auth[0m en esta terminal.
+                \u001b[1;36mPara activar el agente con IA real:\u001b[0m
+                1. Pulsa el botón \u001b[1;32m[Iniciar Sesión con Google]\u001b[0m en la barra superior.
+                2. O escribe \u001b[1;36magy auth\u001b[0m en esta terminal.
                 
-            """.trimIndent()
+            """.trimIndent().replace("\n", "\r\n")
             emit(AgentStreamEvent.TextDelta(unauthMessage))
             emit(AgentStreamEvent.Completed(0))
             return@flow
@@ -83,7 +83,7 @@ object RealAgentEngine : IRealAgentEngine {
 
         try {
             val defaultSystem = systemInstruction ?: """
-                Eres el Agente Autónomo de Antigravity Studio ejecutándose en una estación móvil Xiaomi Pad 6 (Snapdragon 870, 144Hz).
+                Eres Antigravity Agent ejecutándote como motor autónomo en una estación móvil Xiaomi Pad 6 (Snapdragon 870, 144Hz).
                 Tu objetivo es asistir en tareas de ingeniería de software, arquitectura de sistemas y análisis de código.
                 Responde de forma concisa, precisa y profesional con formato compatible con terminal ANSI.
             """.trimIndent()
@@ -124,7 +124,7 @@ object RealAgentEngine : IRealAgentEngine {
 
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string().orEmpty()
-                val errMsg = "[1;31m[Error API Google ${response.code}][0m: $errorBody\r\n"
+                val errMsg = "\r\n\u001b[1;31m[Antigravity Agent Error Google ${response.code}]\u001b[0m: $errorBody\r\n"
                 emit(AgentStreamEvent.TextDelta(errMsg))
                 emit(AgentStreamEvent.Error(IllegalStateException("HTTP ${response.code}: $errorBody")))
                 return@flow
@@ -170,7 +170,7 @@ object RealAgentEngine : IRealAgentEngine {
             emit(AgentStreamEvent.Completed(totalTokens))
         } catch (e: Exception) {
             Log.e(TAG, "Error executing agent task", e)
-            emit(AgentStreamEvent.TextDelta("\r\n[1;31m[Fallo de Conexión Agéntica][0m: ${e.message}\r\n"))
+            emit(AgentStreamEvent.TextDelta("\r\n\u001b[1;31m[Antigravity Agent Fallo de Conexión]\u001b[0m: ${e.message}\r\n"))
             emit(AgentStreamEvent.Error(e))
         }
     }.flowOn(Dispatchers.IO)
@@ -181,7 +181,7 @@ object RealAgentEngine : IRealAgentEngine {
     override suspend fun attachToPtyStream(masterFd: Int, userPrompt: String) = withContext(Dispatchers.IO) {
         if (masterFd < 0) return@withContext
 
-        val banner = "\r\n[1;36m⟳ Conectando con Google Gemini 2.0 Flash (OAuth)...[0m\r\n"
+        val banner = "\r\n\u001b[1;36m⟳ [Antigravity Agent] Conectando con Gemini 2.0 Flash...\u001b[0m\r\n"
         writeToPty(masterFd, banner)
 
         executeAgentTask(userPrompt).collect { event ->
@@ -192,16 +192,16 @@ object RealAgentEngine : IRealAgentEngine {
                     writeToPty(masterFd, formatted)
                 }
                 is AgentStreamEvent.ToolCallStarted -> {
-                    writeToPty(masterFd, "\r\n[38;2;245;158;11m⚙ Ejecutando herramienta: ${event.toolName}...[0m\r\n")
+                    writeToPty(masterFd, "\r\n\u001b[38;2;245;158;11m⚙ [Antigravity Agent] Ejecutando herramienta: ${event.toolName}...\u001b[0m\r\n")
                 }
                 is AgentStreamEvent.ToolCallFinished -> {
-                    writeToPty(masterFd, "[38;2;34;197;94m✔ ${event.toolName} finalizada: ${event.resultSummary}[0m\r\n")
+                    writeToPty(masterFd, "\u001b[38;2;34;197;94m✔ [Antigravity Agent] ${event.toolName} finalizada: ${event.resultSummary}\u001b[0m\r\n")
                 }
                 is AgentStreamEvent.Completed -> {
-                    writeToPty(masterFd, "\r\n[38;2;34;197;94m● [Respuesta de Gemini Completada][0m\r\n\r\n")
+                    writeToPty(masterFd, "\r\n\u001b[38;2;34;197;94m● [Antigravity Agent] Respuesta completada\u001b[0m\r\n\r\n\u001b[1;36magy:agent>\u001b[0m ")
                 }
                 is AgentStreamEvent.Error -> {
-                    writeToPty(masterFd, "\r\n[1;31m✖ Error en agente: ${event.error.message}[0m\r\n\r\n")
+                    writeToPty(masterFd, "\r\n\u001b[1;31m✖ [Antigravity Agent Error]: ${event.error.message}\u001b[0m\r\n\r\n\u001b[1;36magy:agent>\u001b[0m ")
                 }
             }
         }

@@ -28,7 +28,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.antigravity.studio.theme.AccentAmber
 import com.antigravity.studio.theme.BorderObsidian
 import com.antigravity.studio.theme.CosmicViolet
 import com.antigravity.studio.theme.KeyCapTextStyle
@@ -122,19 +121,11 @@ fun ProductivityBar(
 
         // --- 2. ANTIGRAVITY AGENT ACTIONS (PROMINENT AT START) ---
         KeyCapButton(
-            label = "⚡ agy run",
+            label = "⚡ agy",
             accentColor = NeonCyan,
             textColor = NeonCyan,
             customBackground = NeonCyan,
-            onClick = { triggerAction(KeyAction.ShortcutCommand("agy run\r")) }
-        )
-
-        KeyCapButton(
-            label = "🧪 agy test",
-            accentColor = CosmicViolet,
-            textColor = CosmicViolet,
-            customBackground = CosmicViolet,
-            onClick = { triggerAction(KeyAction.ShortcutCommand("agy test\r")) }
+            onClick = { triggerAction(KeyAction.ShortcutCommand("agy\r")) }
         )
 
         KeyCapButton(
