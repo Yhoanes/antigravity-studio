@@ -59,9 +59,9 @@ object RealAgentEngine : IRealAgentEngine {
 
     private const val TAG = "RealAgentEngine"
     private const val GEMINI_MODEL = "gemini-2.0-flash"
-    internal const val CANONICAL_HOST = "https://cloudcode-pa.googleapis.com"
-    const val DEFAULT_INFERENCE_PROJECT = "aicode-consumers"
-    const val FALLBACK_INFERENCE_PROJECT = "default-cli-project"
+    private const val CANONICAL_HOST = "https://daily-cloudcode-pa.googleapis.com"
+    const val DEFAULT_INFERENCE_PROJECT = "default-cli-project"
+    const val FALLBACK_INFERENCE_PROJECT = "aicode-consumers"
     private const val USER_AGENT_OFFICIAL = "antigravity/1.2.2"
     private const val IDE_VERSION_OFFICIAL = "1.2.2"
     internal const val CLOUD_CODE_STREAM_URL = "$CANONICAL_HOST/v1internal:streamGenerateContent?alt=sse"
@@ -75,19 +75,20 @@ object RealAgentEngine : IRealAgentEngine {
     fun mapToCloudCodeModel(modelId: String): String {
         return when (modelId) {
             "gemini-3.8-flash-high", "gemini-3.8-flash" -> "gemini-3.8-flash-tiered"
-            "gemini-3.7-flash-high", "gemini-3.7-flash" -> "gemini-2.5-flash"
-            "gemini-3.6-flash-high", "gemini-3.6-flash" -> "gemini-2.5-flash"
-            "gemini-3.1-pro-low", "gemini-3.1-pro" -> "gemini-2.5-pro"
+            "gemini-3.7-flash-high", "gemini-3.7-flash" -> "gemini-3.7-flash-tiered"
+            "gemini-3.6-flash-high", "gemini-3.6-flash" -> "gemini-3.6-flash-tiered"
             "gemini-2.5-flash" -> "gemini-2.5-flash"
-            "gemini-2.5-pro" -> "gemini-2.5-pro"
+            "gemini-2.5-pro", "gemini-3.1-pro-low", "gemini-3.1-pro" -> "gemini-2.5-pro"
             "claude-sonnet-4-6" -> "claude-sonnet-4-6"
             "claude-opus-4-6-thinking" -> "claude-opus-4-6-thinking"
-            "gpt-oss-120b-medium" -> "gemini-2.5-pro"
+            "gpt-oss-120b-medium" -> "gpt-oss-120b-medium"
             else -> {
                 if (modelId.contains("3.8")) "gemini-3.8-flash-tiered"
+                else if (modelId.contains("3.7")) "gemini-3.7-flash-tiered"
+                else if (modelId.contains("3.6")) "gemini-3.6-flash-tiered"
                 else if (modelId.contains("flash")) "gemini-2.5-flash"
                 else if (modelId.contains("pro")) "gemini-2.5-pro"
-                else modelId
+                else "gemini-3.8-flash-tiered"
             }
         }
     }
@@ -174,20 +175,19 @@ object RealAgentEngine : IRealAgentEngine {
                 }
                 val requestJson = JSONObject().apply {
                     put("project", effectiveProject)
-                    put("model", modelId)
+                    put("model", mapToCloudCodeModel(activeModel.id))
                     put("requestId", java.util.UUID.randomUUID().toString())
                     put("userAgent", USER_AGENT_OFFICIAL)
                     put("requestType", "REQUEST_TYPE_CASCADE")
-                    put("enabledCreditTypes", JSONArray().apply {
-                        put("GOOGLE_ONE_AI")
-                    })
                     put("request", JSONObject().apply {
                         put("contents", contents)
-                        put("systemInstruction", JSONObject().apply {
-                            put("parts", JSONArray().apply {
-                                put(JSONObject().put("text", defaultSystem))
+                        if (defaultSystem.isNotEmpty()) {
+                            put("systemInstruction", JSONObject().apply {
+                                put("parts", JSONArray().apply {
+                                    put(JSONObject().put("text", defaultSystem))
+                                })
                             })
-                        })
+                        }
                         put("generationConfig", JSONObject().apply {
                             put("temperature", 0.7)
                             put("maxOutputTokens", 4096)
@@ -278,8 +278,20 @@ object RealAgentEngine : IRealAgentEngine {
                                     for (i in 0 until parts.length()) {
                                         val part = parts.getJSONObject(i)
                                         val text = part.optString("text", "")
-                                        if (text.isNotEmpty()) {
-                                            emit(AgentStreamEvent.TextDelta(text))
+                                        val thought = part.optString("thought", "")
+                                        val isThoughtFlag = part.optBoolean("thought", false)
+
+                                        if (thought.isNotEmpty()) {
+                                            val formattedThought = "\u001b[3m\u001b[38;2;139;148;158m$thought\u001b[0m"
+                                            emit(AgentStreamEvent.TextDelta(formattedThought))
+                                            totalTokens += thought.length / 4
+                                        } else if (text.isNotEmpty()) {
+                                            if (isThoughtFlag) {
+                                                val formattedThought = "\u001b[3m\u001b[38;2;139;148;158m$text\u001b[0m"
+                                                emit(AgentStreamEvent.TextDelta(formattedThought))
+                                            } else {
+                                                emit(AgentStreamEvent.TextDelta(text))
+                                            }
                                             totalTokens += text.length / 4
                                         }
                                     }
@@ -318,93 +330,11 @@ object RealAgentEngine : IRealAgentEngine {
 
     /**
      * Resolves companion project id for Ultra / Google One AI subscriptions.
-     * 1. Attempts loadCodeAssist ($CANONICAL_HOST/v1internal:loadCodeAssist).
-     * 2. Fallbacks to onboardUser ($CANONICAL_HOST/v1internal:onboardUser) with free-tier if not found.
-     * 3. Defaults to canonical DEFAULT_INFERENCE_PROJECT if still not found.
-     * 4. Returns companionProjectId ?: DEFAULT_INFERENCE_PROJECT.
+     * Retorna siempre DEFAULT_INFERENCE_PROJECT ("default-cli-project").
      */
     private suspend fun resolveCompanionProject(accessToken: String): String = withContext(Dispatchers.IO) {
-        // 1. Intentar llamar a POST $CANONICAL_HOST/v1internal:loadCodeAssist
-        try {
-            val reqJson = JSONObject().apply {
-                put("metadata", JSONObject().apply {
-                    put("ideType", "ANTIGRAVITY")
-                    put("ideVersion", IDE_VERSION_OFFICIAL)
-                    put("pluginVersion", "1.2.2")
-                })
-            }
-            val requestBody = reqJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder()
-                .url(CLOUD_CODE_LOAD_URL)
-                .header("Authorization", "Bearer $accessToken")
-                .header("Content-Type", "application/json")
-                .header("User-Agent", USER_AGENT_OFFICIAL)
-                .post(requestBody)
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                val bodyStr = response.body?.string().orEmpty()
-                if (bodyStr.isNotEmpty()) {
-                    val json = JSONObject(bodyStr)
-                    val projId = extractProjectId(json)
-                    if (!projId.isNullOrEmpty()) {
-                        companionProjectId = projId
-                        Log.i(TAG, "Resolved companion project via loadCodeAssist: $projId")
-                        return@withContext projId
-                    }
-                }
-            } else {
-                Log.w(TAG, "loadCodeAssist returned HTTP ${response.code}: ${response.body?.string()}")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed discovering companion project via loadCodeAssist", e)
-        }
-
-        // 2. Si no se obtiene o la respuesta no tiene proyecto, llamar como fallback a:
-        // POST $CANONICAL_HOST/v1internal:onboardUser
-        try {
-            val onboardReqJson = JSONObject().apply {
-                put("tierId", "standard-tier")
-                put("metadata", JSONObject().apply {
-                    put("ideType", "ANTIGRAVITY")
-                    put("ideVersion", IDE_VERSION_OFFICIAL)
-                    put("pluginVersion", "1.2.2")
-                })
-            }
-            val onboardBody = onboardReqJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val onboardRequest = Request.Builder()
-                .url(CLOUD_CODE_ONBOARD_URL)
-                .header("Authorization", "Bearer $accessToken")
-                .header("Content-Type", "application/json")
-                .header("User-Agent", USER_AGENT_OFFICIAL)
-                .post(onboardBody)
-                .build()
-
-            val onboardResponse = httpClient.newCall(onboardRequest).execute()
-            if (onboardResponse.isSuccessful) {
-                val bodyStr = onboardResponse.body?.string().orEmpty()
-                if (bodyStr.isNotEmpty()) {
-                    val json = JSONObject(bodyStr)
-                    val projId = extractProjectId(json)
-                    if (!projId.isNullOrEmpty()) {
-                        companionProjectId = projId
-                        Log.i(TAG, "Resolved companion project via onboardUser: $projId")
-                        return@withContext projId
-                    }
-                }
-            } else {
-                Log.w(TAG, "onboardUser returned HTTP ${onboardResponse.code}: ${onboardResponse.body?.string()}")
-            }
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed resolving companion project via onboardUser", e)
-        }
-
-        // 3. Si aún así es nulo o vacío, asignar el proyecto canónico oficial de Antigravity:
         companionProjectId = DEFAULT_INFERENCE_PROJECT
         Log.i(TAG, "Defaulting companion project to canonical: $DEFAULT_INFERENCE_PROJECT")
-
-        // 4. Retornar DEFAULT_INFERENCE_PROJECT
         return@withContext DEFAULT_INFERENCE_PROJECT
     }
 
@@ -523,8 +453,20 @@ object RealAgentEngine : IRealAgentEngine {
                                     for (i in 0 until parts.length()) {
                                         val part = parts.getJSONObject(i)
                                         val text = part.optString("text", "")
-                                        if (text.isNotEmpty()) {
-                                            emit(AgentStreamEvent.TextDelta(text))
+                                        val thought = part.optString("thought", "")
+                                        val isThoughtFlag = part.optBoolean("thought", false)
+
+                                        if (thought.isNotEmpty()) {
+                                            val formattedThought = "\u001b[3m\u001b[38;2;139;148;158m$thought\u001b[0m"
+                                            emit(AgentStreamEvent.TextDelta(formattedThought))
+                                            totalTokens += thought.length / 4
+                                        } else if (text.isNotEmpty()) {
+                                            if (isThoughtFlag) {
+                                                val formattedThought = "\u001b[3m\u001b[38;2;139;148;158m$text\u001b[0m"
+                                                emit(AgentStreamEvent.TextDelta(formattedThought))
+                                            } else {
+                                                emit(AgentStreamEvent.TextDelta(text))
+                                            }
                                             totalTokens += text.length / 4
                                         }
                                     }

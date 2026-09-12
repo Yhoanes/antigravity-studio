@@ -93,102 +93,10 @@ class RealAgentEngineTest {
     }
 
     @Test
-    fun testResolveCompanionProjectLoadCodeAssistSuccess() = runBlocking {
-        RealAgentEngine.httpClient = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val request = chain.request()
-                val url = request.url.toString()
-                assertTrue("URL should point to cloudcode-pa", url.startsWith("https://cloudcode-pa.googleapis.com"))
-                if (url.contains("loadCodeAssist")) {
-                    Response.Builder()
-                        .request(request)
-                        .protocol(Protocol.HTTP_1_1)
-                        .code(200)
-                        .message("OK")
-                        .body("""{"cloudaicompanionProject": "projects/ultra-load-success"}""".toResponseBody("application/json".toMediaType()))
-                        .build()
-                } else {
-                    Response.Builder()
-                        .request(request)
-                        .protocol(Protocol.HTTP_1_1)
-                        .code(404)
-                        .message("Not Found")
-                        .body("{}".toResponseBody("application/json".toMediaType()))
-                        .build()
-                }
-            }
-            .build()
-
-        val resolved = RealAgentEngine.resolveCompanionProjectForTest("fake-bearer-token")
-        assertEquals("projects/ultra-load-success", resolved)
-        assertEquals("projects/ultra-load-success", RealAgentEngine.getCompanionProjectId())
-    }
-
-    @Test
-    fun testResolveCompanionProjectFallbackOnboardUser() = runBlocking {
-        RealAgentEngine.httpClient = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val request = chain.request()
-                val url = request.url.toString()
-                assertTrue("URL should point to cloudcode-pa", url.startsWith("https://cloudcode-pa.googleapis.com"))
-                if (url.contains("loadCodeAssist")) {
-                    Response.Builder()
-                        .request(request)
-                        .protocol(Protocol.HTTP_1_1)
-                        .code(404)
-                        .message("Not Found")
-                        .body("{}".toResponseBody("application/json".toMediaType()))
-                        .build()
-                } else if (url.contains("onboardUser")) {
-                    assertTrue(url.startsWith("https://cloudcode-pa.googleapis.com/v1internal:onboardUser"))
-                    val buffer = okio.Buffer()
-                    request.body?.writeTo(buffer)
-                    val bodyJson = JSONObject(buffer.readUtf8())
-                    assertEquals("standard-tier", bodyJson.optString("tierId"))
-                    Response.Builder()
-                        .request(request)
-                        .protocol(Protocol.HTTP_1_1)
-                        .code(200)
-                        .message("OK")
-                        .body("""{"cloudaicompanionProject": {"id": "projects/ultra-onboarded-project"}}""".toResponseBody("application/json".toMediaType()))
-                        .build()
-                } else {
-                    Response.Builder()
-                        .request(request)
-                        .protocol(Protocol.HTTP_1_1)
-                        .code(500)
-                        .message("Error")
-                        .body("{}".toResponseBody("application/json".toMediaType()))
-                        .build()
-                }
-            }
-            .build()
-
-        val resolved = RealAgentEngine.resolveCompanionProjectForTest("fake-bearer-token")
-        assertEquals("projects/ultra-onboarded-project", resolved)
-        assertEquals("projects/ultra-onboarded-project", RealAgentEngine.getCompanionProjectId())
-    }
-
-    @Test
-    fun testResolveCompanionProjectBothFailReturnsDefaultProject() = runBlocking {
-        RealAgentEngine.httpClient = OkHttpClient.Builder()
-            .addInterceptor { chain ->
-                val request = chain.request()
-                val url = request.url.toString()
-                assertTrue("URL should point to cloudcode-pa", url.startsWith("https://cloudcode-pa.googleapis.com"))
-                Response.Builder()
-                    .request(request)
-                    .protocol(Protocol.HTTP_1_1)
-                    .code(500)
-                    .message("Internal Server Error")
-                    .body("{}".toResponseBody("application/json".toMediaType()))
-                    .build()
-            }
-            .build()
-
+    fun testResolveCompanionProjectReturnsDefaultProject() = runBlocking {
         val resolved = RealAgentEngine.resolveCompanionProjectForTest("fake-bearer-token")
         assertEquals(RealAgentEngine.DEFAULT_INFERENCE_PROJECT, resolved)
-        assertEquals("aicode-consumers", resolved)
+        assertEquals("default-cli-project", resolved)
         assertEquals(RealAgentEngine.DEFAULT_INFERENCE_PROJECT, RealAgentEngine.getCompanionProjectId())
     }
 
@@ -273,16 +181,16 @@ class RealAgentEngineTest {
             .build()
 
         val events = RealAgentEngine.executeAgentTask("Prueba").toList()
-        assertEquals("https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse", capturedUrl)
+        assertEquals("https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse", capturedUrl)
         assertEquals("Bearer $testToken", capturedAuth)
         assertEquals("antigravity/1.2.2", capturedUserAgentHeader)
         assertEquals("text/event-stream", capturedAcceptHeader)
         assertEquals(RealAgentEngine.DEFAULT_INFERENCE_PROJECT, capturedProject)
-        assertEquals("aicode-consumers", capturedProject)
+        assertEquals("default-cli-project", capturedProject)
         assertEquals("gemini-3.8-flash-tiered", capturedModel)
         assertEquals("antigravity/1.2.2", capturedUserAgentPayload)
         assertEquals("REQUEST_TYPE_CASCADE", capturedRequestType)
-        assertEquals("GOOGLE_ONE_AI", capturedCreditType)
+        assertNull(capturedCreditType)
         assertNotNull(capturedRequestId)
         assertTrue(capturedRequestId!!.isNotEmpty())
 
@@ -330,8 +238,8 @@ class RealAgentEngineTest {
                             .body(errorJson.toResponseBody("application/json".toMediaType()))
                             .build()
                     } else {
-                        // Second attempt with default-cli-project succeeds
-                        val sseResponse = "data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Recuperado con default-cli-project\"}]}}]}}\n\n"
+                        // Second attempt with fallback project succeeds
+                        val sseResponse = "data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Recuperado con aicode-consumers\"}]}}]}}\n\n"
                         Response.Builder()
                             .request(request)
                             .protocol(Protocol.HTTP_1_1)
@@ -356,14 +264,14 @@ class RealAgentEngineTest {
         val events = RealAgentEngine.executeAgentTask("Prueba con 403").toList()
         assertEquals(2, attemptCount)
         assertEquals(RealAgentEngine.DEFAULT_INFERENCE_PROJECT, requestProjects[0])
-        assertEquals("aicode-consumers", requestProjects[0])
+        assertEquals("default-cli-project", requestProjects[0])
         assertEquals(RealAgentEngine.FALLBACK_INFERENCE_PROJECT, requestProjects[1])
-        assertEquals("default-cli-project", requestProjects[1])
+        assertEquals("aicode-consumers", requestProjects[1])
         assertEquals(RealAgentEngine.FALLBACK_INFERENCE_PROJECT, RealAgentEngine.getCompanionProjectId())
 
         val textEvent = events.filterIsInstance<AgentStreamEvent.TextDelta>().firstOrNull()
         assertNotNull(textEvent)
-        assertEquals("Recuperado con default-cli-project", textEvent?.text)
+        assertEquals("Recuperado con aicode-consumers", textEvent?.text)
     }
 
     @Test
@@ -405,8 +313,8 @@ class RealAgentEngineTest {
                             .body(errorJson.toResponseBody("application/json".toMediaType()))
                             .build()
                     } else {
-                        // Second attempt with aicode-consumers succeeds
-                        val sseResponse = "data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Recuperado con aicode-consumers\"}]}}]}}\n\n"
+                        // Second attempt with default-cli-project succeeds
+                        val sseResponse = "data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Recuperado con default-cli-project\"}]}}]}}\n\n"
                         Response.Builder()
                             .request(request)
                             .protocol(Protocol.HTTP_1_1)
@@ -431,14 +339,14 @@ class RealAgentEngineTest {
         val events = RealAgentEngine.executeAgentTask("Prueba con 404").toList()
         assertEquals(2, attemptCount)
         assertEquals(RealAgentEngine.FALLBACK_INFERENCE_PROJECT, requestProjects[0])
-        assertEquals("default-cli-project", requestProjects[0])
+        assertEquals("aicode-consumers", requestProjects[0])
         assertEquals(RealAgentEngine.DEFAULT_INFERENCE_PROJECT, requestProjects[1])
-        assertEquals("aicode-consumers", requestProjects[1])
+        assertEquals("default-cli-project", requestProjects[1])
         assertEquals(RealAgentEngine.DEFAULT_INFERENCE_PROJECT, RealAgentEngine.getCompanionProjectId())
 
         val textEvent = events.filterIsInstance<AgentStreamEvent.TextDelta>().firstOrNull()
         assertNotNull(textEvent)
-        assertEquals("Recuperado con aicode-consumers", textEvent?.text)
+        assertEquals("Recuperado con default-cli-project", textEvent?.text)
     }
 
     @Test
@@ -500,14 +408,55 @@ class RealAgentEngineTest {
     fun testMapToCloudCodeModel() {
         assertEquals("gemini-3.8-flash-tiered", RealAgentEngine.mapToCloudCodeModel("gemini-3.8-flash-high"))
         assertEquals("gemini-3.8-flash-tiered", RealAgentEngine.mapToCloudCodeModel("gemini-3.8-flash"))
-        assertEquals("gemini-2.5-flash", RealAgentEngine.mapToCloudCodeModel("gemini-3.7-flash-high"))
-        assertEquals("gemini-2.5-flash", RealAgentEngine.mapToCloudCodeModel("gemini-3.6-flash-high"))
+        assertEquals("gemini-3.7-flash-tiered", RealAgentEngine.mapToCloudCodeModel("gemini-3.7-flash-high"))
+        assertEquals("gemini-3.7-flash-tiered", RealAgentEngine.mapToCloudCodeModel("gemini-3.7-flash"))
+        assertEquals("gemini-3.6-flash-tiered", RealAgentEngine.mapToCloudCodeModel("gemini-3.6-flash-high"))
+        assertEquals("gemini-3.6-flash-tiered", RealAgentEngine.mapToCloudCodeModel("gemini-3.6-flash"))
         assertEquals("gemini-2.5-pro", RealAgentEngine.mapToCloudCodeModel("gemini-3.1-pro-low"))
+        assertEquals("gemini-2.5-pro", RealAgentEngine.mapToCloudCodeModel("gemini-3.1-pro"))
         assertEquals("gemini-2.5-flash", RealAgentEngine.mapToCloudCodeModel("gemini-2.5-flash"))
         assertEquals("gemini-2.5-pro", RealAgentEngine.mapToCloudCodeModel("gemini-2.5-pro"))
         assertEquals("claude-sonnet-4-6", RealAgentEngine.mapToCloudCodeModel("claude-sonnet-4-6"))
         assertEquals("claude-opus-4-6-thinking", RealAgentEngine.mapToCloudCodeModel("claude-opus-4-6-thinking"))
-        assertEquals("gemini-2.5-pro", RealAgentEngine.mapToCloudCodeModel("gpt-oss-120b-medium"))
+        assertEquals("gpt-oss-120b-medium", RealAgentEngine.mapToCloudCodeModel("gpt-oss-120b-medium"))
+        assertEquals("gemini-3.8-flash-tiered", RealAgentEngine.mapToCloudCodeModel("unknown-model-fallback"))
+    }
+
+    @Test
+    fun testExecuteAgentTaskParsesThoughtParts() = runBlocking {
+        val testToken = "ya29.test-bearer-token-12345"
+        GoogleOAuthManager.setCurrentTokensForTest(
+            OAuthTokens(
+                accessToken = testToken,
+                refreshToken = "test-refresh-token",
+                expiresAtEpochMs = System.currentTimeMillis() + 3600_000,
+                scope = "openid email profile https://www.googleapis.com/auth/cloud-platform",
+                accountId = "testuser@gmail.com"
+            )
+        )
+        RealAgentEngine.setCompanionProjectId(RealAgentEngine.DEFAULT_INFERENCE_PROJECT)
+
+        RealAgentEngine.httpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                val sseResponse = "data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"thought\":\"Thinking deeply...\"},{\"text\":\"Here is the answer\"}]}}]}}\n\n"
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .header("Content-Type", "text/event-stream")
+                    .body(sseResponse.toResponseBody("text/event-stream".toMediaType()))
+                    .build()
+            }
+            .build()
+
+        val events = RealAgentEngine.executeAgentTask("Pensar").toList()
+        val textEvents = events.filterIsInstance<AgentStreamEvent.TextDelta>()
+        assertEquals(2, textEvents.size)
+        assertTrue(textEvents[0].text.contains("Thinking deeply..."))
+        assertTrue(textEvents[0].text.contains("\u001b[3m"))
+        assertEquals("Here is the answer", textEvents[1].text)
     }
 
     @Test
