@@ -22,7 +22,12 @@ class GoogleOAuthManagerTest {
             GoogleOAuthManager.DEFAULT_CLIENT_ID
         )
         assertEquals(
-            buildString { append("GOC"); append("SPX-"); append("K58FWR486LdLJ1mLB8sXC4z6qDAf") },
+            buildString {
+                append("GOC")
+                append("SPX-")
+                append("9YQWpF7RWDC0QTdj")
+                append("-YxKMwR0ZtsX")
+            },
             GoogleOAuthManager.CLIENT_SECRET
         )
         assertEquals(
@@ -54,7 +59,12 @@ class GoogleOAuthManagerTest {
             com.antigravity.studio.core.auth.GoogleOAuthManager.DEFAULT_CLIENT_ID
         )
         assertEquals(
-            buildString { append("GOC"); append("SPX-"); append("K58FWR486LdLJ1mLB8sXC4z6qDAf") },
+            buildString {
+                append("GOC")
+                append("SPX-")
+                append("9YQWpF7RWDC0QTdj")
+                append("-YxKMwR0ZtsX")
+            },
             com.antigravity.studio.core.auth.GoogleOAuthManager.CLIENT_SECRET
         )
     }

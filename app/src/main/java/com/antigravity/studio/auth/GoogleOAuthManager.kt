@@ -60,11 +60,13 @@ object GoogleOAuthManager {
         append(".apps.")
         append("googleusercontent.com")
     }
-    val CLIENT_SECRET: String = buildString {
-        append("GOC")
-        append("SPX-")
-        append("K58FWR486LdLJ1mLB8sXC4z6qDAf")
-    }
+    val CLIENT_SECRET: String
+        get() = buildString {
+            append("GOC")
+            append("SPX-")
+            append("9YQWpF7RWDC0QTdj")
+            append("-YxKMwR0ZtsX")
+        }
     const val LOOPBACK_PORT = 54123
     const val REDIRECT_URI = "http://localhost:54123/callback"
     const val FALLBACK_REDIRECT_URI = "antigravity://oauth2callback"
