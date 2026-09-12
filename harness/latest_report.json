@@ -1,0 +1,236 @@
+{
+  "timestamp": "2026-09-12T06:13:57.892124+00:00",
+  "target_spec": null,
+  "overall_status": "PASS",
+  "summary": {
+    "total_suites": 3,
+    "passed_suites": 3,
+    "failed_suites": 0,
+    "skipped_suites": 0,
+    "total_duration_ms": 29.63
+  },
+  "suites": [
+    {
+      "name": "spec_validator",
+      "display_name": "SDD Spec Compliance Suite",
+      "status": "PASS",
+      "duration_ms": 3.55,
+      "summary": "2/2 especificaciones SDD válidas | 20 Criterios de Aceptación (AC) verificados",
+      "details": {
+        "total_specs": 2,
+        "passed_specs": 2,
+        "failed_specs": 0,
+        "total_acceptance_criteria": 20,
+        "reports": [
+          {
+            "file_path": "specs/00-system-architecture.md",
+            "is_valid": true,
+            "metadata": {
+              "id": "SPEC-000",
+              "title": "Arquitectura General del Sistema y Runtime Agéntico Móvil",
+              "author": "spec_architect",
+              "status": "APPROVED FOR IMPLEMENTATION",
+              "target_device": "Xiaomi Pad 6 (Qualcomm Snapdragon 870, ARM64-v8a, 6 GB RAM, 11\" 2.8K 144Hz, HyperOS / Android 13/14)",
+              "runtime_target": "Kotlin 2.0+ / Jetpack Compose / Android NDK r26+ (C++20) / PRoot ARM64 Linux"
+            },
+            "acceptance_criteria": [
+              {
+                "id": "AC-ARCH-001",
+                "module": "PTY Engine",
+                "description": "Asignación correcta de master/slave PTY mediante JNI retornando un `PtyHandle` válido y descriptor abierto.",
+                "verification_method": "Test unitario instrumentado en Android (`PtyLifecycleTest`).",
+                "line_number": 412
+              },
+              {
+                "id": "AC-ARCH-002",
+                "module": "PTY Engine",
+                "description": "La escritura de bytes (`write`) en el PTY master genera eco legible inmediato en `read` en modo canónico o procesado según configuración `termios`.",
+                "verification_method": "Test de loopback nativo JNI.",
+                "line_number": 413
+              },
+              {
+                "id": "AC-ARCH-003",
+                "module": "PTY Engine",
+                "description": "La llamada `resize(rows, cols)` actualiza `winsize` e induce la señal `SIGWINCH` comprobada en el proceso hijo.",
+                "verification_method": "Test de verificación de señal con handler `SIGWINCH` en proceso de prueba.",
+                "line_number": 414
+              },
+              {
+                "id": "AC-ARCH-004",
+                "module": "PTY Engine",
+                "description": "`closeSession()` cierra todos los descriptores de archivo asociados y no deja procesos zombis (`waitpid` finalizado).",
+                "verification_method": "Inspección de `/proc/[pid]` y retorno de estado de proceso en suite de tests.",
+                "line_number": 415
+              },
+              {
+                "id": "AC-ARCH-005",
+                "module": "Terminal Session",
+                "description": "Flujo reactivo `Flow<ByteArray>` no pierde paquetes bajo ráfagas intensivas de datos ($\\ge 1\\,\\text{MB/s}$).",
+                "verification_method": "Test de estrés de buffer con generación continua de secuencias ANSI.",
+                "line_number": 416
+              },
+              {
+                "id": "AC-ARCH-006",
+                "module": "Terminal Session",
+                "description": "El `CircularScrollbackBuffer` almacena hasta 10,000 líneas sin desbordamiento de memoria (`OutOfMemoryError`).",
+                "verification_method": "Microbenchmark de asignación de memoria heap de JVM.",
+                "line_number": 417
+              },
+              {
+                "id": "AC-ARCH-007",
+                "module": "PRoot Linux",
+                "description": "Descompresión y bootstrap del rootfs de Ubuntu ARM64 en el almacenamiento privado de la app finaliza con código 0.",
+                "verification_method": "Test de integración de bootstrap en emulador ARM64 o dispositivo real.",
+                "line_number": 418
+              },
+              {
+                "id": "AC-ARCH-008",
+                "module": "PRoot Linux",
+                "description": "Ejecución exitosa de comandos GNU básicos (`/bin/uname -m`, `/bin/ls /`) dentro del sandbox de PRoot retornando `aarch64`.",
+                "verification_method": "Test de ejecución de subproceso PRoot vía PTY.",
+                "line_number": 419
+              },
+              {
+                "id": "AC-ARCH-009",
+                "module": "PRoot Linux",
+                "description": "Los montajes virtuales de `/data/local/tmp` y carpetas de proyecto son accesibles con permisos de lectura/escritura dentro de PRoot.",
+                "verification_method": "Test de I/O de archivos en directorio compartido host $\\leftrightarrow$ guest.",
+                "line_number": 420
+              },
+              {
+                "id": "AC-ARCH-010",
+                "module": "UI Compose",
+                "description": "El layout `SplitPane` responde a cambios de orientación y mantiene una relación de aspecto fluida sin reconstrucción de PTY.",
+                "verification_method": "Test UI con ComposeTestRule validando persistencia de sesión al rotar.",
+                "line_number": 421
+              },
+              {
+                "id": "AC-ARCH-011",
+                "module": "UI Compose",
+                "description": "La barra de herramientas de productividad emite los códigos ASCII/ANSI esperados (`ESC` = `0x1B`, `Ctrl+C` = `0x03`, `TAB` = `0x09`).",
+                "verification_method": "Test unitario de mapping de eventos de teclado en `ProductivityBar`.",
+                "line_number": 422
+              },
+              {
+                "id": "AC-ARCH-012",
+                "module": "UI Latency",
+                "description": "El tiempo entre la llegada de bytes de PTY y la recomposición visual de la superficie de terminal es $\\le 16\\,\\text{ms}$.",
+                "verification_method": "Benchmark de renderizado con AndroidX Macrobenchmark.",
+                "line_number": 423
+              }
+            ],
+            "diagram_count": 2,
+            "contract_count": 4,
+            "errors": [],
+            "warnings": []
+          },
+          {
+            "file_path": "specs/01-app-blueprint.md",
+            "is_valid": true,
+            "metadata": {
+              "id": "SPEC-001",
+              "title": "Blueprint Técnico de Antigravity Studio (UI Compose, PTY NDK y xterm.js)",
+              "author": "spec_architect",
+              "status": "APPROVED FOR IMPLEMENTATION",
+              "target_device": "Xiaomi Pad 6 (Qualcomm Snapdragon 870, ARM64-v8a, 6 GB RAM, 11\" 2.8K 144Hz, HyperOS / Android 13/14)",
+              "runtime_target": "Kotlin 2.0+ / Jetpack Compose Material 3 / Android NDK C++20 / xterm.js WebGL"
+            },
+            "acceptance_criteria": [
+              {
+                "id": "AC-APP-001",
+                "module": "PTY Native Engine",
+                "description": "`nativeCreateSubprocess` asigna un pseudoterminal POSIX válido, genera un PID hijo activo y devuelve un `masterFd > 0`.",
+                "verification_method": "Test unitario instrumentado en Android ejecutando `/system/bin/sh` y verificando `masterFd` y PID en `/proc`.",
+                "line_number": 623
+              },
+              {
+                "id": "AC-APP-002",
+                "module": "PTY Native Engine",
+                "description": "`nativeWrite` transmite bytes sin corrupción y `nativeRead` lee la respuesta en modo no bloqueante preservando codificación UTF-8.",
+                "verification_method": "Test de eco loopback en PTY escribiendo caracteres multibyte (ej. emojis, caracteres acentuados) y leyendo el resultado.",
+                "line_number": 624
+              },
+              {
+                "id": "AC-APP-003",
+                "module": "PTY Native Engine",
+                "description": "`nativeResize` actualiza `struct winsize` mediante `TIOCSWINSZ` y propaga con éxito la señal `SIGWINCH` al proceso hijo.",
+                "verification_method": "Subproceso de prueba que captura `SIGWINCH` e imprime las variables `$COLUMNS` y `$LINES` para validar coincidencia.",
+                "line_number": 625
+              },
+              {
+                "id": "AC-APP-004",
+                "module": "PTY Native Engine",
+                "description": "`nativeClose` cierra los descriptores de archivo y recolecta el estado del proceso hijo vía `waitpid`, previniendo fugas de FDs y procesos zombis.",
+                "verification_method": "Verificación en `/proc/self/fd` y `/proc/[pid]` tras invocar `nativeClose`.",
+                "line_number": 626
+              },
+              {
+                "id": "AC-APP-005",
+                "module": "TerminalViewBridge",
+                "description": "`TerminalViewBridge` instancia `xterm.js` con el addon WebGL activo en el `WebView`, sosteniendo una tasa de refresco fluida (hasta 144Hz) con latencia de renderizado $\\le 16\\,\\text{ms}$.",
+                "verification_method": "Benchmark de GPU/Macrobenchmark midiendo tiempos de frame de Compose y renderizado WebGL sobre Xiaomi Pad 6.",
+                "line_number": 627
+              },
+              {
+                "id": "AC-APP-006",
+                "module": "Terminal Bridge IPC",
+                "description": "La comunicación bidireccional entre JavaScript (`sendData`/`writeBinary`) y Kotlin transmite datos interactivos con latencia round-trip $\\le 16\\,\\text{ms}$.",
+                "verification_method": "Prueba de latencia instrumentada midiendo el tiempo transcurrido desde la pulsación de tecla hasta la recepción en `xterm.js`.",
+                "line_number": 628
+              },
+              {
+                "id": "AC-APP-007",
+                "module": "ProductivityToolbar",
+                "description": "La barra de herramientas emite los códigos ASCII/ANSI correctos para modificadores (`ESC`=`0x1B`, `TAB`=`0x09`, `^C`=`0x03`) y atajos agénticos (`agy run\\r`, `agy test\\r`).",
+                "verification_method": "Test unitario de Compose (`ComposeTestRule`) simulando clics y validando los bytes emitidos en el callback.",
+                "line_number": 629
+              },
+              {
+                "id": "AC-APP-008",
+                "module": "AdaptiveTabletScaffold",
+                "description": "El layout mantiene la estabilidad del panel multi-ventana en pantalla 11\" 16:10 en resolución 2.8K, preservando la sesión PTY activa ante cambios de tamaño o rotación.",
+                "verification_method": "Test de integración en dispositivo/emulador verificando que la sesión PTY no se reinicia al redimensionar el divisor.",
+                "line_number": 630
+              }
+            ],
+            "diagram_count": 2,
+            "contract_count": 7,
+            "errors": [],
+            "warnings": []
+          }
+        ]
+      },
+      "errors": [],
+      "warnings": [],
+      "diagnostics": []
+    },
+    {
+      "name": "code_linter",
+      "display_name": "Static Analysis & Syntax Linter Suite",
+      "status": "PASS",
+      "duration_ms": 14.69,
+      "summary": "Análisis sintáctico completado sin errores en 5 archivos",
+      "details": {
+        "scanned_files": 5
+      },
+      "errors": [],
+      "warnings": [],
+      "diagnostics": []
+    },
+    {
+      "name": "test_suite",
+      "display_name": "Automated Unit & Regression Test Suite",
+      "status": "PASS",
+      "duration_ms": 11.32,
+      "summary": "6 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
+      "details": {
+        "tests_run": 6,
+        "failures": 0,
+        "errors": 0
+      },
+      "errors": [],
+      "warnings": [],
+      "diagnostics": []
+    }
+  ]
+}
