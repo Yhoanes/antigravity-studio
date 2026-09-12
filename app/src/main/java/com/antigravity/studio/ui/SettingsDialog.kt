@@ -1,5 +1,14 @@
 package com.antigravity.studio.ui
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.ui.platform.LocalContext
+import java.io.File
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -66,9 +75,11 @@ fun SettingsDialog(
 ) {
     if (!isOpen) return
 
+    val context = LocalContext.current
     val currentPolicy by settingsManager.policyFlow.collectAsState()
 
     // Estados locales para permitir cancelar sin guardar
+    var geminiApiKey by remember { mutableStateOf(settingsManager.getApiKey() ?: "") }
     var autoApproveRead by remember(currentPolicy) { mutableStateOf(currentPolicy.autoApproveRead) }
     var autoApproveWrite by remember(currentPolicy) { mutableStateOf(currentPolicy.autoApproveWrite) }
     var autoApproveSafeBash by remember(currentPolicy) { mutableStateOf(currentPolicy.autoApproveSafeBash) }
@@ -117,9 +128,100 @@ fun SettingsDialog(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
                     .padding(vertical = 4.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
+                // ============================================================
+                // SECCIÓN DESTACADA: Motor de Inteligencia Artificial (Gemini API)
+                // ============================================================
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(CyberObsidian)
+                        .border(1.dp, NeonCyan.copy(alpha = 0.45f), RoundedCornerShape(10.dp))
+                        .padding(12.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(text = "⚡", fontSize = 14.sp)
+                            Text(
+                                text = "Motor de Inteligencia Artificial (Gemini API)",
+                                color = NeonCyan,
+                                fontSize = 12.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+
+                        Text(
+                            text = "Configura tu clave de Gemini API para inferencia ultrarrápida y ejecución autónoma en Xiaomi Pad 6.",
+                            color = TextSecondary,
+                            fontSize = 11.sp,
+                            lineHeight = 15.sp
+                        )
+
+                        OutlinedTextField(
+                            value = geminiApiKey,
+                            onValueChange = { geminiApiKey = it },
+                            label = {
+                                Text(
+                                    text = "Gemini API Key (Google AI Studio)",
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 11.5.sp
+                                )
+                            },
+                            placeholder = {
+                                Text(
+                                    text = "AIzaSy...",
+                                    color = TextMuted,
+                                    fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp
+                                )
+                            },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = NeonCyan,
+                                unfocusedBorderColor = BorderObsidian,
+                                focusedLabelColor = NeonCyan,
+                                unfocusedLabelColor = TextSecondary,
+                                focusedTextColor = TextPrimary,
+                                unfocusedTextColor = TextPrimary,
+                                cursorColor = NeonCyan
+                            )
+                        )
+
+                        // Texto de ayuda con enlace clickeable
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    try {
+                                        val intent = Intent(
+                                            Intent.ACTION_VIEW,
+                                            Uri.parse("https://aistudio.google.com/app/apikey")
+                                        )
+                                        context.startActivity(intent)
+                                    } catch (_: Exception) {}
+                                },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Obtén tu clave gratuita en aistudio.google.com para acceso directo e ilimitado.",
+                                color = AccentAmber,
+                                fontSize = 10.5.sp,
+                                fontFamily = FontFamily.Monospace,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
+
                 HorizontalDivider(color = BorderObsidian, thickness = 1.dp)
 
                 // 1. Auto-aprobar lectura de archivos
@@ -194,6 +296,16 @@ fun SettingsDialog(
                         requireApprovalForDestructive = requireApprovalForDestructive
                     )
                     settingsManager.savePolicy(updated)
+                    settingsManager.saveApiKey(geminiApiKey)
+
+                    try {
+                        val geminiDir = File(context.filesDir, ".gemini")
+                        if (!geminiDir.exists()) {
+                            geminiDir.mkdirs()
+                        }
+                        File(geminiDir, "api_key").writeText(geminiApiKey.trim(), Charsets.UTF_8)
+                    } catch (_: Exception) {}
+
                     onDismissRequest()
                 },
                 colors = ButtonDefaults.buttonColors(

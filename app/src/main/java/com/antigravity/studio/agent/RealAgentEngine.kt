@@ -5,6 +5,7 @@ import android.util.Log
 import com.antigravity.studio.auth.GoogleOAuthManager
 import com.antigravity.studio.model.AntigravityModelCatalog
 import com.antigravity.studio.pty.NativePty
+import com.antigravity.studio.settings.AgentSettingsManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.FlowCollector
@@ -58,15 +59,38 @@ object RealAgentEngine : IRealAgentEngine {
 
     private const val TAG = "RealAgentEngine"
     private const val GEMINI_MODEL = "gemini-2.0-flash"
-    private const val CANONICAL_HOST = "https://daily-cloudcode-pa.googleapis.com"
+    internal const val CANONICAL_HOST = "https://cloudcode-pa.googleapis.com"
     const val DEFAULT_INFERENCE_PROJECT = "aicode-consumers"
     const val FALLBACK_INFERENCE_PROJECT = "default-cli-project"
     private const val USER_AGENT_OFFICIAL = "antigravity/1.2.2"
     private const val IDE_VERSION_OFFICIAL = "1.2.2"
-    private const val CLOUD_CODE_STREAM_URL = "$CANONICAL_HOST/v1internal:streamGenerateContent?alt=sse"
-    private const val CLOUD_CODE_LOAD_URL = "$CANONICAL_HOST/v1internal:loadCodeAssist"
-    private const val CLOUD_CODE_ONBOARD_URL = "$CANONICAL_HOST/v1internal:onboardUser"
+    internal const val CLOUD_CODE_STREAM_URL = "$CANONICAL_HOST/v1internal:streamGenerateContent?alt=sse"
+    internal const val CLOUD_CODE_LOAD_URL = "$CANONICAL_HOST/v1internal:loadCodeAssist"
+    internal const val CLOUD_CODE_ONBOARD_URL = "$CANONICAL_HOST/v1internal:onboardUser"
     private const val FALLBACK_GEMINI_STREAM_URL = "https://generativelanguage.googleapis.com/v1beta/models/$GEMINI_MODEL:streamGenerateContent"
+
+    /**
+     * Mapea los identificadores del catálogo a los nombres reales del clúster Cloud Code de Google.
+     */
+    fun mapToCloudCodeModel(modelId: String): String {
+        return when (modelId) {
+            "gemini-3.8-flash-high", "gemini-3.8-flash" -> "gemini-3.8-flash-tiered"
+            "gemini-3.7-flash-high", "gemini-3.7-flash" -> "gemini-2.5-flash"
+            "gemini-3.6-flash-high", "gemini-3.6-flash" -> "gemini-2.5-flash"
+            "gemini-3.1-pro-low", "gemini-3.1-pro" -> "gemini-2.5-pro"
+            "gemini-2.5-flash" -> "gemini-2.5-flash"
+            "gemini-2.5-pro" -> "gemini-2.5-pro"
+            "claude-sonnet-4-6" -> "claude-sonnet-4-6"
+            "claude-opus-4-6-thinking" -> "claude-opus-4-6-thinking"
+            "gpt-oss-120b-medium" -> "gemini-2.5-pro"
+            else -> {
+                if (modelId.contains("3.8")) "gemini-3.8-flash-tiered"
+                else if (modelId.contains("flash")) "gemini-2.5-flash"
+                else if (modelId.contains("pro")) "gemini-2.5-pro"
+                else modelId
+            }
+        }
+    }
 
     internal var httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -86,18 +110,36 @@ object RealAgentEngine : IRealAgentEngine {
         userPrompt: String,
         systemInstruction: String?
     ): Flow<AgentStreamEvent> = flow {
+        val defaultSystem = systemInstruction ?: """
+            Eres Antigravity Agent ejecutándote como motor autónomo en una estación móvil Xiaomi Pad 6 (Snapdragon 870, 144Hz).
+            Tu objetivo es asistir en tareas de ingeniería de software, arquitectura de sistemas y análisis de código.
+            Responde de forma concisa, precisa y profesional con formato compatible con terminal ANSI.
+        """.trimIndent()
+
+        // 0. Si existe una API key guardada (Google AI Studio), ejecutar inferencia directa
+        val directApiKey = getApiKeyFallback()
+        if (!directApiKey.isNullOrBlank()) {
+            Log.i(TAG, "Executing inference directly via Gemini API Key (Google AI Studio)...")
+            val directHandled = streamDirectGeminiFallback(directApiKey, userPrompt, defaultSystem)
+            if (directHandled) {
+                return@flow
+            }
+            Log.w(TAG, "Direct Gemini stream was not handled, continuing with OAuth flow...")
+        }
+
         val accessToken = GoogleOAuthManager.getValidAccessToken()
 
         if (accessToken.isNullOrEmpty()) {
             val unauthMessage = """
-                \u001b[1;33m[!] Antigravity Agent: No se ha detectado una sesión activa de Google OAuth.\u001b[0m
+                \u001b[1;33m[!] Antigravity Agent: No se ha detectado una sesión activa de Google OAuth ni API Key.\u001b[0m
                 
                 \u001b[38;2;139;92;246mAntigravity Agent se conecta directamente a Cloud Code / Gemini 2.0 Flash\u001b[0m
-                \u001b[38;2;139;92;246mutilizando tu cuenta de Google mediante OAuth 2.0 PKCE.\u001b[0m
+                \u001b[38;2;139;92;246mutilizando tu cuenta de Google mediante OAuth 2.0 PKCE o tu clave gratuita de Gemini.\u001b[0m
                 
                 \u001b[1;36mPara activar el agente con IA real:\u001b[0m
                 1. Pulsa el botón \u001b[1;32m[Iniciar Sesión con Google]\u001b[0m en la barra superior.
-                2. O escribe \u001b[1;36magy auth\u001b[0m en esta terminal.
+                2. O ingresa tu clave gratuita de Gemini (Google AI Studio) escribiendo: \u001b[1;36m/key <tu-api-key>\u001b[0m
+                3. O escribe \u001b[1;36magy auth\u001b[0m en esta terminal.
                 
             """.trimIndent().replace("\n", "\r\n")
             emit(AgentStreamEvent.TextDelta(unauthMessage))
@@ -106,14 +148,8 @@ object RealAgentEngine : IRealAgentEngine {
         }
 
         try {
-            val defaultSystem = systemInstruction ?: """
-                Eres Antigravity Agent ejecutándote como motor autónomo en una estación móvil Xiaomi Pad 6 (Snapdragon 870, 144Hz).
-                Tu objetivo es asistir en tareas de ingeniería de software, arquitectura de sistemas y análisis de código.
-                Responde de forma concisa, precisa y profesional con formato compatible con terminal ANSI.
-            """.trimIndent()
-
             val activeModel = AntigravityModelCatalog.selectedModel.value
-            val modelId = activeModel.id
+            val modelId = mapToCloudCodeModel(activeModel.id)
 
             // 1. Resolve companion project if not resolved yet
             var projId = companionProjectId
@@ -122,6 +158,7 @@ object RealAgentEngine : IRealAgentEngine {
             }
             if (projId.isNullOrEmpty()) {
                 projId = DEFAULT_INFERENCE_PROJECT
+                companionProjectId = DEFAULT_INFERENCE_PROJECT
             }
 
             // 2. Build Cloud Code v1internal:streamGenerateContent request payload
@@ -182,32 +219,11 @@ object RealAgentEngine : IRealAgentEngine {
                     }
                 }
 
-                // Legible diagnostic message in terminal
-                val diagMsg = buildString {
-                    append("\r\n\u001b[1;31m[Antigravity Agent Error Google Cloud Code $code]\u001b[0m\r\n")
-                    append("\u001b[38;2;139;148;158mEndpoint:\u001b[0m $CLOUD_CODE_STREAM_URL\r\n")
-                    append("\u001b[38;2;139;148;158mDetalle:\u001b[0m $errorBody\r\n\r\n")
-                    append("\u001b[1;33m[Diagnóstico]:\u001b[0m\r\n")
-                    when (code) {
-                        403 -> {
-                            append("• Acceso restringido en Cloud Code para la cuenta actual o falta de permisos en el proyecto.\r\n")
-                            append("• Verifica que Cloud AI Companion API esté habilitada en tu proyecto de Google Cloud.\r\n")
-                            append("• Puedes guardar una clave Gemini en \u001b[1;36m~/.gemini/api_key\u001b[0m o variable \u001b[1;36mGEMINI_API_KEY\u001b[0m como fallback.\r\n")
-                            append("• O reintentar login con \u001b[1;32magy auth login\u001b[0m.\r\n")
-                        }
-                        404 -> {
-                            append("• El modelo o recurso solicitado no fue encontrado en el endpoint de Cloud Code.\r\n")
-                            append("• Puedes suministrar una clave Gemini en \u001b[1;36m~/.gemini/api_key\u001b[0m como fallback.\r\n")
-                        }
-                        else -> {
-                            append("• La solicitud al backend de Cloud Code falló con código $code.\r\n")
-                            append("• Puedes suministrar una clave Gemini en \u001b[1;36m~/.gemini/api_key\u001b[0m como fallback.\r\n")
-                        }
-                    }
-                    append("\r\n")
-                }
-                emit(AgentStreamEvent.TextDelta(diagMsg))
-                emit(AgentStreamEvent.Error(IllegalStateException("HTTP $code: $errorBody")))
+                // Clean, friendly error message without red JSON dump
+                val friendlyMsg = "\r\n\u001b[1;33m[!] Para activar la IA en tu tablet:\u001b[0m\r\n" +
+                    "\u001b[38;2;139;92;246mIngresa tu clave gratuita de Gemini (Google AI Studio) pulsando [⚙ Ajustes] en la barra inferior o escribe: /key <tu-api-key>\u001b[0m\r\n\r\n> "
+                emit(AgentStreamEvent.TextDelta(friendlyMsg))
+                emit(AgentStreamEvent.Completed(0))
             }
 
             var currentProject = if (projId.isNotEmpty()) projId else DEFAULT_INFERENCE_PROJECT
@@ -349,7 +365,7 @@ object RealAgentEngine : IRealAgentEngine {
         // POST $CANONICAL_HOST/v1internal:onboardUser
         try {
             val onboardReqJson = JSONObject().apply {
-                put("tierId", "free-tier")
+                put("tierId", "standard-tier")
                 put("metadata", JSONObject().apply {
                     put("ideType", "ANTIGRAVITY")
                     put("ideVersion", IDE_VERSION_OFFICIAL)
@@ -395,17 +411,22 @@ object RealAgentEngine : IRealAgentEngine {
     internal suspend fun resolveCompanionProjectForTest(accessToken: String): String = resolveCompanionProject(accessToken)
 
     /**
-     * Resolves fallback Gemini API key from environment variable or filesDir/.gemini/api_key.
+     * Resolves fallback Gemini API key from AgentSettingsManager, env, or filesDir/.gemini/api_key.
      */
-    private fun getApiKeyFallback(): String? {
+    internal fun getApiKeyFallback(): String? {
         try {
+            val prefKey = try {
+                AgentSettingsManager.getGeminiApiKey() ?: AgentSettingsManager.getInstance().getApiKey()
+            } catch (_: Exception) { null }
+            if (!prefKey.isNullOrBlank()) return prefKey.trim()
+
             val envKey = System.getenv("GEMINI_API_KEY")
             if (!envKey.isNullOrBlank()) return envKey.trim()
 
             val possibleDirs = listOfNotNull(
                 GoogleOAuthManager.getAppContext()?.filesDir,
                 workspaceDir?.parentFile,
-                File("/data/data/com.antigravity.studio/files")
+                File("/data/data/com.antigravity.studio/files").takeIf { it.exists() }
             )
             for (dir in possibleDirs) {
                 val keyFile = File(dir, ".gemini/api_key")
@@ -422,14 +443,29 @@ object RealAgentEngine : IRealAgentEngine {
 
     /**
      * Streams inference directly from generativelanguage API using a local API key.
+     * Supports gemini-2.0-flash with automatic fallback to gemini-1.5-pro.
      */
-    private suspend fun FlowCollector<AgentStreamEvent>.streamDirectGeminiFallback(
+    internal suspend fun FlowCollector<AgentStreamEvent>.streamDirectGeminiFallback(
         apiKey: String,
         userPrompt: String,
         defaultSystem: String
     ): Boolean {
+        val candidateModels = listOf("gemini-2.0-flash", "gemini-1.5-pro")
+        for (candidateModel in candidateModels) {
+            val handled = tryStreamDirectGemini(apiKey, userPrompt, defaultSystem, candidateModel)
+            if (handled) return true
+        }
+        return false
+    }
+
+    private suspend fun FlowCollector<AgentStreamEvent>.tryStreamDirectGemini(
+        apiKey: String,
+        userPrompt: String,
+        defaultSystem: String,
+        modelName: String
+    ): Boolean {
         return try {
-            val fallbackUrl = "$FALLBACK_GEMINI_STREAM_URL?key=$apiKey&alt=sse"
+            val fallbackUrl = "https://generativelanguage.googleapis.com/v1beta/models/$modelName:streamGenerateContent?key=$apiKey&alt=sse"
             val fallbackPayload = JSONObject().apply {
                 val contents = JSONArray().apply {
                     put(JSONObject().apply {
@@ -464,7 +500,7 @@ object RealAgentEngine : IRealAgentEngine {
 
             val response = httpClient.newCall(request).execute()
             if (!response.isSuccessful) {
-                Log.w(TAG, "Gemini fallback failed HTTP ${response.code}: ${response.body?.string()}")
+                Log.w(TAG, "Direct Gemini stream with $modelName failed HTTP ${response.code}: ${response.body?.string()}")
                 return false
             }
 
@@ -503,7 +539,7 @@ object RealAgentEngine : IRealAgentEngine {
             emit(AgentStreamEvent.Completed(totalTokens))
             true
         } catch (e: Exception) {
-            Log.w(TAG, "Exception during fallback Gemini stream", e)
+            Log.w(TAG, "Exception during direct Gemini stream with $modelName", e)
             false
         }
     }

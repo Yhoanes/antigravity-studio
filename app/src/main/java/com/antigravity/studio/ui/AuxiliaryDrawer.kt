@@ -64,8 +64,8 @@ import com.antigravity.studio.theme.TextSecondary
 @Composable
 fun AuxiliaryDrawer(
     modifier: Modifier = Modifier,
-    subagents: List<SubagentCardData> = defaultDemoSubagents,
-    filesChanged: List<FileChangeSummary> = defaultDemoFilesChanged,
+    subagents: List<SubagentCardData> = emptyList(),
+    filesChanged: List<FileChangeSummary> = emptyList(),
     onFileClick: ((String) -> Unit)? = null,
     onCloseDrawer: (() -> Unit)? = null
 ) {
@@ -143,8 +143,20 @@ fun AuxiliaryDrawer(
                 )
             }
 
-            items(subagents, key = { it.id }) { agent ->
-                SubagentCard(subagent = agent)
+            if (subagents.isEmpty()) {
+                item {
+                    Text(
+                        text = "No hay subagentes activos",
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                    )
+                }
+            } else {
+                items(subagents, key = { it.id }) { agent ->
+                    SubagentCard(subagent = agent)
+                }
             }
 
             // --- SECCIÓN: FILES CHANGED ---
@@ -157,11 +169,23 @@ fun AuxiliaryDrawer(
                 )
             }
 
-            items(filesChanged, key = { it.relativePath }) { fileChange ->
-                FilesChangedCard(
-                    change = fileChange,
-                    onClick = { onFileClick?.invoke(fileChange.relativePath) }
-                )
+            if (filesChanged.isEmpty()) {
+                item {
+                    Text(
+                        text = "Sin archivos modificados",
+                        color = TextSecondary,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 6.dp)
+                    )
+                }
+            } else {
+                items(filesChanged, key = { it.relativePath }) { fileChange ->
+                    FilesChangedCard(
+                        change = fileChange,
+                        onClick = { onFileClick?.invoke(fileChange.relativePath) }
+                    )
+                }
             }
         }
 
@@ -496,52 +520,3 @@ private fun HyperOsPersistenceFooter(
         }
     }
 }
-
-// ============================================================================
-// DATOS DE DEMOSTRACIÓN PRECONFIGURADOS SEGÚN SPEC-003
-// ============================================================================
-val defaultDemoSubagents = listOf(
-    SubagentCardData(
-        id = "subagent-1",
-        name = "tateti_architect",
-        roleDescription = "Generación de arquitectura y suite de tests unitarios",
-        durationSeconds = 84L,
-        toolCallsCount = 12,
-        status = SubagentExecutionStatus.COMPLETED
-    ),
-    SubagentCardData(
-        id = "subagent-2",
-        name = "code_runner",
-        roleDescription = "Ejecución continua de tests en contenedor PRoot ARM64",
-        durationSeconds = 28L,
-        toolCallsCount = 4,
-        status = SubagentExecutionStatus.EXECUTING,
-        progressPercent = 0.72f
-    ),
-    SubagentCardData(
-        id = "subagent-3",
-        name = "harness_validator",
-        roleDescription = "Validación de aserciones de SPEC-003 en segundo plano",
-        durationSeconds = 0L,
-        toolCallsCount = 0,
-        status = SubagentExecutionStatus.IDLE
-    )
-)
-
-val defaultDemoFilesChanged = listOf(
-    FileChangeSummary(
-        relativePath = "main.py",
-        linesAdded = 124,
-        linesDeleted = 0
-    ),
-    FileChangeSummary(
-        relativePath = "test_tateti.py",
-        linesAdded = 82,
-        linesDeleted = 0
-    ),
-    FileChangeSummary(
-        relativePath = "rules.md",
-        linesAdded = 18,
-        linesDeleted = 0
-    )
-)

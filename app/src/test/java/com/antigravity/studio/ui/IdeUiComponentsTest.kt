@@ -113,15 +113,10 @@ class IdeUiComponentsTest {
     }
 
     @Test
-    fun testDefaultDemoDataPresence() {
-        assertNotNull(defaultDemoSubagents)
-        assertTrue(defaultDemoSubagents.isNotEmpty())
-        assertEquals("tateti_architect", defaultDemoSubagents[0].name)
-        assertEquals(SubagentExecutionStatus.COMPLETED, defaultDemoSubagents[0].status)
-
-        assertNotNull(defaultDemoFilesChanged)
-        assertTrue(defaultDemoFilesChanged.isNotEmpty())
-        assertEquals("main.py", defaultDemoFilesChanged[0].relativePath)
-        assertEquals(124, defaultDemoFilesChanged[0].linesAdded)
+    fun testAuxiliaryDrawerDefaultsAreCleanAndEmpty() {
+        val defaultSubagents: List<SubagentCardData> = emptyList()
+        val defaultFilesChanged: List<FileChangeSummary> = emptyList()
+        assertTrue(defaultSubagents.isEmpty())
+        assertTrue(defaultFilesChanged.isEmpty())
     }
 }

@@ -3,8 +3,10 @@ package com.antigravity.studio.agent
 import com.antigravity.studio.auth.GoogleOAuthManager
 import com.antigravity.studio.core.auth.OAuthTokens
 import com.antigravity.studio.formatModelListMessage
+import com.antigravity.studio.handleKeyCommand
 import com.antigravity.studio.handleModelSelectionCommand
 import com.antigravity.studio.model.AntigravityModelCatalog
+import com.antigravity.studio.settings.AgentSettingsManager
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.runBlocking
 import okhttp3.MediaType.Companion.toMediaType
@@ -20,6 +22,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
+import java.io.File
 
 class RealAgentEngineTest {
 
@@ -27,6 +30,8 @@ class RealAgentEngineTest {
 
     @Before
     fun setUp() {
+        AgentSettingsManager.resetInstanceForTest()
+        AgentSettingsManager.getInstance().setGeminiApiKey(null)
         GoogleOAuthManager.setCurrentTokensForTest(null)
         RealAgentEngine.setCompanionProjectId(null)
         AntigravityModelCatalog.selectModel(AntigravityModelCatalog.defaultModel)
@@ -37,6 +42,8 @@ class RealAgentEngineTest {
         RealAgentEngine.httpClient = originalClient
         RealAgentEngine.setCompanionProjectId(null)
         GoogleOAuthManager.setCurrentTokensForTest(null)
+        AgentSettingsManager.getInstance().setGeminiApiKey(null)
+        AgentSettingsManager.resetInstanceForTest()
         AntigravityModelCatalog.selectModel(AntigravityModelCatalog.defaultModel)
     }
 
@@ -91,7 +98,7 @@ class RealAgentEngineTest {
             .addInterceptor { chain ->
                 val request = chain.request()
                 val url = request.url.toString()
-                assertTrue("URL should point to daily-cloudcode-pa", url.startsWith("https://daily-cloudcode-pa.googleapis.com"))
+                assertTrue("URL should point to cloudcode-pa", url.startsWith("https://cloudcode-pa.googleapis.com"))
                 if (url.contains("loadCodeAssist")) {
                     Response.Builder()
                         .request(request)
@@ -123,7 +130,7 @@ class RealAgentEngineTest {
             .addInterceptor { chain ->
                 val request = chain.request()
                 val url = request.url.toString()
-                assertTrue("URL should point to daily-cloudcode-pa", url.startsWith("https://daily-cloudcode-pa.googleapis.com"))
+                assertTrue("URL should point to cloudcode-pa", url.startsWith("https://cloudcode-pa.googleapis.com"))
                 if (url.contains("loadCodeAssist")) {
                     Response.Builder()
                         .request(request)
@@ -133,7 +140,11 @@ class RealAgentEngineTest {
                         .body("{}".toResponseBody("application/json".toMediaType()))
                         .build()
                 } else if (url.contains("onboardUser")) {
-                    assertTrue(url.startsWith("https://daily-cloudcode-pa.googleapis.com/v1internal:onboardUser"))
+                    assertTrue(url.startsWith("https://cloudcode-pa.googleapis.com/v1internal:onboardUser"))
+                    val buffer = okio.Buffer()
+                    request.body?.writeTo(buffer)
+                    val bodyJson = JSONObject(buffer.readUtf8())
+                    assertEquals("standard-tier", bodyJson.optString("tierId"))
                     Response.Builder()
                         .request(request)
                         .protocol(Protocol.HTTP_1_1)
@@ -164,7 +175,7 @@ class RealAgentEngineTest {
             .addInterceptor { chain ->
                 val request = chain.request()
                 val url = request.url.toString()
-                assertTrue("URL should point to daily-cloudcode-pa", url.startsWith("https://daily-cloudcode-pa.googleapis.com"))
+                assertTrue("URL should point to cloudcode-pa", url.startsWith("https://cloudcode-pa.googleapis.com"))
                 Response.Builder()
                     .request(request)
                     .protocol(Protocol.HTTP_1_1)
@@ -262,13 +273,13 @@ class RealAgentEngineTest {
             .build()
 
         val events = RealAgentEngine.executeAgentTask("Prueba").toList()
-        assertEquals("https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse", capturedUrl)
+        assertEquals("https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse", capturedUrl)
         assertEquals("Bearer $testToken", capturedAuth)
         assertEquals("antigravity/1.2.2", capturedUserAgentHeader)
         assertEquals("text/event-stream", capturedAcceptHeader)
         assertEquals(RealAgentEngine.DEFAULT_INFERENCE_PROJECT, capturedProject)
         assertEquals("aicode-consumers", capturedProject)
-        assertEquals("gemini-3.8-flash-high", capturedModel)
+        assertEquals("gemini-3.8-flash-tiered", capturedModel)
         assertEquals("antigravity/1.2.2", capturedUserAgentPayload)
         assertEquals("REQUEST_TYPE_CASCADE", capturedRequestType)
         assertEquals("GOOGLE_ONE_AI", capturedCreditType)
@@ -431,7 +442,7 @@ class RealAgentEngineTest {
     }
 
     @Test
-    fun testExecuteAgentTaskBothFailEmitsDiagnosticMessage() = runBlocking {
+    fun testExecuteAgentTaskBothFailEmitsFriendlyMessage() = runBlocking {
         val testToken = "ya29.test-bearer-token-12345"
         GoogleOAuthManager.setCurrentTokensForTest(
             OAuthTokens(
@@ -452,7 +463,7 @@ class RealAgentEngineTest {
                 val url = request.url.toString()
                 if (url.contains("streamGenerateContent")) {
                     attemptCount++
-                    val errorJson = """{"error": {"code": 403, "message": "Access denied completely"}}"""
+                    val errorJson = """{"error": {"code": 403, "message": "#3501 (SUBSCRIPTION_REQUIRED): Cloud AI Companion project is required"}}"""
                     Response.Builder()
                         .request(request)
                         .protocol(Protocol.HTTP_1_1)
@@ -477,11 +488,86 @@ class RealAgentEngineTest {
 
         val textEvent = events.filterIsInstance<AgentStreamEvent.TextDelta>().firstOrNull()
         assertNotNull(textEvent)
-        assertTrue(textEvent!!.text.contains("[Antigravity Agent Error Google Cloud Code 403]"))
-        assertTrue(textEvent.text.contains("[Diagnóstico]"))
+        assertTrue(textEvent!!.text.contains("[!] Para activar la IA en tu tablet:"))
+        assertTrue(textEvent.text.contains("Ingresa tu clave gratuita de Gemini (Google AI Studio)"))
+        assertTrue(textEvent.text.contains("/key <tu-api-key>"))
 
-        val errorEvent = events.filterIsInstance<AgentStreamEvent.Error>().firstOrNull()
-        assertNotNull(errorEvent)
+        val completed = events.filterIsInstance<AgentStreamEvent.Completed>().firstOrNull()
+        assertNotNull(completed)
+    }
+
+    @Test
+    fun testMapToCloudCodeModel() {
+        assertEquals("gemini-3.8-flash-tiered", RealAgentEngine.mapToCloudCodeModel("gemini-3.8-flash-high"))
+        assertEquals("gemini-3.8-flash-tiered", RealAgentEngine.mapToCloudCodeModel("gemini-3.8-flash"))
+        assertEquals("gemini-2.5-flash", RealAgentEngine.mapToCloudCodeModel("gemini-3.7-flash-high"))
+        assertEquals("gemini-2.5-flash", RealAgentEngine.mapToCloudCodeModel("gemini-3.6-flash-high"))
+        assertEquals("gemini-2.5-pro", RealAgentEngine.mapToCloudCodeModel("gemini-3.1-pro-low"))
+        assertEquals("gemini-2.5-flash", RealAgentEngine.mapToCloudCodeModel("gemini-2.5-flash"))
+        assertEquals("gemini-2.5-pro", RealAgentEngine.mapToCloudCodeModel("gemini-2.5-pro"))
+        assertEquals("claude-sonnet-4-6", RealAgentEngine.mapToCloudCodeModel("claude-sonnet-4-6"))
+        assertEquals("claude-opus-4-6-thinking", RealAgentEngine.mapToCloudCodeModel("claude-opus-4-6-thinking"))
+        assertEquals("gemini-2.5-pro", RealAgentEngine.mapToCloudCodeModel("gpt-oss-120b-medium"))
+    }
+
+    @Test
+    fun testDirectGeminiApiKeyInference() = runBlocking {
+        val testApiKey = "AIzaSy-direct-test-key-999"
+        AgentSettingsManager.getInstance().setGeminiApiKey(testApiKey)
+
+        var capturedUrl: String? = null
+        var capturedKey: String? = null
+        RealAgentEngine.httpClient = OkHttpClient.Builder()
+            .addInterceptor { chain ->
+                val request = chain.request()
+                capturedUrl = request.url.toString()
+                capturedKey = request.url.queryParameter("key")
+
+                val sseResponse = "data: {\"response\":{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"Inferencia directa desde Gemini 2.0 Flash\"}]}}]}}\n\n"
+                Response.Builder()
+                    .request(request)
+                    .protocol(Protocol.HTTP_1_1)
+                    .code(200)
+                    .message("OK")
+                    .header("Content-Type", "text/event-stream")
+                    .body(sseResponse.toResponseBody("text/event-stream".toMediaType()))
+                    .build()
+            }
+            .build()
+
+        val events = RealAgentEngine.executeAgentTask("Generar código").toList()
+        assertNotNull(capturedUrl)
+        assertTrue(capturedUrl!!.contains("generativelanguage.googleapis.com"))
+        assertTrue(capturedUrl!!.contains("gemini-2.0-flash"))
+        assertEquals(testApiKey, capturedKey)
+
+        val textEvent = events.filterIsInstance<AgentStreamEvent.TextDelta>().firstOrNull()
+        assertNotNull(textEvent)
+        assertEquals("Inferencia directa desde Gemini 2.0 Flash", textEvent?.text)
+
+        val completed = events.filterIsInstance<AgentStreamEvent.Completed>().firstOrNull()
+        assertNotNull(completed)
+    }
+
+    @Test
+    fun testHandleKeyCommandWorkflow() {
+        val tempDir = java.nio.file.Files.createTempDirectory("gemini-key-test").toFile()
+        try {
+            val response = handleKeyCommand("/key AIzaSyCustomKey123", tempDir)
+            assertNotNull(response)
+            assertTrue(response!!.contains("✓ Clave de Gemini guardada correctamente. ¡Motor de IA activo!"))
+            assertEquals("AIzaSyCustomKey123", AgentSettingsManager.getInstance().getGeminiApiKey())
+
+            val keyFile = File(tempDir, ".gemini/api_key")
+            assertTrue(keyFile.exists())
+            assertEquals("AIzaSyCustomKey123", keyFile.readText().trim())
+
+            val infoResponse = handleKeyCommand("/key", tempDir)
+            assertNotNull(infoResponse)
+            assertTrue(infoResponse!!.contains("● Clave de Gemini configurada:"))
+        } finally {
+            tempDir.deleteRecursively()
+        }
     }
 
     @Test

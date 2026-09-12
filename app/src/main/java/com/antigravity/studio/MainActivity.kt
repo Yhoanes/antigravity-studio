@@ -65,6 +65,7 @@ private val HELP_MENU = (
     "Comandos del sistema:\r\n" +
     "  ! <comando>   Ejecuta comandos de shell en el espacio de trabajo (ej: !ls, !pwd)\r\n" +
     "  /model        Muestra y permite cambiar el modelo de IA activo\r\n" +
+    "  /key <clave>  Configura la clave API de Gemini (Google AI Studio)\r\n" +
     "  clear         Limpia la pantalla de la terminal\r\n\r\n" +
     PROMPT
 ).toByteArray(Charsets.UTF_8)
@@ -93,6 +94,31 @@ internal fun handleModelSelectionCommand(query: String): String {
     } else {
         "\r\n\u001b[1;31m✖ Modelo no encontrado: '$query'. Escribe /model para ver la lista.\u001b[0m\r\n\r\n$PROMPT"
     }
+}
+
+internal fun handleKeyCommand(input: String, filesDir: File): String? {
+    val trimmed = input.trim()
+    if (trimmed.startsWith("/key ") || trimmed.startsWith("key ")) {
+        val key = if (trimmed.startsWith("/key ")) trimmed.removePrefix("/key ").trim() else trimmed.removePrefix("key ").trim()
+        if (key.isNotEmpty()) {
+            com.antigravity.studio.settings.AgentSettingsManager.getInstance().setGeminiApiKey(key)
+            try {
+                val geminiDir = File(filesDir, ".gemini")
+                if (!geminiDir.exists()) geminiDir.mkdirs()
+                File(geminiDir, "api_key").writeText(key, Charsets.UTF_8)
+            } catch (_: Exception) {}
+            return "\r\n\u001b[1;32m✓ Clave de Gemini guardada correctamente. ¡Motor de IA activo!\u001b[0m\r\n\r\n> "
+        }
+    } else if (trimmed == "/key" || trimmed == "key") {
+        val currentKey = com.antigravity.studio.settings.AgentSettingsManager.getInstance().getGeminiApiKey()
+        return if (!currentKey.isNullOrEmpty()) {
+            val masked = currentKey.take(4) + "..." + currentKey.takeLast(4)
+            "\r\n\u001b[1;32m● Clave de Gemini configurada: $masked\u001b[0m\r\nUsa /key <nueva-clave> para actualizar.\r\n\r\n> "
+        } else {
+            "\r\n\u001b[1;33mUso: /key <tu-api-key>\u001b[0m\r\nIngresa tu clave gratuita de Google AI Studio (https://aistudio.google.com/app/apikey).\r\n\r\n> "
+        }
+    }
+    return null
 }
 
 /**
@@ -340,6 +366,12 @@ class MainActivity : ComponentActivity() {
             if (prompt.startsWith("/model ")) {
                 val query = prompt.removePrefix("/model ").trim()
                 uiSession.emitOutput(handleModelSelectionCommand(query).toByteArray(Charsets.UTF_8))
+                return
+            }
+
+            val keyResponse = handleKeyCommand(prompt, applicationContext.filesDir)
+            if (keyResponse != null) {
+                uiSession.emitOutput(keyResponse.toByteArray(Charsets.UTF_8))
                 return
             }
 

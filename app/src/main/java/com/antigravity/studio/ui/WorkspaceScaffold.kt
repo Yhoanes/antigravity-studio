@@ -148,9 +148,9 @@ fun WorkspaceScaffold(
     // Diálogo de Ajustes y Permisos
     var showSettingsDialog by remember { mutableStateOf(false) }
 
-    // Visibilidad de paneles laterales
-    var isLeftSidebarVisible by remember { mutableStateOf(true) }
-    var isRightDrawerVisible by remember { mutableStateOf(true) }
+    // Visibilidad de paneles laterales (cerrados por defecto para terminal a pantalla completa)
+    var isLeftSidebarVisible by remember { mutableStateOf(false) }
+    var isRightDrawerVisible by remember { mutableStateOf(false) }
 
     // Dual Canvas: Estado de pestañas centrales
     var activeCanvasTab by remember { mutableStateOf(CanvasTabType.AGENT_TERMINAL) }
@@ -160,12 +160,6 @@ fun WorkspaceScaffold(
     var isCtrlActive by remember { mutableStateOf(false) }
     var isAltActive by remember { mutableStateOf(false) }
     var isKeyboardShown by remember { mutableStateOf(false) }
-
-    // Métricas de terminal activa
-    val cols by activeSession.cols.collectAsState()
-    val rows by activeSession.rows.collectAsState()
-    val pid by activeSession.pid.collectAsState()
-    val cwd by activeSession.cwd.collectAsState()
 
     // Selección por defecto del archivo principal al cambiar de proyecto
     LaunchedEffect(activeProject?.id) {
@@ -199,29 +193,18 @@ fun WorkspaceScaffold(
             .navigationBarsPadding()
     ) {
         // ====================================================================
-        // 1. TOPBAR MULTI-COMPONENTE CON BREADCRUMB Y BADGE GOLDEN ULTRA
+        // 1. TOPBAR LIMPIA Y PROFESIONAL
         // ====================================================================
         TopBarSection(
-            activeSession = activeSession,
-            sessions = sessions,
-            onSelectSession = onSelectSession,
-            onNewSession = onNewSession,
-            onCloseSession = onCloseSession,
-            agentStatus = agentState.status,
             activeProject = activeProject,
             activeUserEmail = activeUserEmail,
-            activeModelName = currentModel.displayName,
             isLeftSidebarVisible = isLeftSidebarVisible,
             onToggleLeftSidebar = { isLeftSidebarVisible = !isLeftSidebarVisible },
-            isRightDrawerVisible = isRightDrawerVisible,
-            onToggleRightDrawer = { isRightDrawerVisible = !isRightDrawerVisible },
             onSelectTheme = onThemePresetSelected,
-            updateStatus = updateStatus,
             onShowUpdateDialog = { showUpdateDialog = true },
             onCheckUpdates = { UpdateManager.checkForUpdates(coroutineScope) },
             onGoogleSignInClick = onGoogleSignInClick,
             onSignOutClick = onSignOutClick,
-            onOpenModelSheet = { showModelSheet = true },
             onOpenSettings = { showSettingsDialog = true }
         )
 
@@ -394,10 +377,6 @@ fun WorkspaceScaffold(
 
             // Status bar de terminal
             TerminalStatusBar(
-                cols = cols,
-                rows = rows,
-                pid = pid,
-                cwd = cwd,
                 activeModel = currentModel.displayName,
                 onModelClick = { showModelSheet = true }
             )
@@ -644,31 +623,21 @@ private fun WorkspaceCodeCanvas(
 }
 
 /**
- * TopBar con Branding, Breadcrumb de proyecto, Google OAuth, Badge Golden Ultra,
- * badge de modelo activo, sesiones y settings.
+ * TopBar limpia y profesional:
+ * - Izquierda: Botón de menú hamburguesa ☰ + Logo ANTIGRAVITY STUDIO + Pill de proyecto activo ~/projects/tateti
+ * - Derecha: Estado de cuenta / Iniciar sesión + Badge Google AI Ultra + Icono ⚙️ de ajustes
  */
 @Composable
 private fun TopBarSection(
-    activeSession: TerminalSession,
-    sessions: List<TerminalSession>,
-    onSelectSession: (TerminalSession) -> Unit,
-    onNewSession: () -> Unit,
-    onCloseSession: (TerminalSession) -> Unit,
-    agentStatus: AgentStatus,
     activeProject: ProjectItem?,
     activeUserEmail: String?,
-    activeModelName: String,
     isLeftSidebarVisible: Boolean,
     onToggleLeftSidebar: () -> Unit,
-    isRightDrawerVisible: Boolean,
-    onToggleRightDrawer: () -> Unit,
     onSelectTheme: (AppThemePreset) -> Unit,
-    updateStatus: UpdateStatus,
     onShowUpdateDialog: () -> Unit,
     onCheckUpdates: () -> Unit,
     onGoogleSignInClick: () -> Unit,
     onSignOutClick: () -> Unit,
-    onOpenModelSheet: () -> Unit,
     onOpenSettings: () -> Unit
 ) {
     var showThemeMenu by remember { mutableStateOf(false) }
@@ -679,16 +648,16 @@ private fun TopBarSection(
             .height(52.dp)
             .background(SurfaceElevated)
             .border(width = 1.dp, color = BorderObsidian)
-            .padding(horizontal = 10.dp),
+            .padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
-        // IZQUIERDA: Toggle Sidebar, Logo y Breadcrumb de proyecto
+        // IZQUIERDA: Botón de menú hamburguesa ☰ + Logo ANTIGRAVITY STUDIO + Pill de proyecto activo
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Botón toggle barra lateral izquierda
+            // Botón de menú hamburguesa ☰
             Box(
                 modifier = Modifier
                     .size(34.dp)
@@ -703,8 +672,10 @@ private fun TopBarSection(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = "📁",
-                    fontSize = 15.sp
+                    text = "☰",
+                    color = NeonCyan,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
                 )
             }
 
@@ -718,7 +689,7 @@ private fun TopBarSection(
                     letterSpacing = 1.sp,
                     fontFamily = FontFamily.Monospace
                 )
-                Spacer(modifier = Modifier.width(3.dp))
+                Spacer(modifier = Modifier.width(4.dp))
                 Text(
                     text = "STUDIO",
                     color = CosmicViolet,
@@ -729,14 +700,15 @@ private fun TopBarSection(
                 )
             }
 
-            // Breadcrumb del proyecto activo: ~/projects/<name>
-            val breadcrumbText = activeProject?.name?.let { "~/projects/$it" } ?: "~/projects"
+            // Pill de proyecto activo: ~/projects/tateti
+            val projectName = activeProject?.name?.ifBlank { "tateti" } ?: "tateti"
+            val breadcrumbText = "~/projects/$projectName"
             Box(
                 modifier = Modifier
                     .clip(RoundedCornerShape(6.dp))
                     .background(SurfaceObsidian)
                     .border(0.5.dp, BorderObsidian, RoundedCornerShape(6.dp))
-                    .padding(horizontal = 7.dp, vertical = 3.dp)
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
             ) {
                 Text(
                     text = breadcrumbText,
@@ -746,61 +718,18 @@ private fun TopBarSection(
                     fontFamily = FontFamily.Monospace
                 )
             }
-
-            // Agent Status Badge
-            AgentStatusBadge(status = agentStatus)
         }
 
-        // CENTRO: Pestañas de sesión + Google OAuth Action + Badge Golden Ultra
+        // DERECHA: Estado de cuenta / Iniciar sesión + Badge Google AI Ultra + Icono ⚙️ de ajustes
         Row(
-            modifier = Modifier
-                .weight(1f)
-                .padding(horizontal = 8.dp)
-                .horizontalScroll(rememberScrollState()),
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalAlignment = Alignment.CenterVertically
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            sessions.forEach { session ->
-                val isSelected = session.id == activeSession.id
-                SessionTabPill(
-                    session = session,
-                    isSelected = isSelected,
-                    onSelect = { onSelectSession(session) },
-                    onClose = { if (sessions.size > 1) onCloseSession(session) }
-                )
-            }
-
-            // Botón (+) nueva sesión
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(SurfaceObsidian)
-                    .border(1.dp, BorderObsidian, RoundedCornerShape(6.dp))
-                    .clickable { onNewSession() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "+",
-                    color = NeonCyan,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            // Separador
-            Box(
-                modifier = Modifier
-                    .height(20.dp)
-                    .width(1.dp)
-                    .background(BorderObsidian)
-            )
-
-            // Google OAuth Action Component (SPEC-002)
+            // Estado de cuenta / Iniciar sesión
             val authState = if (activeUserEmail != null) {
                 AuthState.Authenticated(email = activeUserEmail)
             } else {
-                AuthState.Authenticated(email = "shadrick1212@gmail.com") // fallback usuario activo
+                AuthState.Authenticated(email = "shadrick1212@gmail.com")
             }
             GoogleAuthTopBarAction(
                 authState = authState,
@@ -809,41 +738,10 @@ private fun TopBarSection(
                 onSwitchAccountClick = onGoogleSignInClick
             )
 
-            // ================================================================
-            // BADGE DORADO GOOGLE AI ULTRA
-            // ================================================================
+            // Badge Google AI Ultra
             GoogleAiUltraBadge()
-        }
 
-        // DERECHA: Badge Modelo Activo + Botón Drawer Derecho + Settings/Themes
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            // Badge de modelo activo
-            ActiveModelBadge(
-                modelName = activeModelName,
-                onClick = onOpenModelSheet
-            )
-
-            // Toggle Drawer Derecho (Subagentes)
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (isRightDrawerVisible) CosmicViolet.copy(alpha = 0.2f) else SurfaceObsidian)
-                    .border(
-                        1.dp,
-                        if (isRightDrawerVisible) CosmicViolet.copy(alpha = 0.6f) else BorderObsidian,
-                        RoundedCornerShape(6.dp)
-                    )
-                    .clickable { onToggleRightDrawer() },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(text = "🤖", fontSize = 14.sp)
-            }
-
-            // Menu de Temas, Updater y Ajustes
+            // Icono ⚙️ de ajustes
             Box {
                 Box(
                     modifier = Modifier
@@ -862,11 +760,10 @@ private fun TopBarSection(
                     onDismissRequest = { showThemeMenu = false },
                     modifier = Modifier.background(SurfaceElevated)
                 ) {
-                    // Ajustes de Gobernanza
                     DropdownMenuItem(
                         text = {
                             Text(
-                                text = "⚙ Permisos y Gobernanza",
+                                text = "⚙ Ajustes y Gemini API",
                                 color = NeonCyan,
                                 fontSize = 13.sp,
                                 fontFamily = FontFamily.Monospace
@@ -880,7 +777,6 @@ private fun TopBarSection(
 
                     HorizontalDivider(color = BorderObsidian)
 
-                    // Buscar actualizaciones OTA
                     DropdownMenuItem(
                         text = {
                             Text(
@@ -899,7 +795,6 @@ private fun TopBarSection(
 
                     HorizontalDivider(color = BorderObsidian)
 
-                    // Presets de Tema
                     AppThemePreset.values().forEach { preset ->
                         DropdownMenuItem(
                             text = {
@@ -1051,19 +946,18 @@ private fun SessionTabPill(
 }
 
 /**
- * Bottom Terminal Status Bar displaying latency, geometry, PID, CWD and Active Model Badge.
+ * Bottom Terminal Status Bar:
+ * - A la izquierda: ● Antigravity 2.0 (con indicador verde sutil)
+ * - A la derecha: ActiveModelBadge (● Gemini 3.8 Flash) clickeable para cambiar de modelo
  */
 @Composable
 private fun TerminalStatusBar(
-    cols: Int,
-    rows: Int,
-    pid: Int,
-    cwd: String,
     activeModel: String = "Gemini 3.8 Flash",
-    onModelClick: () -> Unit = {}
+    onModelClick: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(24.dp)
             .background(CyberObsidian)
@@ -1072,54 +966,31 @@ private fun TerminalStatusBar(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
+        // A la izquierda: ● Antigravity 2.0 (con indicador verde sutil)
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            Text(
-                text = "● 144Hz WebGL",
-                color = StatusSuccess,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(StatusSuccess)
             )
             Text(
-                text = "LATENCY: ≤ 6.9ms",
+                text = "Antigravity 2.0",
                 color = TextSecondary,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace
-            )
-            Text(
-                text = "DIM: ${cols}x${rows}",
-                color = TextSecondary,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace
+                fontSize = 10.5.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Medium
             )
         }
 
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Text(
-                text = "PID: $pid",
-                color = CosmicViolet,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace
-            )
-            Text(
-                text = cwd,
-                color = TextMuted,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.widthIn(max = 160.dp)
-            )
-            ActiveModelBadge(
-                modelName = activeModel,
-                onClick = onModelClick
-            )
-        }
+        // A la derecha: ActiveModelBadge (● Gemini 3.8 Flash) clickeable para cambiar de modelo
+        ActiveModelBadge(
+            modelName = activeModel,
+            onClick = onModelClick
+        )
     }
 }
 

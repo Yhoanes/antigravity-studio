@@ -6,6 +6,7 @@ import com.antigravity.studio.auth.GoogleOAuthManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 
 /**
@@ -62,6 +63,98 @@ class AgentSettingsManager(
         val current = getPolicy()
         val updated = transform(current)
         savePolicy(updated)
+    }
+
+    /**
+     * Retorna la clave API de Gemini configurada, o intenta leerla del archivo local .gemini/api_key.
+     */
+    fun getGeminiApiKey(): String? = getApiKey()
+
+    /**
+     * Guarda o elimina la clave API de Gemini en SharedPreferences y archivo local.
+     */
+    fun setGeminiApiKey(key: String?) {
+        if (key.isNullOrBlank()) {
+            if (prefs != null) {
+                prefs.edit().remove(KEY_GEMINI_API_KEY).apply()
+            } else {
+                inMemoryFallback.remove(KEY_GEMINI_API_KEY)
+            }
+            try {
+                val ctx = GoogleOAuthManager.getAppContext()
+                val candidateDirs = listOfNotNull(
+                    ctx?.filesDir,
+                    File("/data/data/com.antigravity.studio/files").takeIf { it.exists() }
+                )
+                for (dir in candidateDirs) {
+                    try {
+                        val keyFile = File(dir, ".gemini/api_key")
+                        if (keyFile.exists()) keyFile.delete()
+                    } catch (_: Exception) {}
+                }
+            } catch (_: Exception) {}
+        } else {
+            saveApiKey(key)
+        }
+    }
+
+    /**
+     * Retorna la clave API de Gemini configurada, o intenta leerla del archivo local .gemini/api_key.
+     */
+    fun getApiKey(): String? {
+        val key = if (prefs != null) {
+            prefs.getString(KEY_GEMINI_API_KEY, null)
+        } else {
+            inMemoryFallback[KEY_GEMINI_API_KEY] as? String
+        }
+        if (!key.isNullOrBlank()) return key.trim()
+
+        try {
+            val ctx = GoogleOAuthManager.getAppContext()
+            val candidateDirs = listOfNotNull(
+                ctx?.filesDir,
+                File("/data/data/com.antigravity.studio/files").takeIf { it.exists() }
+            )
+            for (dir in candidateDirs) {
+                val keyFile = File(dir, ".gemini/api_key")
+                if (keyFile.exists() && keyFile.isFile) {
+                    val content = keyFile.readText(Charsets.UTF_8).trim()
+                    if (content.isNotEmpty()) return content
+                }
+            }
+        } catch (_: Exception) {}
+        return null
+    }
+
+    /**
+     * Guarda la clave API de Gemini en SharedPreferences y en el archivo local .gemini/api_key.
+     */
+    @Synchronized
+    fun saveApiKey(apiKey: String) {
+        val trimmed = apiKey.trim()
+        if (prefs != null) {
+            prefs.edit().putString(KEY_GEMINI_API_KEY, trimmed).apply()
+        } else {
+            inMemoryFallback[KEY_GEMINI_API_KEY] = trimmed
+        }
+
+        try {
+            val ctx = GoogleOAuthManager.getAppContext()
+            val candidateDirs = listOfNotNull(
+                ctx?.filesDir,
+                File("/data/data/com.antigravity.studio/files").takeIf { it.exists() }
+            )
+            for (dir in candidateDirs) {
+                try {
+                    val geminiDir = File(dir, ".gemini")
+                    if (!geminiDir.exists()) {
+                        geminiDir.mkdirs()
+                    }
+                    val keyFile = File(geminiDir, "api_key")
+                    keyFile.writeText(trimmed, Charsets.UTF_8)
+                } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
     }
 
     /**
@@ -196,6 +289,7 @@ class AgentSettingsManager(
         const val KEY_AUTO_APPROVE_WRITE = "pref_auto_approve_write"
         const val KEY_AUTO_APPROVE_SAFE_BASH = "pref_auto_approve_safe_bash"
         const val KEY_REQUIRE_APPROVAL_DESTRUCTIVE = "pref_require_approval_destructive"
+        const val KEY_GEMINI_API_KEY = "pref_gemini_api_key"
 
         private val DESTRUCTIVE_RM_REGEX = Regex("""\brm\s+.*(-[a-zA-Z]*[rf][a-zA-Z]*|--recursive)""", RegexOption.IGNORE_CASE)
         private val DESTRUCTIVE_DISK_REGEX = Regex("""\b(dd\s+if=|mkfs(\.[a-zA-Z0-9]+)?\b|fdisk\b)""", RegexOption.IGNORE_CASE)
@@ -229,6 +323,11 @@ class AgentSettingsManager(
             val prefs = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
             return init(prefs)
         }
+
+        fun getGeminiApiKey(): String? = getInstance().getGeminiApiKey()
+        fun setGeminiApiKey(key: String?) = getInstance().setGeminiApiKey(key)
+        fun getApiKey(): String? = getInstance().getApiKey()
+        fun saveApiKey(apiKey: String) = getInstance().saveApiKey(apiKey)
 
         fun resetInstanceForTest() {
             synchronized(this) {
