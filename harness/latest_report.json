@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-12T20:52:20.801053+00:00",
+  "timestamp": "2026-09-12T21:25:03.938694+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,14 +7,14 @@
     "passed_suites": 3,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 3718.16
+    "total_duration_ms": 1971.02
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 139.32,
+      "duration_ms": 132.68,
       "summary": "5/5 especificaciones SDD válidas | 48 Criterios de Aceptación (AC) verificados",
       "details": {
         "total_specs": 5,
@@ -458,7 +458,7 @@
       "name": "code_linter",
       "display_name": "Static Analysis & Syntax Linter Suite",
       "status": "PASS",
-      "duration_ms": 19.36,
+      "duration_ms": 18.36,
       "summary": "Análisis sintáctico completado sin errores en 8 archivos",
       "details": {
         "scanned_files": 8
@@ -471,7 +471,7 @@
       "name": "test_suite",
       "display_name": "Automated Unit & Regression Test Suite",
       "status": "PASS",
-      "duration_ms": 3559.34,
+      "duration_ms": 1819.84,
       "summary": "16 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
       "details": {
         "tests_run": 16,

@@ -117,7 +117,7 @@ fi
 # ------------------------------------------------------------------------------
 # Paso 3: Verificación y Enlace de Antigravity (agy)
 # ------------------------------------------------------------------------------
-echo -e "\n${CYAN}${BOLD}[Paso 3/4]${NC} Verificando e integrando CLI Antigravity ('agy')..."
+echo -e "\n${CYAN}${BOLD}[Paso 3/4]${NC} Verificando e integrando CLI Antigravity ('agy') para Snapdragon 870 ARM64..."
 
 # Determinar directorio binario prioritario
 if [ -n "${PREFIX:-}" ] && [ -d "${PREFIX}/bin" ] && [ -w "${PREFIX}/bin" ]; then
@@ -129,271 +129,37 @@ else
     mkdir -p "$INSTALL_BIN_DIR"
 fi
 
-FOUND_AGY=""
-
 if command -v agy >/dev/null 2>&1; then
-    FOUND_AGY="$(command -v agy)"
-    echo -e "${GREEN}[✓] Binario 'agy' encontrado en PATH: ${FOUND_AGY}${NC}"
-else
-    # Buscar en rutas típicas de Antigravity y Android
-    CANDIDATE_PATHS=(
-        "/data/data/com.antigravity.studio/files/bin/agy"
-        "${PREFIX:-/data/data/com.termux/files/usr}/bin/agy"
-        "${HOME}/.antigravity/bin/agy"
-        "${HOME}/.local/bin/agy"
-        "/usr/local/bin/agy"
-    )
+    echo -e "${CYAN}[i] Binario o lanzador previo detectado en PATH: $(command -v agy)${NC}"
+fi
 
-    for cand in "${CANDIDATE_PATHS[@]}"; do
-        if [ -x "$cand" ]; then
-            FOUND_AGY="$cand"
-            break
-        fi
-    done
-
-    if [ -n "$FOUND_AGY" ]; then
-        echo -e "${GREEN}[✓] Binario 'agy' localizado en: ${FOUND_AGY}${NC}"
-        if [ "$FOUND_AGY" != "${INSTALL_BIN_DIR}/agy" ]; then
-            ln -sf "$FOUND_AGY" "${INSTALL_BIN_DIR}/agy"
-            echo -e "${GREEN}[✓] Enlace simbólico creado en ${INSTALL_BIN_DIR}/agy -> ${FOUND_AGY}${NC}"
-        fi
+# Verificar proot-distro y distribución Ubuntu ARM64
+if command -v proot-distro >/dev/null 2>&1; then
+    echo -e "${GREEN}[✓] proot-distro detectado en el entorno Termux.${NC}"
+    if proot-distro list 2>/dev/null | grep -q "ubuntu"; then
+        echo -e "${GREEN}[✓] Distribución Ubuntu ARM64 disponible en proot-distro.${NC}"
     else
-        echo -e "${AMBER}[!] 'agy' no encontrado en el sistema. Desplegando CLI autónomo para ARM64 / Snapdragon 870...${NC}"
-        
-        # Desplegar CLI autónomo oficial optimizado para Snapdragon 870 y Termux
-        cat << 'EOF' > "${INSTALL_BIN_DIR}/agy"
-#!/system/bin/sh
-# Fallback shell runner for environments where /system/bin/sh or bash is present
-if [ -z "$BASH_VERSION" ] && [ -x /bin/bash ]; then
-    exec /bin/bash "$0" "$@"
-elif [ -z "$BASH_VERSION" ] && command -v bash >/dev/null 2>&1; then
-    exec bash "$0" "$@"
+        echo -e "${AMBER}[!] Distribución Ubuntu no encontrada. Instálala con: proot-distro install ubuntu${NC}"
+    fi
+else
+    echo -e "${AMBER}[!] proot-distro no detectado. Requerido para agy: pkg install proot-distro && proot-distro install ubuntu${NC}"
 fi
 
-# Antigravity CLI (agy) - Local Agent Engine
-# Optimized for Xiaomi Pad 6 / Snapdragon 870 & Android POSIX Environment
-
-export WORKSPACE="${WORKSPACE:-$HOME/projects}"
-
-CYAN='\033[38;2;0;240;255m'
-VIOLET='\033[38;2;139;92;246m'
-GREEN='\033[38;2;16;185;129m'
-AMBER='\033[38;2;245;158;11m'
-RED='\033[38;2;239;68;68m'
-MUTED='\033[38;2;100;116;139m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-BANNER="${CYAN}   ___         __  _                         _  __           ${NC}\n\
-${CYAN}  /   |  ____  / /_(_)___ __________ __   __ (_)/ /___  __    ${NC}\n\
-${VIOLET} / /| | / __ \/ __/ / __ \`/ ___/ __ \`/ | / // // __/ / / /    ${NC}\n\
-${VIOLET}/ ___ |/ / / / /_/ / /_/ / /  / /_/ /| |/ // // /_/ /_/ /     ${NC}\n\
-${CYAN}/_/  |_/_/ /_/\__/_/\__, /_/   \__,_/ |___//_/ \__/\__, /      ${NC}\n\
-${CYAN}                  /____/                         /____/       ${NC}\n\
-${VIOLET} [Antigravity 2.0 (Gemini 2.5) | Snapdragon 870 Local Agent Engine]${NC}\n"
-
-show_version() {
-    printf "Antigravity CLI 2.0 (Xiaomi Pad 6 Edition - Snapdragon 870)\n"
-    printf "Runtime: ARM64 POSIX Native Engine | Gemini 2.5 Pro/Flash\n"
-}
-
-show_help() {
-    printf "${BANNER}\n"
-    printf "${BOLD}USO:${NC} agy <comando> [argumentos...]\n\n"
-    printf "${BOLD}COMANDOS DISPONIBLES:${NC}\n"
-    printf "  ${CYAN}run${NC} [prompt]       Inicia la sesión interactiva del agente o ejecuta una instrucción\n"
-    printf "  ${GREEN}auth${NC} [token]      Verifica o configura las credenciales de autenticación\n"
-    printf "  ${AMBER}status${NC}            Muestra el estado del hardware, GPU Adreno 650 y PTY\n"
-    printf "  ${CYAN}setup-linux${NC}       Prepara o verifica el rootfs Ubuntu ARM64 en PRoot\n"
-    printf "  ${VIOLET}models${NC}            Lista los modelos de IA locales y remotos disponibles\n"
-    printf "  ${MUTED}version, --version${NC} Muestra la versión del CLI de Antigravity\n"
-    printf "  ${MUTED}help, --help, -h${NC}  Muestra este menú de ayuda\n\n"
-}
-
-show_status() {
-    printf "${BANNER}\n"
-    printf "${BOLD}ESTADO DEL HARDWARE Y RUNTIME LOCAL:${NC}\n"
-    printf "  ${CYAN}Dispositivo:${NC}       Xiaomi Pad 6 (Snapdragon 870 Octa-Core @ 3.2GHz)\n"
-    printf "  ${CYAN}Arquitectura:${NC}      ARM64-v8a (aarch64)\n"
-    printf "  ${CYAN}Memoria RAM:${NC}       6 GB LPDDR5 (Compartida con GPU Adreno 650)\n"
-    printf "  ${CYAN}Pantalla & FPS:${NC}    11\" 2.8K (2880x1800) 16:10 @ 144Hz\n"
-    printf "  ${CYAN}Motor PTY:${NC}         POSIX Native /dev/ptmx [OK]\n"
-    printf "  ${CYAN}Virtualización:${NC}    PRoot User-Space / Termux Environment\n"
-    printf "  ${CYAN}Workspace:${NC}         ${WORKSPACE}\n\n"
-}
-
-run_auth() {
-    printf "${BANNER}\n"
-    CREDS_FILE="${HOME}/.gemini/oauth_creds.json"
-    TOKEN_FILE="${HOME}/.antigravity_token"
-    SUBCMD="${1:-}"
-    
-    if [ "$SUBCMD" = "login" ]; then
-        printf "${CYAN}⚡ Autenticación Google OAuth 2.0 PKCE en loopback...${NC}\n"
-        printf "Inicia sesión en la app Antigravity Studio o abre tu navegador.\n"
-        if command -v am >/dev/null 2>&1; then
-            am start -a android.intent.action.VIEW -d "antigravity://login" >/dev/null 2>&1 || true
-        fi
-        return 0
-    elif [ -n "$SUBCMD" ] && [ "$SUBCMD" != "status" ]; then
-        echo "$SUBCMD" > "$TOKEN_FILE"
-        chmod 600 "$TOKEN_FILE"
-        printf "${GREEN}✔ Token de acceso guardado en %s${NC}\n" "$TOKEN_FILE"
-        return 0
-    fi
-
-    if [ -f "$CREDS_FILE" ]; then
-        ACCOUNT_ID=$(grep -o '"account_id": "[^"]*' "$CREDS_FILE" 2>/dev/null | cut -d'"' -f4 || true)
-        if [ -n "$ACCOUNT_ID" ]; then
-            printf "${GREEN}✔ Sesión activa de Google OAuth:${NC} ${BOLD}%s${NC}\n" "$ACCOUNT_ID"
-            printf "${MUTED}Scopes: cloud-platform, gemini.code | Cuenta Ultra Activa${NC}\n\n"
-            return 0
-        fi
-    fi
-
-    if [ -f "$TOKEN_FILE" ]; then
-        printf "${GREEN}✔ Token Antigravity configurado en ~/.antigravity_token${NC}\n\n"
-        return 0
-    fi
-
-    printf "${AMBER}● Sin sesión activa de Google OAuth / Token.${NC}\n"
-    printf "Para autenticarte, ejecuta: ${CYAN}agy auth login${NC} o ${CYAN}agy auth <token>${NC}\n\n"
-}
-
-list_models() {
-    printf "${BANNER}\n"
-    printf "${BOLD}MODELOS DE IA DISPONIBLES:${NC}\n\n"
-    printf "  ${CYAN}gemini-2.5-pro${NC}           (Cloud / Ultra - Razonamiento de contexto masivo)\n"
-    printf "  ${CYAN}gemini-2.5-flash${NC}         (Cloud / Ultra - Conexión ultra-rápida con streaming)\n"
-    printf "  ${VIOLET}antigravity-local-q8${NC}     (Local On-Device - NPU Hexagon Snapdragon 870)\n"
-    printf "  ${VIOLET}antigravity-coder-7b${NC}     (Local On-Device - Especializado en código)\n\n"
-    printf "${MUTED}Modelo activo por defecto: gemini-2.5-flash${NC}\n"
-}
-
-list_projects() {
-    printf "${BANNER}\n"
-    printf "${BOLD}ESPACIO DE TRABAJO EN PROYECTOS (~/projects):${NC}\n\n"
-    mkdir -p "${WORKSPACE}"
-    ls -la "${WORKSPACE}"
-    printf "\n${MUTED}Para crear un nuevo proyecto: mkdir ~/projects/mi-proyecto && cd ~/projects/mi-proyecto${NC}\n"
-}
-
-setup_linux() {
-    printf "${BANNER}\n"
-    printf "${CYAN}⚡ Verificando Subsistema Linux PRoot Ubuntu ARM64...${NC}\n\n"
-    ROOTFS_DIR="${HOME}/ubuntu_rootfs"
-    mkdir -p "$ROOTFS_DIR"
-    mkdir -p "${WORKSPACE}"
-    printf "  1. Configuración de enlaces VFS (/dev, /proc, /sys)...   ${GREEN}[OK]${NC}\n"
-    printf "  2. Comprobando binarios ARM64 Snapdragon 870...         ${GREEN}[OK]${NC}\n"
-    printf "  3. Vinculando espacio de trabajo en %s... ${GREEN}[OK]${NC}\n" "${WORKSPACE}"
-    printf "\n${GREEN}✔ Entorno Linux listo para ejecución de tareas.${NC}\n"
-}
-
-run_agent() {
-    printf "${BANNER}\n"
-    if [ -n "${1:-}" ]; then
-        printf "${CYAN}agy:executing>${NC} %s\n" "$*"
-        printf "${GREEN}● Procesando instrucción en el agente...${NC}\n"
-        # Enviar broadcast al motor de Android si am está disponible
-        if command -v am >/dev/null 2>&1; then
-            am broadcast -a com.antigravity.studio.RUN_AGENT --es prompt "$*" >/dev/null 2>&1 || true
-        fi
-        return 0
-    fi
-
-    printf "${CYAN}Sesión Interactiva Activa.${NC} Escribe tus instrucciones o '${BOLD}exit${NC}' para salir.\n"
-    printf "${MUTED}Comandos rápidos: status, auth, models, projects, clear${NC}\n\n"
-
-    while true; do
-        printf "${CYAN}agy:agent> ${NC}"
-        if ! read -r line; then
-            break
-        fi
-        case "$line" in
-            exit|quit|q)
-                printf "${MUTED}Cerrando sesión de Antigravity...${NC}\n"
-                break
-                ;;
-            help|--help|-h)
-                show_help
-                ;;
-            status)
-                show_status
-                ;;
-            auth*)
-                run_auth ${line#auth}
-                ;;
-            model|models|/model)
-                list_models
-                ;;
-            projects|project|/projects)
-                list_projects
-                ;;
-            clear)
-                clear 2>/dev/null || printf "\033[2J\033[H"
-                ;;
-            "")
-                continue
-                ;;
-            *)
-                printf "${GREEN}● Agente:${NC} Procesando '%s' en Snapdragon 870...\n" "$line"
-                if command -v am >/dev/null 2>&1; then
-                    am broadcast -a com.antigravity.studio.RUN_AGENT --es prompt "$line" >/dev/null 2>&1 || true
-                fi
-                ;;
-        esac
-    done
-}
-
-CMD="${1:-}"
-if [ -n "$CMD" ]; then
-    shift
+# Generar binario lanzador oficial hacia el subsistema PRoot Ubuntu
+echo -e "${CYAN}[*] Desplegando binario lanzador 'agy' en ${INSTALL_BIN_DIR}/agy...${NC}"
+cat << 'EOF' > "${INSTALL_BIN_DIR}/agy"
+#!/data/data/com.termux/files/usr/bin/sh
+if command -v proot-distro >/dev/null 2>&1; then
+    exec proot-distro login ubuntu -- bash -l -c 'agy "$@"'
+else
+    echo "Error: proot-distro no está instalado. Instala ubuntu con: pkg install proot-distro && proot-distro install ubuntu"
+    exit 1
 fi
-
-case "$CMD" in
-    run|"")
-        run_agent "$@"
-        ;;
-    auth)
-        run_auth "$@"
-        ;;
-    status)
-        show_status "$@"
-        ;;
-    setup-linux)
-        setup_linux "$@"
-        ;;
-    model|models|/model)
-        list_models "$@"
-        ;;
-    projects|project|/projects)
-        list_projects "$@"
-        ;;
-    version|--version|-v)
-        show_version
-        ;;
-    help|--help|-h)
-        show_help
-        ;;
-    *)
-        run_agent "$CMD" "$@"
-        ;;
-esac
 EOF
-        chmod +x "${INSTALL_BIN_DIR}/agy"
-        FOUND_AGY="${INSTALL_BIN_DIR}/agy"
-        echo -e "${GREEN}[✓] CLI 'agy' instalado y marcado como ejecutable en ${INSTALL_BIN_DIR}/agy${NC}"
-    fi
-fi
+chmod +x "${INSTALL_BIN_DIR}/agy"
+echo -e "${GREEN}[✓] Binario lanzador 'agy' configurado y marcado como ejecutable en ${INSTALL_BIN_DIR}/agy${NC}"
 
-# Comprobar versión y estado de autenticación de agy
-echo -e "${CYAN}[*] Verificando estado operativo de 'agy'...${NC}"
-if [ -x "$FOUND_AGY" ]; then
-    AGY_VER="$("$FOUND_AGY" --version 2>/dev/null || echo "Antigravity CLI 2.0")"
-    echo -e "${GREEN}[✓] Versión detectada: ${AGY_VER}${NC}"
-fi
-
+# Estado de autenticación
 CREDS_FILE="${HOME}/.gemini/oauth_creds.json"
 TOKEN_FILE="${HOME}/.antigravity_token"
 if [ -f "$CREDS_FILE" ] || [ -f "$TOKEN_FILE" ]; then
@@ -406,6 +172,9 @@ fi
 # Paso 4: Entorno y Bienvenida en ~/.bashrc
 # ------------------------------------------------------------------------------
 echo -e "\n${CYAN}${BOLD}[Paso 4/4]${NC} Configurando variables de entorno, directorio de proyectos y banner en ~/.bashrc..."
+
+# Asegurar persistencia contra HyperOS durante la instalación
+termux-wake-lock 2>/dev/null || true
 
 # Asegurar directorio de proyectos
 PROJECTS_DIR="${HOME}/projects"
@@ -471,6 +240,15 @@ if [[ $- == *i* ]]; then
     echo -e "  🚀 Para iniciar tu agente autónomo: ${_green}${_bold}agy${_nc} o ${_green}${_bold}agy run${_nc}"
     echo -e "  ⚡ Utiliza los botones táctiles en la barra inferior para accesos rápidos."
     echo -e ""
+fi
+
+# Persistencia contra suspensión agresiva en HyperOS
+termux-wake-lock 2>/dev/null || true
+
+# Auto-arranque interactivo directo a Antigravity CLI oficial
+if [ -z "$AGY_LAUNCHED" ] && [ -t 1 ]; then
+    export AGY_LAUNCHED=1
+    agy
 fi
 # <<< ANTIGRAVITY STUDIO BOOTSTRAP <<<
 EOF

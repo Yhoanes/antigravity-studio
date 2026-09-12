@@ -154,20 +154,21 @@ class TestTermuxAdapter(unittest.TestCase):
         self.assertIn("termux-reload-settings", self.script_content)
 
     def test_step3_agy_verification_and_linking(self):
-        """Paso 3: Valida comprobación en PATH de 'agy', rutas de búsqueda y fallback ARM64."""
-        self.assertIn("command -v agy", self.script_content)
-        self.assertIn("agy", self.script_content)
+        """Paso 3: Valida creación del lanzador 'agy' hacia proot-distro Ubuntu ARM64 y ausencia de menús mock."""
+        self.assertIn("command -v proot-distro", self.script_content)
+        self.assertIn("proot-distro login ubuntu", self.script_content)
+        self.assertIn("INSTALL_BIN_DIR", self.script_content)
+        self.assertIn("chmod +x", self.script_content)
         self.assertTrue(
             "Snapdragon 870" in self.script_content or "aarch64" in self.script_content or "ARM64" in self.script_content,
-            "El soporte para Qualcomm Snapdragon 870 / ARM64 debe estar contemplado en agy",
+            "El soporte para Qualcomm Snapdragon 870 / ARM64 debe estar contemplado en el instalador",
         )
-        self.assertTrue(
-            "--version" in self.script_content or "status" in self.script_content,
-            "Debe verificarse la versión o estado de agy",
-        )
+        # Validar que no existan las funciones mock previas
+        self.assertNotIn("list_models()", self.script_content)
+        self.assertNotIn("show_help()", self.script_content)
 
     def test_step4_bashrc_environment_and_banner(self):
-        """Paso 4: Valida variables de entorno, carpeta ~/projects, banner ANSI y bienvenida en ~/.bashrc."""
+        """Paso 4: Valida variables de entorno, carpeta ~/projects, banner ANSI, auto-arranque y wake-lock en ~/.bashrc."""
         self.assertIn(".bashrc", self.script_content)
         self.assertIn("projects", self.script_content)
         self.assertIn("Snapdragon 870", self.script_content)
@@ -181,11 +182,9 @@ class TestTermuxAdapter(unittest.TestCase):
             "El bloque en ~/.bashrc debe usar delimitadores de idempotencia",
         )
 
-        # Verificar mensaje interactivo para iniciar sesión con agy
-        self.assertTrue(
-            "agy run" in self.script_content or "agy" in self.script_content,
-            "Debe indicar cómo lanzar la sesión con agy",
-        )
+        # Auto-arranque interactivo directo y persistencia wake-lock contra HyperOS
+        self.assertIn("AGY_LAUNCHED", self.script_content)
+        self.assertIn("termux-wake-lock", self.script_content)
 
     def test_functional_execution_and_idempotency_in_mock_env(self):
         """Ejecuta el script en un entorno mock aislado para validar creación de archivos e idempotencia."""
@@ -279,62 +278,51 @@ class TestTermuxAdapter(unittest.TestCase):
                 "El bloque de bootstrap en .bashrc NO debe duplicarse tras múltiples ejecuciones (Idempotencia)",
             )
 
-            # 3. Validar ejecución funcional de los subcomandos del CLI 'agy' instalado
+            # 3. Validar el binario lanzador 'agy' instalado y su delegación a proot-distro
             agy_bin = mock_home / "mock_prefix" / "bin" / "agy"
             self.assertTrue(agy_bin.exists(), "El binario agy debe existir en mock_prefix/bin/agy")
 
-            # agy --version
-            agy_cmd_ver = f'export HOME="{posix_home}"; bash "{posix_prefix}/bin/agy" --version'
-            res_ver = subprocess.run(
-                [bash_path, "-c", agy_cmd_ver],
-                cwd=str(self.project_root),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-            self.assertEqual(res_ver.returncode, 0, f"agy --version falló: {res_ver.stderr}")
-            self.assertIn("Antigravity CLI", res_ver.stdout)
+            agy_text = agy_bin.read_text(encoding="utf-8")
+            self.assertIn("proot-distro login ubuntu", agy_text)
+            self.assertIn("proot-distro no está instalado", agy_text)
 
-            # agy model
-            agy_cmd_model = f'export HOME="{posix_home}"; bash "{posix_prefix}/bin/agy" model'
-            res_model = subprocess.run(
-                [bash_path, "-c", agy_cmd_model],
+            # Ejecución de agy sin proot-distro en PATH (debe retornar exit code 1 y advertencia)
+            agy_cmd_nofallback = f'export HOME="{posix_home}"; bash "{posix_prefix}/bin/agy"'
+            res_fail = subprocess.run(
+                [bash_path, "-c", agy_cmd_nofallback],
                 cwd=str(self.project_root),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
             )
-            self.assertEqual(res_model.returncode, 0, f"agy model falló: {res_model.stderr}")
-            self.assertIn("gemini-2.5", res_model.stdout.lower())
+            self.assertEqual(res_fail.returncode, 1, "Debe retornar código 1 si proot-distro no está instalado")
+            self.assertIn("Error: proot-distro no está instalado", res_fail.stdout + res_fail.stderr)
 
-            # agy projects
-            agy_cmd_proj = f'export HOME="{posix_home}"; bash "{posix_prefix}/bin/agy" projects'
-            res_proj = subprocess.run(
-                [bash_path, "-c", agy_cmd_proj],
-                cwd=str(self.project_root),
-                capture_output=True,
-                text=True,
-                encoding="utf-8",
-                errors="replace",
-            )
-            self.assertEqual(res_proj.returncode, 0, f"agy projects falló: {res_proj.stderr}")
-            self.assertIn("projects", res_proj.stdout.lower())
+            # Ejecución de agy con wrapper mock de proot-distro en PATH
+            mock_proot = mock_home / "mock_prefix" / "bin" / "proot-distro"
+            mock_proot.write_bytes(b'#!/bin/sh\necho "MOCK_PROOT_EXEC: $@"\nexit 0\n')
+            mock_proot.chmod(0o755)
 
-            # agy status
-            agy_cmd_stat = f'export HOME="{posix_home}"; bash "{posix_prefix}/bin/agy" status'
-            res_stat = subprocess.run(
-                [bash_path, "-c", agy_cmd_stat],
+            agy_cmd_proot = (
+                f'export HOME="{posix_home}"; '
+                f'export PATH="{posix_prefix}/bin:$PATH"; '
+                f'bash "{posix_prefix}/bin/agy" --version'
+            )
+            res_proot = subprocess.run(
+                [bash_path, "-c", agy_cmd_proot],
                 cwd=str(self.project_root),
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
                 errors="replace",
             )
-            self.assertEqual(res_stat.returncode, 0, f"agy status falló: {res_stat.stderr}")
-            self.assertIn("Xiaomi Pad 6", res_stat.stdout)
-            self.assertIn("Snapdragon 870", res_stat.stdout)
+            self.assertEqual(res_proot.returncode, 0, f"Invocación con mock proot-distro falló: {res_proot.stderr}")
+            self.assertIn("MOCK_PROOT_EXEC: login ubuntu", res_proot.stdout)
+
+            # Validar que .bashrc contenga auto-arranque y persistencia wake-lock
+            self.assertIn("AGY_LAUNCHED", bashrc_text)
+            self.assertIn("termux-wake-lock", bashrc_text)
 
 
 if __name__ == "__main__":
