@@ -70,7 +70,7 @@ object GoogleOAuthManager {
     const val LOOPBACK_PORT = 54123
     const val REDIRECT_URI = "http://localhost:54123/callback"
     const val FALLBACK_REDIRECT_URI = "antigravity://oauth2callback"
-    const val SCOPES = "https://www.googleapis.com/auth/cloud-platform openid email profile"
+    const val SCOPES = "openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever"
 
     private const val AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
     private const val TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
@@ -585,6 +585,18 @@ object GoogleOAuthManager {
     suspend fun getValidAccessToken(): String? = withContext(Dispatchers.IO) {
         val tokens = currentTokens ?: loadSavedTokens() ?: return@withContext null
 
+        if (!tokens.scope.contains("generative-language")) {
+            Log.w(TAG, "Current token missing 'generative-language' scope. Invalidating token.")
+            val ctx = appContext
+            if (ctx != null) {
+                File(ctx.filesDir, ".gemini/oauth_creds.json").delete()
+            }
+            currentTokens = null
+            _activeAccountEmail.value = null
+            _authState.value = AuthState.Unauthenticated
+            return@withContext null
+        }
+
         if (!tokens.isExpired) {
             return@withContext tokens.accessToken
         }
@@ -840,13 +852,20 @@ object GoogleOAuthManager {
 
         return try {
             val json = JSONObject(credsFile.readText(Charsets.UTF_8))
-            OAuthTokens(
-                accessToken = json.getString("access_token"),
-                refreshToken = json.optString("refresh_token", ""),
-                expiresAtEpochMs = json.optLong("expires_at_epoch_ms", 0L),
-                scope = json.optString("scope", SCOPES),
-                accountId = json.optString("account_id", "unknown@google.com")
-            )
+            val savedScope = json.optString("scope", "")
+            if (!savedScope.contains("generative-language")) {
+                Log.w(TAG, "Loaded token missing 'generative-language' scope ($savedScope). Invalidating saved token.")
+                credsFile.delete()
+                null
+            } else {
+                OAuthTokens(
+                    accessToken = json.getString("access_token"),
+                    refreshToken = json.optString("refresh_token", ""),
+                    expiresAtEpochMs = json.optLong("expires_at_epoch_ms", 0L),
+                    scope = savedScope,
+                    accountId = json.optString("account_id", "unknown@google.com")
+                )
+            }
         } catch (e: Exception) {
             Log.w(TAG, "Failed loading saved OAuth credentials: ${e.message}")
             null

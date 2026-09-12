@@ -55,6 +55,9 @@ El flujo combina la protección PKCE (mitigación de intercepción de código) c
   - `email`: Obtención de la dirección de correo electrónico del usuario.
   - `profile`: Nombre del usuario y avatar (`picture`).
   - `https://www.googleapis.com/auth/cloud-platform`: Acceso a los endpoints generativos de Google Gemini y Vertex AI.
+  - `https://www.googleapis.com/auth/generative-language`: Acceso oficial a la API generativa de Google Gemini (`generativelanguage.googleapis.com`).
+  - `https://www.googleapis.com/auth/generative-language.retriever`: Soporte de recuperación de conocimiento y embeddings.
+  - **Lista Completa de Scopes:** `openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever`
 
 #### Parámetros Criptográficos PKCE:
 - **`code_verifier`:** Cadena de alta entropía generada con `java.security.SecureRandom` (longitud: 64 caracteres Base64URL sin relleno, 48 bytes aleatorios).
@@ -280,7 +283,7 @@ Los archivos de credenciales se almacenan en el almacenamiento interno privado d
   "access_token": "ya29.a0Ac_Vb3...[REDACTED]...",
   "refresh_token": "1//0eW3m...[REDACTED]...",
   "expires_at_epoch_ms": 1789215480000,
-  "scope": "openid email profile https://www.googleapis.com/auth/cloud-platform",
+  "scope": "openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever",
   "account_id": "shadrick1212@gmail.com",
   "updated_at_iso": "2026-09-12T05:30:00.000Z"
 }
@@ -325,12 +328,12 @@ Los archivos de credenciales se almacenan en el almacenamiento interno privado d
 ## 3. Arquitectura del Motor Agéntico Real (`RealAgentEngine`)
 
 ### 3.1 Flujo de Ejecución y Conexión con Endpoints Generativos
-El `RealAgentEngine` conecta la entrada del usuario y los eventos de la terminal con los modelos de lenguaje de Google (Gemini 1.5 Pro vía API Generativa de Google / Vertex AI):
+El `RealAgentEngine` conecta la entrada del usuario y los eventos de la terminal con los modelos de lenguaje de frontera de Google, operando con **Gemini 2.5 Flash** como motor predeterminado de ultra-baja latencia y razonamiento nativo, manteniendo compatibilidad con Gemini 1.5 Pro y Vertex AI:
 
 ```mermaid
 graph TD
     subgraph UI & PTY Subsystem
-        A1[User Prompt: agy run or UI Chat] --> A2[RealAgentEngine Core]
+        A1[User Prompt: > prompt or UI Chat] --> A2[RealAgentEngine Core]
         A3[PTY Master / xterm.js WebGL] <-->|Bidirectional I/O| A2
     end
 
@@ -338,8 +341,10 @@ graph TD
         A2 --> B1[GoogleOAuthManager Inject Bearer Token]
         B1 --> B2[OkHttp SSE Client streamGenerateContent]
         B2 -->|Raw SSE Stream data: ...| B3[Streaming JSON Parser]
+        B3 -->|ModelHeader Gemini 2.5 Flash| A3
+        B3 -->|Thought Chunks: • Thought| A3
         B3 -->|Text Delta Stream| A3
-        B3 -->|FunctionCall Event| B4[Local Tool Dispatcher]
+        B3 -->|FunctionCall Event: • ToolName| B4[Local Tool Dispatcher]
         B4 -->|Read/Write Files| B5[Workspace Directory filesDir/workspace]
         B4 -->|Run Local Command| B6[POSIX PTY Sandbox]
         B5 --> B7[FunctionResponse Result]
@@ -351,16 +356,17 @@ graph TD
 ---
 
 ### 3.2 Streaming SSE de Baja Latencia directo al PTY a 144Hz
-1. **Endpoint de Generación:**
-   `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:streamGenerateContent?alt=sse`
+1. **Endpoint de Generación (Gemini 2.5 Flash por defecto):**
+   `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:streamGenerateContent?alt=sse`
+   *(Fallback retrocompatible: `gemini-1.5-pro`)*
 2. **Encabezados HTTP Obligatorios:**
    - `Authorization: Bearer <valid_access_token>`
    - `Content-Type: application/json`
    - `Accept: text/event-stream`
 3. **Decodificación y Volcado a la Terminal:**
    - El cliente de OkHttp procesa el flujo en `Dispatchers.IO` a medida que llegan los fragmentos SSE (`data: { ... }`).
-   - Cada fragmento de texto extraído (`candidates[0].content.parts[0].text`) se codifica como secuencia UTF-8 y se escribe directamente en el descriptor maestro de la PTY mediante `PtyNativeBridge.nativeWrite()`.
-   - La pantalla a 144Hz de la Xiaomi Pad 6 refleja la generación de código con una latencia de renderizado $\le 16\,\text{ms}$, ofreciendo una experiencia idéntica a una terminal local de alta velocidad.
+   - Cada fragmento de texto extraído (`candidates[0].content.parts[0].text`) y fragmento de razonamiento (`parts[0].thought`) se codifica como secuencia UTF-8 y se escribe directamente en el descriptor maestro de la PTY mediante `PtyNativeBridge.nativeWrite()`.
+   - La pantalla a 144Hz de la Xiaomi Pad 6 refleja la generación de código y pensamiento con una latencia de renderizado $\le 16\,\text{ms}$, ofreciendo una experiencia idéntica a una terminal local de alta velocidad.
 
 ---
 
@@ -381,6 +387,67 @@ Cuando el usuario ejecuta comandos en la terminal emulada de Antigravity:
 - **`agy auth status`:** Lee directamente `$filesDir/.gemini/oauth_creds.json` y `$filesDir/.gemini/google_accounts.json` imprimiendo la cuenta activa, los scopes vigentes y el tiempo restante de expiración.
 - **`agy auth login`:** Si no hay sesión iniciada, envía una señal a la aplicación Android para abrir el flujo OAuth con el loopback receiver en el puerto 54123.
 - **`agy run <prompt>`:** Dispara el ciclo del agente directamente en la terminal, aprovechando los tokens vigentes y mostrando el progreso en tiempo real con spinners ANSI y colores Cyber-Obsidian.
+
+---
+
+### 3.5 Protocolo de Interfaz Visual en Terminal y UI Inspirada en Antigravity 2.0
+
+La experiencia de interacción del agente en Antigravity Studio hereda el estándar visual estructurado y minimalista de **Antigravity 2.0**, optimizado para lectura técnica y renderizado a 144Hz en la pantalla de la Xiaomi Pad 6:
+
+1. **Prompt de Usuario con Prefijo `>`:**
+   - **Glifo Identificador:** El carácter `>` (`\u003E`), seguido de un espacio.
+   - **Estilo y Paleta:** Renderizado en Cyber-Cyan neón (`#06B6D4` / ANSI `\u001B[38;2;6;182;212m`) o Blanco Brillante (`#F8FAFC`), demarcando inequívocamente la orden inicial del usuario.
+   - **Propósito:** Iniciar cada turno agéntico con separación visual clara respecto a las emisiones posteriores del modelo.
+   - **Ejemplo:** `> Implementa el nuevo interceptor de autenticación con refresh automático`
+
+2. **Etiqueta Identificadora del Modelo (`Gemini 2.5 Flash`):**
+   - **Badge Distintivo:** `[Gemini 2.5 Flash]` o `Gemini 2.5 Flash ⚡`.
+   - **Estilo y Paleta:** Caja Obsidian Slate (`#1E293B`) con texto en Violeta Neón / Cyan (`#A855F7` / `#06B6D4`).
+   - **Propósito:** Informar de manera explícita el modelo de lenguaje en ejecución. Gemini 2.5 Flash opera como el modelo insignia predeterminado gracias a su velocidad de streaming de ultra-baja latencia y soporte de razonamiento nativo multimodal.
+
+3. **Bloque de Pensamiento y Razonamiento (`• Thought`):**
+   - **Prefijo Visual:** Viñeta bullet `• Thought` (`\u2022 Thought` / ANSI `\u001B[38;2;148;163;184m`).
+   - **Canal de Datos:** Captura directamente los fragmentos de razonamiento (*thinking chunks* / *thought tokens*) transmitidos por Gemini 2.5 Flash en los campos de pensamiento del streaming SSE previos a la emisión del texto final o la invocación de herramientas.
+   - **Estilo de Renderizado:** Tipografía atenuada en gris Obsidian Slate (`#94A3B8`), con sangría estructurada de 2 espacios o barra de delimitación vertical (`│`).
+   - **Dinámica de Estados:**
+     - *Razonamiento activo:* Muestra indicador pulsante `⟳ Pensando...`.
+     - *Pensamiento completado:* Consolidación visual con `✓ Pensamiento finalizado`.
+   - **Comportamiento en UI Compose:** Se presenta como un bloque colapsable/expandible tipo acordeón que permite auditar la deliberación interna del modelo sin saturar la pantalla.
+
+4. **Llamadas a Herramientas Locales (`• ToolName`):**
+   - **Prefijo Visual:** Viñeta bullet y nombre de la herramienta: `• <ToolName>` (ej. `• read_file`, `• write_file`, `• run_command`, `• list_directory`).
+   - **Estilo y Paleta:** Nombre de la herramienta resaltado en negrita (`\u001B[1m• ToolName\u001B[0m`), acompañado de los argumentos clave sintetizados de forma concisa (ej. `path="app/src/main/..."`).
+   - **Estados y Transiciones:**
+     - *Invocación iniciada:* `⟳ Ejecutando ToolName...` (Cyan neón `#06B6D4`).
+     - *Finalización exitosa:* `✓ ToolName completado (<resumen de salida o bytes>)` (Verde neón `#22C55E`).
+     - *Error o fallo:* `✗ ToolName falló: <motivo>` (Rojo Coral `#EF4444`).
+   - **Ergonomía:** Las salidas voluminosas de herramientas se compactan en resúmenes técnicos legibles.
+
+5. **Mockup de Renderizado Visual en Terminal (Turno Agéntico Antigravity 2.0):**
+```text
+> Implementa el soporte para el scope generative-language en el motor agéntico
+
+[Gemini 2.5 Flash] ⚡
+• Thought
+  El usuario requiere incorporar el scope generative-language en la configuración de autenticación y verificar compatibilidad con Gemini 2.5 Flash.
+  Revisaré la especificación SPEC-002 y los contratos de OAuthConstants.kt.
+  Procederé a inspeccionar los archivos afectados mediante read_file.
+
+• read_file path="specs/02-google-oauth-agent.md"
+  ✓ Archivo leído con éxito (599 líneas)
+
+• Thought
+  El contrato de OAuthConstants debe actualizarse para incluir generative-language y generative-language.retriever.
+  Asimismo, se deben actualizar los esquemas JSON de credenciales locales y los eventos de streaming.
+
+• write_file path="app/src/main/java/com/antigravity/studio/core/auth/GoogleOAuthManager.kt"
+  ✓ 1 bloque modificado correctamente
+
+• run_command command="python harness/spec_validator.py"
+  ✓ Ejecución completada: 100% CUMPLIMIENTO SDD [PASS]
+
+Se ha implementado el soporte completo para los scopes de Google Generative Language y Gemini 2.5 Flash conforme a SPEC-002.
+```
 
 ---
 
@@ -424,7 +491,7 @@ data class OAuthConstants(
     val authEndpoint: String = "https://accounts.google.com/o/oauth2/v2/auth",
     val tokenEndpoint: String = "https://oauth2.googleapis.com/token",
     val userinfoEndpoint: String = "https://www.googleapis.com/oauth2/v3/userinfo",
-    val scopes: String = "openid email profile https://www.googleapis.com/auth/cloud-platform"
+    val scopes: String = "openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever"
 )
 
 interface LocalhostLoopbackReceiver {
@@ -498,26 +565,151 @@ package com.antigravity.studio.core.agent
 import kotlinx.coroutines.flow.Flow
 
 sealed interface AgentStreamEvent {
+    /** Emite la cabecera con el nombre del modelo generativo activo (ej. "Gemini 2.5 Flash") */
+    data class ModelHeader(val modelName: String = "Gemini 2.5 Flash") : AgentStreamEvent
+
+    /** Fragmento incremental del bloque de pensamiento (`• Thought`) */
+    data class ThoughtDelta(val thoughtText: String) : AgentStreamEvent
+
+    /** Notificación de culminación del bloque de pensamiento */
+    data class ThoughtFinished(val fullThought: String) : AgentStreamEvent
+
+    /** Fragmento incremental de texto de respuesta visible emitido al usuario */
     data class TextDelta(val text: String) : AgentStreamEvent
+
+    /** Inicio de invocación de herramienta local (bloque `• ToolName`) */
     data class ToolCallStarted(val toolName: String, val argsJson: String) : AgentStreamEvent
-    data class ToolCallFinished(val toolName: String, val resultSummary: String) : AgentStreamEvent
-    data class Completed(val totalTokens: Int) : AgentStreamEvent
+
+    /** Culminación de ejecución de herramienta con resultado y estado */
+    data class ToolCallFinished(
+        val toolName: String,
+        val success: Boolean,
+        val resultSummary: String
+    ) : AgentStreamEvent
+
+    /** Finalización del turno agéntico con estadísticas de uso de tokens */
+    data class Completed(
+        val totalTokens: Int,
+        val promptTokens: Int = 0,
+        val candidatesTokens: Int = 0
+    ) : AgentStreamEvent
+
+    /** Error producido durante la sesión de generación o llamada a herramienta */
     data class Error(val error: Throwable) : AgentStreamEvent
 }
 
 interface RealAgentEngine {
     /**
-     * Ejecuta una consulta agéntica con streaming SSE y ejecución automática de herramientas.
+     * Modelo generativo por defecto del motor agéntico.
+     */
+    val defaultModel: String get() = "Gemini 2.5 Flash"
+
+    /**
+     * Ejecuta una consulta agéntica con streaming SSE, soporte de pensamiento (`• Thought`)
+     * y ejecución automática de herramientas (`• ToolName`).
      */
     fun executeAgentTask(
         userPrompt: String,
-        systemInstruction: String? = null
+        systemInstruction: String? = null,
+        modelName: String = defaultModel
     ): Flow<AgentStreamEvent>
 
     /**
-     * Escribe la respuesta agéntica en tiempo real directamente en la PTY abierta.
+     * Escribe la respuesta agéntica en tiempo real directamente en la PTY abierta,
+     * formateando el flujo bajo el protocolo visual de Antigravity 2.0 (prompt `>`, `• Thought`, `• ToolName`).
      */
-    suspend fun attachToPtyStream(masterFd: Int, userPrompt: String)
+    suspend fun attachToPtyStream(
+        masterFd: Int,
+        userPrompt: String,
+        modelName: String = defaultModel
+    )
+}
+```
+
+---
+
+### 4.3 Contratos de Presentación e Interfaz Visual Antigravity 2.0
+
+```kotlin
+package com.antigravity.studio.core.agent.presentation
+
+/**
+ * Estado visual de ejecución de una herramienta en la interfaz Antigravity 2.0.
+ */
+enum class ToolExecutionStatus {
+    RUNNING,
+    SUCCESS,
+    FAILURE
+}
+
+/**
+ * Representación estructurada de una invocación de herramienta (`• ToolName`).
+ */
+data class ToolCallPresentation(
+    val toolName: String,
+    val argsSummary: String,
+    val status: ToolExecutionStatus = ToolExecutionStatus.RUNNING,
+    val resultSummary: String? = null,
+    val executionTimeMs: Long? = null
+)
+
+/**
+ * Estado de presentación completo de un turno agéntico para Jetpack Compose y la PTY.
+ */
+data class AgentTurnPresentation(
+    val userPrompt: String,
+    val modelTag: String = "Gemini 2.5 Flash",
+    val thoughtChunks: List<String> = emptyList(),
+    val isThinking: Boolean = false,
+    val toolCalls: List<ToolCallPresentation> = emptyList(),
+    val responseMarkdown: String = "",
+    val isStreaming: Boolean = false
+) {
+    val fullThought: String get() = thoughtChunks.joinToString("")
+}
+
+/**
+ * Contrato del formateador visual para terminal PTY emulada y consola CLI.
+ */
+interface AntigravityVisualPresenter {
+    /**
+     * Formatea el prompt del usuario con el prefijo `>` y secuencias ANSI Cyber-Obsidian.
+     */
+    fun formatUserPrompt(prompt: String): String
+
+    /**
+     * Formatea la etiqueta identificadora del modelo generativo (ej. `[Gemini 2.5 Flash]`).
+     */
+    fun formatModelBadge(model: String = "Gemini 2.5 Flash"): String
+
+    /**
+     * Formatea el encabezado del bloque de pensamiento (`• Thought`).
+     */
+    fun formatThoughtHeader(): String
+
+    /**
+     * Formatea un fragmento incremental de pensamiento atenuado dentro del bloque `• Thought`.
+     */
+    fun formatThoughtDelta(delta: String): String
+
+    /**
+     * Formatea el cierre o sumario del bloque de pensamiento `• Thought`.
+     */
+    fun formatThoughtFooter(summary: String? = null): String
+
+    /**
+     * Formatea el inicio de llamada a herramienta (`• ToolName`).
+     */
+    fun formatToolCallStarted(toolName: String, argsSummary: String): String
+
+    /**
+     * Formatea la finalización de la herramienta con su resultado y símbolo de estado (`✓` o `✗`).
+     */
+    fun formatToolCallFinished(
+        toolName: String,
+        success: Boolean,
+        resultSummary: String
+    ): String
 }
 ```
 
@@ -560,13 +752,75 @@ fun GoogleAuthTopBarAction(
 
 ---
 
+### 5.2 Componentes Jetpack Compose de la Interfaz Visual Antigravity 2.0
+
+Para el panel agéntico y visualizador de chat interactivo en Jetpack Compose, se especifican los siguientes componentes desacoplados siguiendo la estética Cyber-Obsidian:
+
+```kotlin
+package com.antigravity.studio.ui.agent
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.antigravity.studio.core.agent.presentation.AgentTurnPresentation
+import com.antigravity.studio.core.agent.presentation.ToolCallPresentation
+
+/**
+ * Componente que renderiza el prompt introducido por el usuario precedido por el glifo `>`.
+ */
+@Composable
+fun AntigravityPromptItem(
+    modifier: Modifier = Modifier,
+    prompt: String
+)
+
+/**
+ * Badge visual distintivo que exhibe la etiqueta del modelo activo (`Gemini 2.5 Flash`).
+ */
+@Composable
+fun AntigravityModelBadge(
+    modifier: Modifier = Modifier,
+    modelName: String = "Gemini 2.5 Flash"
+)
+
+/**
+ * Tarjeta acordeón colapsable para la cadena de pensamiento `• Thought` con tipografía atenuada.
+ */
+@Composable
+fun AntigravityThoughtCard(
+    modifier: Modifier = Modifier,
+    thought: String,
+    isThinking: Boolean,
+    defaultExpanded: Boolean = false
+)
+
+/**
+ * Fila estructurada para una llamada a herramienta `• ToolName` con status chip (`⟳`, `✓`, `✗`) y resumen.
+ */
+@Composable
+fun AntigravityToolCallItem(
+    modifier: Modifier = Modifier,
+    toolCall: ToolCallPresentation
+)
+
+/**
+ * Contenedor integral de turno agéntico combinando prompt `>`, badge, `• Thought`, `• ToolName` y respuesta markdown.
+ */
+@Composable
+fun AntigravityAgentTurnView(
+    modifier: Modifier = Modifier,
+    turn: AgentTurnPresentation
+)
+```
+
+---
+
 ## 6. Criterios de Aceptación Verificables (Acceptance Criteria)
 
 La siguiente tabla estipula los criterios de verificación obligatorios para el arnés de pruebas automatizado (`qa_harness`):
 
 | ID | Módulo | Criterio de Aceptación | Método de Verificación |
 | :--- | :--- | :--- | :--- |
-| **`AC-AUTH-001`** | OAuth PKCE & Official Credentials | `createAuthorizationUrl` genera `code_verifier` de 64 caracteres Base64URL, `code_challenge` SHA-256 S256 e incorpora las credenciales oficiales (`884354919052-antigravity.apps.googleusercontent.com`) con `redirect_uri=http://localhost:54123/callback`. | Test unitario validando la composición exacta de parámetros y el resumen SHA-256 en la URL de autorización. |
+| **`AC-AUTH-001`** | OAuth PKCE & Official Credentials | `createAuthorizationUrl` genera `code_verifier` de 64 caracteres Base64URL, `code_challenge` SHA-256 S256 e incorpora las credenciales oficiales (`884354919052-antigravity.apps.googleusercontent.com`) con `redirect_uri=http://localhost:54123/callback` y la lista completa de scopes (`openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever`). | Test unitario validando la composición exacta de parámetros y el resumen SHA-256 en la URL de autorización. |
 | **`AC-AUTH-002`** | Localhost Loopback Receiver & Fallback | `LocalhostLoopbackReceiver` abre `ServerSocket(54123)`, intercepta el callback `GET /callback?code=...&state=...`, valida `state`, sirve página HTML Cyber-Obsidian 200 OK y soporta fallback a `antigravity://oauth2callback`. | Test de integración enviando una petición HTTP local simulada a `127.0.0.1:54123` y verificando respuesta 200 OK y extracción del código. |
 | **`AC-AUTH-003`** | Token Exchange & Secure Storage | El intercambio POST contra `https://oauth2.googleapis.com/token` envía `code_verifier` y `client_secret`, persistiendo las credenciales en `$filesDir/.gemini/oauth_creds.json` y `google_accounts.json` con permisos POSIX `0600`. | Test de integración con mock server de Google OAuth verificando la creación de archivos con máscara de permisos `0600`. |
 | **`AC-AUTH-004`** | Token Auto-Refresh | `getValidAccessToken` detecta tokens con vigencia remanente $\le 300\,\text{s}$ o errores 401, ejecutando silenciosamente el refresco mediante `grant_type=refresh_token` y `client_secret` oficial sin interrumpir al usuario. | Test unitario inyectando un token expirado y comprobando la renovación atómica y transparente del `access_token`. |
@@ -574,6 +828,7 @@ La siguiente tabla estipula los criterios de verificación obligatorios para el 
 | **`AC-AUTH-006`** | SSE Streaming to PTY a 144Hz | `RealAgentEngine` transmite respuestas SSE de Gemini con encabezado `Authorization: Bearer` al descriptor maestro de la PTY con latencia de cuadro $\le 16\,\text{ms}$ para pantallas a 144Hz. | Test instrumentado validando la tasa de transferencia y la sincronización con el descriptor POSIX de la PTY. |
 | **`AC-AUTH-007`** | Workspace Tool Sandboxing | Las herramientas de ejecución (`write_file`, `read_file`, `list_directory`) operan exclusivamente en `$filesDir/workspace`, bloqueando cualquier intento de escape o traversal (`../`). | Test de seguridad ejecutando peticiones con rutas prohibidas como `/system/` o `/data/data/com.antigravity.studio/databases`. |
 | **`AC-AUTH-008`** | UI Auth Integration & State Flow | El componente `GoogleAuthTopBarAction` reacciona a los cambios en `AuthState`, mostrando botón de login en estado desconectado y el badge `shadrick1212@gmail.com 🟢 ONLINE` al autenticarse. | Test de interfaz con `ComposeTestRule` inyectando secuencias de estados de autenticación y verificando nodos semánticos. |
+| **`AC-AUTH-009`** | Antigravity 2.0 Visual Presentation Contract | `RealAgentEngine` y `AntigravityVisualPresenter` estructuran el turno agéntico con prompt de usuario `>`, badge de modelo `Gemini 2.5 Flash`, bloque colapsable `• Thought` y llamadas a herramientas trazables `• ToolName`. | Test unitario verificando la emisión de eventos estructurados (`ModelHeader`, `ThoughtDelta`, `ToolCallStarted`) y el formateo ANSI y Compose de prompt `>`, `• Thought` y `• ToolName`. |
 
 ---
 
@@ -581,15 +836,17 @@ La siguiente tabla estipula los criterios de verificación obligatorios para el 
 
 1. **`android-core`:**
    - Implementar `LocalhostLoopbackReceiverImpl` con `ServerSocket(54123)` y respuesta HTML Cyber-Obsidian.
-   - Actualizar `GoogleOAuthManagerImpl` con las credenciales oficiales de Google Antigravity y el intercambio con `client_secret`.
+   - Actualizar `GoogleOAuthManagerImpl` con las credenciales oficiales de Google Antigravity y la lista completa de scopes (`generative-language` y `generative-language.retriever`).
    - Implementar el retorno al primer plano de la aplicación mediante `Intent` flags.
    - Reforzar el interceptor OkHttp para inyección y auto-refresco transparente del Bearer token.
-   - Conectar el streaming SSE y el sandbox de herramientas en `RealAgentEngineImpl`.
+   - Conectar el streaming SSE de `Gemini 2.5 Flash` con el parser de pensamientos (`thought chunks`) y el sandbox de herramientas en `RealAgentEngineImpl`.
+   - Implementar `AntigravityVisualPresenter` para el renderizado estructurado con secuencias ANSI en el descriptor maestro de la PTY.
 2. **`ui-designer`:**
    - Implementar `GoogleAuthTopBarAction` en Jetpack Compose respetando la paleta Cyber-Obsidian.
    - Integrar la acción de inicio de sesión con el `LocalhostLoopbackReceiver`.
+   - Implementar los componentes visuales de Antigravity 2.0 (`AntigravityPromptItem`, `AntigravityModelBadge`, `AntigravityThoughtCard`, `AntigravityToolCallItem`, `AntigravityAgentTurnView`).
    - Diseñar el menú contextual para cambiar de cuenta y visualizar detalles de la cuota.
 3. **`qa-harness`:**
    - Desarrollar pruebas unitarias para `LocalhostLoopbackReceiver` y `GoogleOAuthManager`.
    - Probar el comportamiento del socket ante desconexiones o timeouts (120 s).
-   - Validar exhaustivamente los criterios `AC-AUTH-001` hasta `AC-AUTH-008`.
+   - Validar exhaustivamente los criterios `AC-AUTH-001` hasta `AC-AUTH-009`.

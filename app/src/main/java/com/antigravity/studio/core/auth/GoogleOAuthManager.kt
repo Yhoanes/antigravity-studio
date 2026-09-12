@@ -146,6 +146,7 @@ interface GoogleOAuthManager {
     suspend fun signOut(): Result<Unit>
 
     companion object {
+        const val SCOPES: String = "openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever"
         val DEFAULT_CLIENT_ID: String = buildString {
             append("884354919052")
             append("-36trc1jjb3tguiac32ov6cod268c5blh")

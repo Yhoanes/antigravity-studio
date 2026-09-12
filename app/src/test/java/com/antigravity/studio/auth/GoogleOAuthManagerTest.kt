@@ -43,7 +43,7 @@ class GoogleOAuthManagerTest {
             GoogleOAuthManager.FALLBACK_REDIRECT_URI
         )
         assertEquals(
-            "https://www.googleapis.com/auth/cloud-platform openid email profile",
+            "openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever",
             GoogleOAuthManager.SCOPES
         )
 
@@ -66,6 +66,10 @@ class GoogleOAuthManagerTest {
                 append("-YxKMwR0ZtsX")
             },
             com.antigravity.studio.core.auth.GoogleOAuthManager.CLIENT_SECRET
+        )
+        assertEquals(
+            GoogleOAuthManager.SCOPES,
+            com.antigravity.studio.core.auth.GoogleOAuthManager.SCOPES
         )
     }
 
@@ -164,5 +168,15 @@ class GoogleOAuthManagerTest {
         val result = receiverDeferred.await()
         assertTrue(result.isFailure)
         assertTrue(result.exceptionOrNull() is SecurityException)
+    }
+
+    @Test
+    fun testScopeVerificationContainsGenerativeLanguage() {
+        val legacyScope = "https://www.googleapis.com/auth/cloud-platform openid email profile"
+        val currentScope = GoogleOAuthManager.SCOPES
+
+        org.junit.Assert.assertFalse(legacyScope.contains("generative-language"))
+        assertTrue(currentScope.contains("generative-language"))
+        assertTrue(currentScope.contains("generative-language.retriever"))
     }
 }

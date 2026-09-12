@@ -33,6 +33,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -405,7 +406,8 @@ fun WorkspaceScaffold(
                         cols = cols,
                         rows = rows,
                         pid = pid,
-                        cwd = cwd
+                        cwd = cwd,
+                        activeModel = agentState.activeModel
                     )
                 }
             }
@@ -800,14 +802,15 @@ private fun SessionTabPill(
 }
 
 /**
- * Bottom Terminal Status Bar displaying latency, geometry and PID.
+ * Bottom Terminal Status Bar displaying latency, geometry, PID, CWD and Active Model Badge.
  */
 @Composable
 private fun TerminalStatusBar(
     cols: Int,
     rows: Int,
     pid: Int,
-    cwd: String
+    cwd: String,
+    activeModel: String = "Gemini 2.5 Flash"
 ) {
     Row(
         modifier = Modifier
@@ -830,8 +833,15 @@ private fun TerminalStatusBar(
                 fontFamily = FontFamily.Monospace
             )
             Text(
-                text = "LATENCY: ≤ 6.9ms",
+                text = "Gemini 2.5 Flash",
                 color = NeonCyan,
+                fontSize = 10.sp,
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = "LATENCY: ≤ 6.9ms",
+                color = TextSecondary,
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace
             )
@@ -845,7 +855,7 @@ private fun TerminalStatusBar(
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
                 text = "PID: $pid",
@@ -859,9 +869,75 @@ private fun TerminalStatusBar(
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace,
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.widthIn(max = 160.dp)
+            )
+            ActiveModelBadge(modelName = activeModel)
+        }
+    }
+}
+
+/**
+ * Elegant Active Model Badge indicating the LLM engine powering Antigravity.
+ * Styled with monospace typography, subtle glowing status indicator, and cyber-obsidian border.
+ */
+@Composable
+private fun ActiveModelBadge(
+    modelName: String = "Gemini 2.5 Flash",
+    dotColor: Color = NeonCyan,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "modelDotPulse")
+    val glowAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.65f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glowAlpha"
+    )
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(4.dp))
+            .background(SurfaceElevated.copy(alpha = 0.65f))
+            .border(
+                width = 0.5.dp,
+                color = dotColor.copy(alpha = 0.35f),
+                shape = RoundedCornerShape(4.dp)
+            )
+            .padding(horizontal = 6.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        // Glowing status dot
+        Box(
+            modifier = Modifier.size(6.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(dotColor.copy(alpha = 0.35f * glowAlpha))
+            )
+            Box(
+                modifier = Modifier
+                    .size(3.5.dp)
+                    .clip(CircleShape)
+                    .background(dotColor.copy(alpha = glowAlpha))
             )
         }
+
+        Text(
+            text = modelName,
+            color = TextPrimary,
+            fontSize = 9.5.sp,
+            fontWeight = FontWeight.Medium,
+            fontFamily = FontFamily.Monospace,
+            letterSpacing = 0.2.sp
+        )
     }
 }
 

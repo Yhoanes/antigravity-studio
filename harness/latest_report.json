@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-12T15:33:55.393281+00:00",
+  "timestamp": "2026-09-12T15:49:30.924372+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,20 +7,20 @@
     "passed_suites": 3,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 53.82
+    "total_duration_ms": 49.34
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 4.96,
-      "summary": "3/3 especificaciones SDD válidas | 28 Criterios de Aceptación (AC) verificados",
+      "duration_ms": 5.46,
+      "summary": "3/3 especificaciones SDD válidas | 29 Criterios de Aceptación (AC) verificados",
       "details": {
         "total_specs": 3,
         "passed_specs": 3,
         "failed_specs": 0,
-        "total_acceptance_criteria": 28,
+        "total_acceptance_criteria": 29,
         "reports": [
           {
             "file_path": "specs/00-system-architecture.md",
@@ -213,62 +213,69 @@
               {
                 "id": "AC-AUTH-001",
                 "module": "OAuth PKCE & Official Credentials",
-                "description": "`createAuthorizationUrl` genera `code_verifier` de 64 caracteres Base64URL, `code_challenge` SHA-256 S256 e incorpora las credenciales oficiales (`884354919052-antigravity.apps.googleusercontent.com`) con `redirect_uri=http://localhost:54123/callback`.",
+                "description": "`createAuthorizationUrl` genera `code_verifier` de 64 caracteres Base64URL, `code_challenge` SHA-256 S256 e incorpora las credenciales oficiales (`884354919052-antigravity.apps.googleusercontent.com`) con `redirect_uri=http://localhost:54123/callback` y la lista completa de scopes (`openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever`).",
                 "verification_method": "Test unitario validando la composición exacta de parámetros y el resumen SHA-256 en la URL de autorización.",
-                "line_number": 569
+                "line_number": 823
               },
               {
                 "id": "AC-AUTH-002",
                 "module": "Localhost Loopback Receiver & Fallback",
                 "description": "`LocalhostLoopbackReceiver` abre `ServerSocket(54123)`, intercepta el callback `GET /callback?code=...&state=...`, valida `state`, sirve página HTML Cyber-Obsidian 200 OK y soporta fallback a `antigravity://oauth2callback`.",
                 "verification_method": "Test de integración enviando una petición HTTP local simulada a `127.0.0.1:54123` y verificando respuesta 200 OK y extracción del código.",
-                "line_number": 570
+                "line_number": 824
               },
               {
                 "id": "AC-AUTH-003",
                 "module": "Token Exchange & Secure Storage",
                 "description": "El intercambio POST contra `https://oauth2.googleapis.com/token` envía `code_verifier` y `client_secret`, persistiendo las credenciales en `$filesDir/.gemini/oauth_creds.json` y `google_accounts.json` con permisos POSIX `0600`.",
                 "verification_method": "Test de integración con mock server de Google OAuth verificando la creación de archivos con máscara de permisos `0600`.",
-                "line_number": 571
+                "line_number": 825
               },
               {
                 "id": "AC-AUTH-004",
                 "module": "Token Auto-Refresh",
                 "description": "`getValidAccessToken` detecta tokens con vigencia remanente $\\le 300\\,\\text{s}$ o errores 401, ejecutando silenciosamente el refresco mediante `grant_type=refresh_token` y `client_secret` oficial sin interrumpir al usuario.",
                 "verification_method": "Test unitario inyectando un token expirado y comprobando la renovación atómica y transparente del `access_token`.",
-                "line_number": 572
+                "line_number": 826
               },
               {
                 "id": "AC-AUTH-005",
                 "module": "Multi-Usuario y Persistencia",
                 "description": "El registro `google_accounts.json` almacena múltiples cuentas de desarrollador y conmuta la cuenta activa sin degradar ni eliminar credenciales previas.",
                 "verification_method": "Test unitario registrando dos perfiles distintos y alternando el valor de `active_account_email`.",
-                "line_number": 573
+                "line_number": 827
               },
               {
                 "id": "AC-AUTH-006",
                 "module": "SSE Streaming to PTY a 144Hz",
                 "description": "`RealAgentEngine` transmite respuestas SSE de Gemini con encabezado `Authorization: Bearer` al descriptor maestro de la PTY con latencia de cuadro $\\le 16\\,\\text{ms}$ para pantallas a 144Hz.",
                 "verification_method": "Test instrumentado validando la tasa de transferencia y la sincronización con el descriptor POSIX de la PTY.",
-                "line_number": 574
+                "line_number": 828
               },
               {
                 "id": "AC-AUTH-007",
                 "module": "Workspace Tool Sandboxing",
                 "description": "Las herramientas de ejecución (`write_file`, `read_file`, `list_directory`) operan exclusivamente en `$filesDir/workspace`, bloqueando cualquier intento de escape o traversal (`../`).",
                 "verification_method": "Test de seguridad ejecutando peticiones con rutas prohibidas como `/system/` o `/data/data/com.antigravity.studio/databases`.",
-                "line_number": 575
+                "line_number": 829
               },
               {
                 "id": "AC-AUTH-008",
                 "module": "UI Auth Integration & State Flow",
                 "description": "El componente `GoogleAuthTopBarAction` reacciona a los cambios en `AuthState`, mostrando botón de login en estado desconectado y el badge `shadrick1212@gmail.com 🟢 ONLINE` al autenticarse.",
                 "verification_method": "Test de interfaz con `ComposeTestRule` inyectando secuencias de estados de autenticación y verificando nodos semánticos.",
-                "line_number": 576
+                "line_number": 830
+              },
+              {
+                "id": "AC-AUTH-009",
+                "module": "Antigravity 2.0 Visual Presentation Contract",
+                "description": "`RealAgentEngine` y `AntigravityVisualPresenter` estructuran el turno agéntico con prompt de usuario `>`, badge de modelo `Gemini 2.5 Flash`, bloque colapsable `• Thought` y llamadas a herramientas trazables `• ToolName`.",
+                "verification_method": "Test unitario verificando la emisión de eventos estructurados (`ModelHeader`, `ThoughtDelta`, `ToolCallStarted`) y el formateo ANSI y Compose de prompt `>`, `• Thought` y `• ToolName`.",
+                "line_number": 831
               }
             ],
             "diagram_count": 2,
-            "contract_count": 6,
+            "contract_count": 8,
             "errors": [],
             "warnings": []
           }
@@ -282,7 +289,7 @@
       "name": "code_linter",
       "display_name": "Static Analysis & Syntax Linter Suite",
       "status": "PASS",
-      "duration_ms": 16.1,
+      "duration_ms": 15.25,
       "summary": "Análisis sintáctico completado sin errores en 6 archivos",
       "details": {
         "scanned_files": 6
@@ -295,7 +302,7 @@
       "name": "test_suite",
       "display_name": "Automated Unit & Regression Test Suite",
       "status": "PASS",
-      "duration_ms": 32.66,
+      "duration_ms": 28.55,
       "summary": "8 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
       "details": {
         "tests_run": 8,

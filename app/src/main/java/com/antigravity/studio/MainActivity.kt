@@ -38,29 +38,32 @@ import java.io.File
 
 private const val TAG = "MainActivity"
 
+private const val PROMPT = "\u001b[1;36m> \u001b[0m"
+
 private fun buildWelcomeBanner(activeUserEmail: String?): ByteArray {
-    val emailDisplay = activeUserEmail ?: "Conectado"
+    val emailDisplay = activeUserEmail ?: "Sin sesión activa"
     return (
-        "\u001b[1;36m   ___         __  _                         _  __           \u001b[0m\r\n" +
-        "\u001b[1;36m  /   |  ____  / /_(_)___ __________ __   __ (_)/ /___  __    \u001b[0m\r\n" +
-        "\u001b[1;35m / /| | / __ \\/ __/ / __ `/ ___/ __ `/ | / // // __/ / / /    \u001b[0m\r\n" +
-        "\u001b[1;35m/ ___ |/ / / / /_/ / /_/ / /  / /_/ /| |/ // // /_/ /_/ /     \u001b[0m\r\n" +
-        "\u001b[1;36m/_/  |_/_/ /_/\\__/_/\\__, /_/   \\__,_/ |___//_/ \\__/\\__, /      \u001b[0m\r\n" +
-        "\u001b[1;36m                  /____/                         /____/       \u001b[0m\r\n" +
-        "\u001b[38;2;139;92;246m [Antigravity Studio v1.0.0 | Xiaomi Pad 6 Edition]\u001b[0m\r\n" +
-        "\u001b[38;2;34;197;94m ● Sesión activa de Google: $emailDisplay\u001b[0m\r\n" +
-        "\u001b[38;2;34;197;94m ● Motor Agéntico Listo (Gemini 2.0 Flash / Pro)\u001b[0m\r\n\r\n" +
-        "\u001b[1;36magy:agent> \u001b[0m"
+        "\r\n" +
+        "\u001b[1;36m    ___         __  _                         _  __\u001b[0m\r\n" +
+        "\u001b[1;36m   /   |  ____  / /_(_)___ __________ __   __ (_)/ /___  __\u001b[0m\r\n" +
+        "\u001b[1;35m  / /| | / __ \\/ __/ / __ `/ ___/ __ `/ | / // // __/ / / /\u001b[0m\r\n" +
+        "\u001b[1;35m / ___ |/ / / / /_/ / /_/ / /  / /_/ /| |/ // // /_/ /_/ /\u001b[0m\r\n" +
+        "\u001b[1;36m/_/  |_/_/ /_/\\__/_/\\__, /_/   \\__,_/ |___//_/ \\__/\\__, /\u001b[0m\r\n" +
+        "\u001b[1;36m                   /____/                         /____/\u001b[0m\r\n\r\n" +
+        "\u001b[38;2;139;92;246mAntigravity Studio\u001b[0m \u001b[38;2;139;148;158m• Autonomous Agent Development Station\u001b[0m\r\n" +
+        "\u001b[38;2;34;197;94m● Google Cloud:\u001b[0m \u001b[38;2;248;250;252m$emailDisplay\u001b[0m\r\n" +
+        "\u001b[38;2;34;197;94m● Agent Engine:\u001b[0m \u001b[38;2;248;250;252mGemini 2.5 Flash\u001b[0m\r\n\r\n" +
+        PROMPT
     ).toByteArray(Charsets.UTF_8)
 }
 
 private val HELP_MENU = (
-    "\r\n\u001b[1mAntigravity Studio v1.0.0 (Xiaomi Pad 6 Edition)\u001b[0m\r\n" +
+    "\r\n\u001b[1mAntigravity Studio (Xiaomi Pad 6 Edition)\u001b[0m\r\n" +
     "Escribe directamente cualquier instrucción o pregunta en lenguaje natural.\r\n" +
     "Comandos del sistema:\r\n" +
     "  ! <comando>   Ejecuta comandos de shell en el espacio de trabajo (ej: !ls, !pwd)\r\n" +
     "  clear         Limpia la pantalla de la terminal\r\n\r\n" +
-    "\u001b[1;36magy:agent> \u001b[0m"
+    PROMPT
 ).toByteArray(Charsets.UTF_8)
 
 /**
@@ -93,19 +96,28 @@ class MainActivity : ComponentActivity() {
                 } else {
                     activeSessionState.value?.let { uiSession ->
                         lifecycleScope.launch {
-                            uiSession.emitOutput("\r\n\u001b[1;36m⟳ [Antigravity Agent] Conectando con Gemini 2.0 Flash...\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
+                            uiSession.emitOutput(
+                                "\r\n\u001b[38;2;139;148;158m• Thought for 1s, planning...\u001b[0m\r\n\u001b[1;36m∷ Generating...\u001b[0m\r\n\r\n"
+                                    .toByteArray(Charsets.UTF_8)
+                            )
+                            var lastDeltaEndsWithPrompt = false
                             try {
                                 RealAgentEngine.executeAgentTask(prompt).collect { event ->
                                     when (event) {
                                         is AgentStreamEvent.TextDelta -> {
+                                            lastDeltaEndsWithPrompt = event.text.trimEnd().endsWith(">")
                                             val formatted = event.text.replace("\r\n", "\n").replace("\n", "\r\n")
                                             uiSession.emitOutput(formatted.toByteArray(Charsets.UTF_8))
                                         }
                                         is AgentStreamEvent.Completed -> {
-                                            uiSession.emitOutput("\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                                            if (!lastDeltaEndsWithPrompt) {
+                                                uiSession.emitOutput("\r\n\r\n$PROMPT".toByteArray(Charsets.UTF_8))
+                                            }
                                         }
                                         is AgentStreamEvent.Error -> {
-                                            uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${event.error.message}\u001b[0m\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                                            if (!lastDeltaEndsWithPrompt) {
+                                                uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${event.error.message}\u001b[0m\r\n\r\n$PROMPT".toByteArray(Charsets.UTF_8))
+                                            }
                                         }
                                         is AgentStreamEvent.ToolCallStarted -> {
                                             uiSession.emitOutput("\r\n\u001b[38;2;245;158;11m⚙ [Antigravity Agent] Ejecutando herramienta: ${event.toolName}...\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
@@ -116,7 +128,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                 }
                             } catch (t: Throwable) {
-                                uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${t.message}\u001b[0m\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                                uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${t.message}\u001b[0m\r\n\r\n$PROMPT".toByteArray(Charsets.UTF_8))
                             }
                         }
                     }
@@ -152,14 +164,14 @@ class MainActivity : ComponentActivity() {
                     val msg = (
                         "\r\n\u001b[1;32m✔ [Google OAuth 2.0 PKCE] Sesión iniciada con éxito.\u001b[0m\r\n" +
                         "\u001b[38;2;139;92;246m● Cuenta activa: ${state.email}\u001b[0m\r\n" +
-                        "\u001b[1;36m● Modelo Gemini 2.0 Flash conectado directamente.\u001b[0m\r\n\r\n" +
-                        "\u001b[1;36magy:agent> \u001b[0m"
+                        "\u001b[1;36m● Modelo Gemini 2.5 Flash conectado directamente.\u001b[0m\r\n\r\n" +
+                        PROMPT
                     ).toByteArray(Charsets.UTF_8)
                     activeSessionState.value?.emitOutput(msg)
                 } else if (previousState is com.antigravity.studio.core.auth.AuthState.Authenticating && state is com.antigravity.studio.core.auth.AuthState.Error) {
                     val msg = (
                         "\r\n\u001b[1;31m✖ [Google OAuth Error] Fallo al completar la autenticación: ${state.message}\u001b[0m\r\n\r\n" +
-                        "\u001b[1;36magy:agent> \u001b[0m"
+                        PROMPT
                     ).toByteArray(Charsets.UTF_8)
                     activeSessionState.value?.emitOutput(msg)
                 }
@@ -227,7 +239,7 @@ class MainActivity : ComponentActivity() {
                         onSignOutClick = {
                             lifecycleScope.launch {
                                 com.antigravity.studio.auth.GoogleOAuthManager.signOut()
-                                currentSession.emitOutput("\r\n\u001b[33m● Sesión de Google cerrada.\u001b[0m\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                                currentSession.emitOutput("\r\n\u001b[33m● Sesión de Google cerrada.\u001b[0m\r\n$PROMPT".toByteArray(Charsets.UTF_8))
                             }
                         }
                     )
@@ -252,12 +264,12 @@ class MainActivity : ComponentActivity() {
             inputLineBuffer.clear()
 
             if (prompt.isEmpty()) {
-                uiSession.emitOutput("\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                uiSession.emitOutput(PROMPT.toByteArray(Charsets.UTF_8))
                 return
             }
 
             if (prompt == "clear") {
-                uiSession.emitOutput("\u001b[2J\u001b[H\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                uiSession.emitOutput("\u001b[2J\u001b[H$PROMPT".toByteArray(Charsets.UTF_8))
                 return
             }
 
@@ -294,7 +306,7 @@ class MainActivity : ComponentActivity() {
                     } catch (t: Throwable) {
                         uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error shell]: ${t.message}\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
                     } finally {
-                        uiSession.emitOutput("\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                        uiSession.emitOutput("\r\n$PROMPT".toByteArray(Charsets.UTF_8))
                     }
                 }
                 return
@@ -303,19 +315,28 @@ class MainActivity : ComponentActivity() {
             // Natural language -> RealAgentEngine
             currentJob?.cancel()
             currentJob = lifecycleScope.launch {
-                uiSession.emitOutput("\r\n\u001b[1;36m⟳ [Antigravity Agent] Conectando con Gemini 2.0 Flash...\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
+                uiSession.emitOutput(
+                    "\r\n\u001b[38;2;139;148;158m• Thought for 1s, planning...\u001b[0m\r\n\u001b[1;36m∷ Generating...\u001b[0m\r\n\r\n"
+                        .toByteArray(Charsets.UTF_8)
+                )
+                var lastDeltaEndsWithPrompt = false
                 try {
                     RealAgentEngine.executeAgentTask(prompt).collect { event ->
                         when (event) {
                             is AgentStreamEvent.TextDelta -> {
+                                lastDeltaEndsWithPrompt = event.text.trimEnd().endsWith(">")
                                 val formatted = event.text.replace("\r\n", "\n").replace("\n", "\r\n")
                                 uiSession.emitOutput(formatted.toByteArray(Charsets.UTF_8))
                             }
                             is AgentStreamEvent.Completed -> {
-                                uiSession.emitOutput("\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                                if (!lastDeltaEndsWithPrompt) {
+                                    uiSession.emitOutput("\r\n\r\n$PROMPT".toByteArray(Charsets.UTF_8))
+                                }
                             }
                             is AgentStreamEvent.Error -> {
-                                uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${event.error.message}\u001b[0m\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                                if (!lastDeltaEndsWithPrompt) {
+                                    uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${event.error.message}\u001b[0m\r\n\r\n$PROMPT".toByteArray(Charsets.UTF_8))
+                                }
                             }
                             is AgentStreamEvent.ToolCallStarted -> {
                                 uiSession.emitOutput("\r\n\u001b[38;2;245;158;11m⚙ [Antigravity Agent] Ejecutando herramienta: ${event.toolName}...\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
@@ -328,7 +349,7 @@ class MainActivity : ComponentActivity() {
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     // Prompt was cancelled by user
                 } catch (t: Throwable) {
-                    uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${t.message}\u001b[0m\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                    uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${t.message}\u001b[0m\r\n\r\n$PROMPT".toByteArray(Charsets.UTF_8))
                 }
             }
         }
@@ -383,7 +404,7 @@ class MainActivity : ComponentActivity() {
                                 currentJob?.cancel()
                                 currentJob = null
                                 inputLineBuffer.clear()
-                                uiSession.emitOutput("^C\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                                uiSession.emitOutput("^C\r\n$PROMPT".toByteArray(Charsets.UTF_8))
                             }
                             ch >= ' ' || ch == '\t' -> {
                                 lastWasCr = false

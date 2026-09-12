@@ -53,5 +53,6 @@ data class AgentSessionState(
     val currentTask: String = "Idle - Waiting for instructions",
     val activeTool: String? = null,
     val iterationCount: Int = 0,
-    val memoryNodesActive: Int = 12
+    val memoryNodesActive: Int = 12,
+    val activeModel: String = "Gemini 2.5 Flash"
 )
