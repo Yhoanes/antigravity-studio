@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-12T07:37:19.195580+00:00",
+  "timestamp": "2026-09-12T14:20:02.774746+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,14 +7,14 @@
     "passed_suites": 3,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 51.37
+    "total_duration_ms": 48.05
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 4.72,
+      "duration_ms": 4.98,
       "summary": "3/3 especificaciones SDD válidas | 28 Criterios de Aceptación (AC) verificados",
       "details": {
         "total_specs": 3,
@@ -203,72 +203,72 @@
             "is_valid": true,
             "metadata": {
               "id": "SPEC-002",
-              "title": "Autenticación Google OAuth 2.0 PKCE y Motor Agéntico Real de Antigravity",
+              "title": "Autenticación Google OAuth 2.0 PKCE con Localhost Loopback y Motor Agéntico Real de Antigravity",
               "author": "spec_architect",
               "status": "APPROVED FOR IMPLEMENTATION",
               "target_device": "Xiaomi Pad 6 (Qualcomm Snapdragon 870, ARM64-v8a, 6 GB RAM, 11\" 2.8K 144Hz, HyperOS / Android 13/14)",
-              "runtime_target": "Kotlin 2.0+ / Android Jetpack Compose / OkHttp SSE Streaming / POSIX PTY"
+              "runtime_target": "Kotlin 2.0+ / Android Jetpack Compose / OkHttp SSE Streaming / POSIX PTY / Localhost Loopback Server"
             },
             "acceptance_criteria": [
               {
                 "id": "AC-AUTH-001",
-                "module": "OAuth PKCE",
-                "description": "`createAuthorizationUrl` genera un `code_verifier` de alta entropía (longitud entre 43 y 128 caracteres) y un `code_challenge` SHA-256 Base64URL sin relleno (*unpadded*).",
-                "verification_method": "Test unitario validando regex del verifier y cómputo de resumen criptográfico SHA-256.",
-                "line_number": 341
+                "module": "OAuth PKCE & Official Credentials",
+                "description": "`createAuthorizationUrl` genera `code_verifier` de 64 caracteres Base64URL, `code_challenge` SHA-256 S256 e incorpora las credenciales oficiales (`884354919052-antigravity.apps.googleusercontent.com`) con `redirect_uri=http://localhost:54123/callback`.",
+                "verification_method": "Test unitario validando la composición exacta de parámetros y el resumen SHA-256 en la URL de autorización.",
+                "line_number": 569
               },
               {
                 "id": "AC-AUTH-002",
-                "module": "OAuth Deep Link",
-                "description": "`handleAuthorizationCallback` procesa el URI `antigravity://oauth2callback`, verifica la correspondencia estricta del parámetro `state` y extrae el código de autorización temporal.",
-                "verification_method": "Test unitario pasando URIs simulados válidos y con `state` adulterado comprobando rechazo de seguridad.",
-                "line_number": 342
+                "module": "Localhost Loopback Receiver & Fallback",
+                "description": "`LocalhostLoopbackReceiver` abre `ServerSocket(54123)`, intercepta el callback `GET /callback?code=...&state=...`, valida `state`, sirve página HTML Cyber-Obsidian 200 OK y soporta fallback a `antigravity://oauth2callback`.",
+                "verification_method": "Test de integración enviando una petición HTTP local simulada a `127.0.0.1:54123` y verificando respuesta 200 OK y extracción del código.",
+                "line_number": 570
               },
               {
                 "id": "AC-AUTH-003",
-                "module": "Token Exchange & Storage",
-                "description": "El intercambio por `code` contra `https://oauth2.googleapis.com/token` persiste los datos en `oauth_creds.json` y `google_accounts.json` con permisos de archivo `0600`.",
-                "verification_method": "Test de integración verificando existencia de los archivos JSON y comprobación de permisos de acceso en almacenamiento privado.",
-                "line_number": 343
+                "module": "Token Exchange & Secure Storage",
+                "description": "El intercambio POST contra `https://oauth2.googleapis.com/token` envía `code_verifier` y `client_secret`, persistiendo las credenciales en `$filesDir/.gemini/oauth_creds.json` y `google_accounts.json` con permisos POSIX `0600`.",
+                "verification_method": "Test de integración con mock server de Google OAuth verificando la creación de archivos con máscara de permisos `0600`.",
+                "line_number": 571
               },
               {
                 "id": "AC-AUTH-004",
                 "module": "Token Auto-Refresh",
-                "description": "`getValidAccessToken` detecta tokens a punto de expirar ($\\le 300\\,\\text{s}$) e invoca silenciosamente el refresco mediante `refresh_token`, actualizando el archivo local sin intervención del usuario.",
-                "verification_method": "Test unitario con token artificialmente caducado comprobando refresco automático antes de la llamada.",
-                "line_number": 344
+                "description": "`getValidAccessToken` detecta tokens con vigencia remanente $\\le 300\\,\\text{s}$ o errores 401, ejecutando silenciosamente el refresco mediante `grant_type=refresh_token` y `client_secret` oficial sin interrumpir al usuario.",
+                "verification_method": "Test unitario inyectando un token expirado y comprobando la renovación atómica y transparente del `access_token`.",
+                "line_number": 572
               },
               {
                 "id": "AC-AUTH-005",
-                "module": "Multi-Usuario",
-                "description": "El registro `google_accounts.json` soporta almacenar múltiples identidades de usuario y alternar la cuenta activa sin perder las credenciales previas.",
-                "verification_method": "Test unitario agregando dos cuentas de prueba y conmutando el puntero `active_account_email`.",
-                "line_number": 345
+                "module": "Multi-Usuario y Persistencia",
+                "description": "El registro `google_accounts.json` almacena múltiples cuentas de desarrollador y conmuta la cuenta activa sin degradar ni eliminar credenciales previas.",
+                "verification_method": "Test unitario registrando dos perfiles distintos y alternando el valor de `active_account_email`.",
+                "line_number": 573
               },
               {
                 "id": "AC-AUTH-006",
-                "module": "SSE Streaming to PTY",
-                "description": "`RealAgentEngine` procesa respuestas SSE de Gemini con encabezado `Authorization: Bearer` y escribe los bytes de texto directamente al PTY master con latencia de cuadro $\\le 16\\,\\text{ms}$ a 144Hz.",
-                "verification_method": "Test instrumentado conectando un mock SSE server y validando la lectura inmediata en el descriptor de PTY.",
-                "line_number": 346
+                "module": "SSE Streaming to PTY a 144Hz",
+                "description": "`RealAgentEngine` transmite respuestas SSE de Gemini con encabezado `Authorization: Bearer` al descriptor maestro de la PTY con latencia de cuadro $\\le 16\\,\\text{ms}$ para pantallas a 144Hz.",
+                "verification_method": "Test instrumentado validando la tasa de transferencia y la sincronización con el descriptor POSIX de la PTY.",
+                "line_number": 574
               },
               {
                 "id": "AC-AUTH-007",
                 "module": "Workspace Tool Sandboxing",
-                "description": "Las herramientas de archivo (`write_file`, `read_file`) operan estrictamente dentro de `$filesDir/workspace`, bloqueando cualquier intento de escape o traversal (`../`).",
-                "verification_method": "Test de seguridad de herramientas locales intentando escribir en `/system/` o `/data/data/com.antigravity.studio/databases`.",
-                "line_number": 347
+                "description": "Las herramientas de ejecución (`write_file`, `read_file`, `list_directory`) operan exclusivamente en `$filesDir/workspace`, bloqueando cualquier intento de escape o traversal (`../`).",
+                "verification_method": "Test de seguridad ejecutando peticiones con rutas prohibidas como `/system/` o `/data/data/com.antigravity.studio/databases`.",
+                "line_number": 575
               },
               {
                 "id": "AC-AUTH-008",
-                "module": "UI Auth Integration",
-                "description": "La interfaz `GoogleAuthTopBarAction` reacciona al `AuthState`, renderizando el botón de login en estado desconectado y el badge `shadrick1212@gmail.com 🟢 ONLINE` al autenticarse.",
-                "verification_method": "Test de interfaz con `ComposeTestRule` inyectando diferentes estados de `AuthState`.",
-                "line_number": 348
+                "module": "UI Auth Integration & State Flow",
+                "description": "El componente `GoogleAuthTopBarAction` reacciona a los cambios en `AuthState`, mostrando botón de login en estado desconectado y el badge `shadrick1212@gmail.com 🟢 ONLINE` al autenticarse.",
+                "verification_method": "Test de interfaz con `ComposeTestRule` inyectando secuencias de estados de autenticación y verificando nodos semánticos.",
+                "line_number": 576
               }
             ],
             "diagram_count": 2,
-            "contract_count": 5,
+            "contract_count": 6,
             "errors": [],
             "warnings": []
           }
@@ -282,7 +282,7 @@
       "name": "code_linter",
       "display_name": "Static Analysis & Syntax Linter Suite",
       "status": "PASS",
-      "duration_ms": 16.22,
+      "duration_ms": 15.05,
       "summary": "Análisis sintáctico completado sin errores en 6 archivos",
       "details": {
         "scanned_files": 6
@@ -295,7 +295,7 @@
       "name": "test_suite",
       "display_name": "Automated Unit & Regression Test Suite",
       "status": "PASS",
-      "duration_ms": 30.34,
+      "duration_ms": 27.94,
       "summary": "8 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
       "details": {
         "tests_run": 8,

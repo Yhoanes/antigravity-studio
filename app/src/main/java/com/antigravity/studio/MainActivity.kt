@@ -65,6 +65,29 @@ class MainActivity : ComponentActivity() {
         com.antigravity.studio.auth.GoogleOAuthManager.init(this)
         handleOAuthIntent(intent)
 
+        // 0.2 Observe Google OAuth state to announce authentication events in terminal
+        lifecycleScope.launch {
+            var previousState: com.antigravity.studio.core.auth.AuthState = com.antigravity.studio.core.auth.AuthState.Unauthenticated
+            com.antigravity.studio.auth.GoogleOAuthManager.authState.collect { state ->
+                if (previousState is com.antigravity.studio.core.auth.AuthState.Authenticating && state is com.antigravity.studio.core.auth.AuthState.Authenticated) {
+                    val msg = (
+                        "\r\n\u001b[1;32m✔ [Google OAuth 2.0 PKCE] Sesión iniciada con éxito.\u001b[0m\r\n" +
+                        "\u001b[38;2;139;92;246m● Cuenta activa: ${state.email}\u001b[0m\r\n" +
+                        "\u001b[1;36m● Modelos Gemini 1.5 Pro / Flash conectados directamente.\u001b[0m\r\n\r\n" +
+                        "\u001b[1;36magy:workspace$ \u001b[0m"
+                    ).toByteArray(Charsets.UTF_8)
+                    activeSessionState.value?.emitOutput(msg)
+                } else if (previousState is com.antigravity.studio.core.auth.AuthState.Authenticating && state is com.antigravity.studio.core.auth.AuthState.Error) {
+                    val msg = (
+                        "\r\n\u001b[1;31m✖ [Google OAuth Error] Fallo al completar la autenticación: ${state.message}\u001b[0m\r\n\r\n" +
+                        "\u001b[1;36magy:workspace$ \u001b[0m"
+                    ).toByteArray(Charsets.UTF_8)
+                    activeSessionState.value?.emitOutput(msg)
+                }
+                previousState = state
+            }
+        }
+
         // 1. Hardware acceleration & edge-to-edge window insets
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.setFlags(
@@ -115,17 +138,7 @@ class MainActivity : ComponentActivity() {
                         agentState = agentState.value,
                         activeUserEmail = activeUserEmail,
                         onGoogleSignInClick = {
-                            lifecycleScope.launch {
-                                try {
-                                    val authUrl = com.antigravity.studio.auth.GoogleOAuthManager.createAuthorizationUrl()
-                                    val authIntent = Intent(Intent.ACTION_VIEW, Uri.parse(authUrl)).apply {
-                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                    }
-                                    startActivity(authIntent)
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Failed launching Google OAuth: ${e.message}", e)
-                                }
-                            }
+                            com.antigravity.studio.auth.GoogleOAuthManager.startLogin(this@MainActivity)
                         },
                         onSignOutClick = {
                             lifecycleScope.launch {
@@ -222,6 +235,9 @@ class MainActivity : ComponentActivity() {
         val data = intent?.data ?: return
         if (data.scheme == "antigravity") {
             when (data.host) {
+                "workspace", "auth-complete" -> {
+                    Log.i(TAG, "Retorno al espacio de trabajo recibido desde OAuth: $data")
+                }
                 "login" -> {
                     com.antigravity.studio.auth.GoogleOAuthManager.startLogin(this)
                 }
@@ -229,22 +245,10 @@ class MainActivity : ComponentActivity() {
                     lifecycleScope.launch {
                         val result = com.antigravity.studio.auth.GoogleOAuthManager.handleAuthCallback(data)
                         result.onSuccess { email ->
-                            Log.i(TAG, "Google OAuth login successful: $email")
-                            val msg = (
-                                "\r\n\u001b[1;32m✔ [Google OAuth 2.0 PKCE] Sesión iniciada con éxito.\u001b[0m\r\n" +
-                                "\u001b[38;2;139;92;246m● Cuenta activa: $email\u001b[0m\r\n" +
-                                "\u001b[1;36m● Modelos Gemini 2.0 Flash / Pro conectados directamente.\u001b[0m\r\n\r\n" +
-                                "\u001b[1;36magy:workspace$ \u001b[0m"
-                            ).toByteArray(Charsets.UTF_8)
-                            activeSessionState.value?.emitOutput(msg)
+                            Log.i(TAG, "Google OAuth fallback login successful: $email")
                         }
                         result.onFailure { error ->
                             Log.e(TAG, "Google OAuth callback error", error)
-                            val msg = (
-                                "\r\n\u001b[1;31m✖ [Google OAuth Error] Fallo al completar la autenticación: ${error.message}\u001b[0m\r\n\r\n" +
-                                "\u001b[1;36magy:workspace$ \u001b[0m"
-                            ).toByteArray(Charsets.UTF_8)
-                            activeSessionState.value?.emitOutput(msg)
                         }
                     }
                 }
