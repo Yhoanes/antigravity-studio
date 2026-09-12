@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-12T17:26:11.389664+00:00",
+  "timestamp": "2026-09-12T20:36:07.804452+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,20 +7,20 @@
     "passed_suites": 3,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 52.24
+    "total_duration_ms": 1871.78
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 6.51,
-      "summary": "3/3 especificaciones SDD válidas | 30 Criterios de Aceptación (AC) verificados",
+      "duration_ms": 135.98,
+      "summary": "5/5 especificaciones SDD válidas | 48 Criterios de Aceptación (AC) verificados",
       "details": {
-        "total_specs": 3,
-        "passed_specs": 3,
+        "total_specs": 5,
+        "passed_specs": 5,
         "failed_specs": 0,
-        "total_acceptance_criteria": 30,
+        "total_acceptance_criteria": 48,
         "reports": [
           {
             "file_path": "specs/00-system-architecture.md",
@@ -215,74 +215,236 @@
                 "module": "OAuth PKCE & Official Credentials",
                 "description": "`createAuthorizationUrl` genera `code_verifier` de 64 caracteres Base64URL, `code_challenge` SHA-256 S256 e incorpora las credenciales oficiales (`1071006060591-antigravity.apps.googleusercontent.com`, con fallback a `884354919052-...`) con `redirect_uri=http://localhost:54123/callback` (o `http://localhost:54123/oauth-callback`) y la lista oficial de scopes autorizados (`openid email profile https://www.googleapis.com/auth/cloud-platform`), habiendo purgado los scopes restringidos (`generative-language`).",
                 "verification_method": "Test unitario validando la composición exacta de parámetros, ausencia de scopes restringidos y el resumen SHA-256 en la URL de autorización.",
-                "line_number": 1280
+                "line_number": 1365
               },
               {
                 "id": "AC-AUTH-002",
                 "module": "Localhost Loopback Receiver & Fallback",
                 "description": "`LocalhostLoopbackReceiver` abre `ServerSocket(54123)`, intercepta el callback `GET /callback?code=...&state=...` o `GET /oauth-callback?code=...&state=...`, valida `state`, sirve página HTML Cyber-Obsidian 200 OK y soporta fallback a `antigravity://oauth2callback`.",
                 "verification_method": "Test de integración enviando peticiones HTTP locales simuladas a `127.0.0.1:54123/callback` y `/oauth-callback`, verificando respuesta 200 OK y extracción del código.",
-                "line_number": 1281
+                "line_number": 1366
               },
               {
                 "id": "AC-AUTH-003",
                 "module": "Token Exchange & Secure Storage",
                 "description": "El intercambio POST contra `https://oauth2.googleapis.com/token` envía `code_verifier` y `client_secret`, persistiendo las credenciales con scope `https://www.googleapis.com/auth/cloud-platform` en `$filesDir/.gemini/oauth_creds.json` y `google_accounts.json` con permisos POSIX `0600`.",
                 "verification_method": "Test de integración con mock server de Google OAuth verificando la creación de archivos con máscara de permisos `0600` y almacenamiento de scopes autorizados.",
-                "line_number": 1282
+                "line_number": 1367
               },
               {
                 "id": "AC-AUTH-004",
                 "module": "Token Auto-Refresh",
                 "description": "`getValidAccessToken` detecta tokens con vigencia remanente $\\le 300\\,\\text{s}$ o errores 401, ejecutando silenciosamente el refresco mediante `grant_type=refresh_token` y `client_secret` oficial sin interrumpir al usuario.",
                 "verification_method": "Test unitario inyectando un token expirado y comprobando la renovación atómica y transparente del `access_token`.",
-                "line_number": 1283
+                "line_number": 1368
               },
               {
                 "id": "AC-AUTH-005",
                 "module": "Multi-Usuario y Persistencia",
                 "description": "El registro `google_accounts.json` almacena múltiples cuentas de desarrollador y conmuta la cuenta activa sin degradar ni eliminar credenciales previas.",
                 "verification_method": "Test unitario registrando dos perfiles distintos y alternando el valor de `active_account_email`.",
-                "line_number": 1284
+                "line_number": 1369
               },
               {
                 "id": "AC-AUTH-006",
                 "module": "Handshake en Clúster Oficial (`daily-cloudcode-pa`), Suscripción Ultra y Streaming SSE",
-                "description": "`RealAgentEngine` se conecta al host canónico `https://daily-cloudcode-pa.googleapis.com` y ejecuta el handshake con `POST /v1internal:loadCodeAssist` enviando metadata de Antigravity, resolviendo `cloudaicompanionProject` y `paidTier` (`creditType: GOOGLE_ONE_AI`). Si `cloudaicompanionProject` no está inicializado o surge el error `#3501 (SUBSCRIPTION_REQUIRED)`, dispara el fallback `POST /v1internal:onboardUser` (`tierId: \"free-tier\"`) o asigna el identificador por defecto `default-cli-project`. Inyecta obligatoriamente el campo `project` en el payload del endpoint de streaming `https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse` canalizando el stream SSE a 144Hz.",
-                "verification_method": "Test de integración con mock server de Cloud Code en clúster daily-cloudcode-pa validando detección de `paidTier`, adopción de `default-cli-project` ante error 3501, e inyección estricta del campo `project` en `streamGenerateContent?alt=sse`.",
-                "line_number": 1285
+                "description": "`RealAgentEngine` se conecta al host canónico `https://daily-cloudcode-pa.googleapis.com` con header `User-Agent: antigravity/1.2.2` y ejecuta el handshake `POST /v1internal:loadCodeAssist` con metadata (`ideType: ANTIGRAVITY`, `ideVersion: 1.2.2`, `pluginVersion: 1.2.2`), resolviendo el proyecto canónico `aicode-consumers` (o `cloudaicompanionProject`) y `paidTier` (`creditType: GOOGLE_ONE_AI`). Si surge el error `#3501 (SUBSCRIPTION_REQUIRED)` o no se inicializa, dispara el fallback `POST /v1internal:onboardUser` (`tierId: \"free-tier\"`) o asigna el fallback por defecto `default-cli-project`. En cada petición hacia `https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse`, envía los headers obligatorios (`Authorization: Bearer <access_token>`, `Content-Type: application/json`, `Accept: text/event-stream`, `User-Agent: antigravity/1.2.2`) e inyecta en el payload `GenerateContentRequest`: `enabledCreditTypes: [\"GOOGLE_ONE_AI\"]` (o `[1]`) para cuentas personales con suscripción Ultra de $200 erradicando el error 403 #3501, `requestType: \"REQUEST_TYPE_CASCADE\"`, `userAgent: \"antigravity/1.2.2\"`, `requestId` (UUID v4 único) y `project: \"aicode-consumers\"` (o fallback a `default-cli-project`), canalizando el stream SSE a 144Hz.",
+                "verification_method": "Test de integración con mock server de Cloud Code en clúster daily-cloudcode-pa validando verificación de headers (`User-Agent: antigravity/1.2.2`), payload con `enabledCreditTypes: [\"GOOGLE_ONE_AI\"]`, `requestType: \"REQUEST_TYPE_CASCADE\"`, `userAgent`, `requestId` UUID v4, y resolución de `project: \"aicode-consumers\"` (con fallback a `default-cli-project`) sin error 403.",
+                "line_number": 1370
               },
               {
                 "id": "AC-AUTH-007",
                 "module": "Workspace Tool Sandboxing",
                 "description": "Las herramientas de ejecución (`write_file`, `read_file`, `list_directory`) operan exclusivamente en `$filesDir/workspace`, bloqueando cualquier intento de escape o traversal (`../`).",
                 "verification_method": "Test de seguridad ejecutando peticiones con rutas prohibidas como `/system/` o `/data/data/com.antigravity.studio/databases`.",
-                "line_number": 1286
+                "line_number": 1371
               },
               {
                 "id": "AC-AUTH-008",
                 "module": "UI Auth Integration & State Flow",
                 "description": "El componente `GoogleAuthTopBarAction` reacciona a los cambios en `AuthState`, mostrando botón de login en estado desconectado y el badge `shadrick1212@gmail.com 🟢 ONLINE` al autenticarse.",
                 "verification_method": "Test de interfaz con `ComposeTestRule` inyectando secuencias de estados de autenticación y verificando nodos semánticos.",
-                "line_number": 1287
+                "line_number": 1372
               },
               {
                 "id": "AC-AUTH-009",
-                "module": "Antigravity 2.0 Visual Presentation Contract",
-                "description": "`RealAgentEngine` y `AntigravityVisualPresenter` estructuran el turno agéntico con prompt de usuario `>`, badge de modelo predeterminado `Gemini 3.8 Flash`, bloque colapsable `• Thought` y llamadas a herramientas trazables `• ToolName`.",
-                "verification_method": "Test unitario verificando la emisión de eventos estructurados (`ModelHeader`, `ThoughtDelta`, `ToolCallStarted`) y el formateo ANSI y Compose de prompt `>`, `• Thought` y `• ToolName`.",
-                "line_number": 1288
+                "module": "Antigravity 2.0 Visual Presentation Contract y Validación de Inferencia",
+                "description": "`RealAgentEngine` y `AntigravityVisualPresenter` estructuran el turno agéntico despachando peticiones con `enabledCreditTypes: [\"GOOGLE_ONE_AI\"]` y vinculando los IDs canónicos del catálogo oficial (`gemini-3.8-flash-high` [por defecto], `gemini-3.7-flash-high`, `gemini-3.6-flash-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium`), formateando visualmente el flujo con prompt de usuario `>`, badge de modelo activo `Gemini 3.8 Flash`, bloque colapsable `• Thought` y llamadas a herramientas trazables `• ToolName`.",
+                "verification_method": "Test unitario verificando la propagación de los IDs canónicos del catálogo oficial, emisión de eventos estructurados (`ModelHeader`, `ThoughtDelta`, `ToolCallStarted`), conformación del payload con `enabledCreditTypes` y formateo ANSI y Compose de prompt `>`, `• Thought` y `• ToolName`.",
+                "line_number": 1373
               },
               {
                 "id": "AC-AUTH-010",
                 "module": "Catálogo Oficial de Modelos y Contrato del Selector (`ModelSelectionSheet`)",
-                "description": "El selector de modelos expone el catálogo oficial (`gemini-3.8-flash` [Por defecto], `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.1-pro`, `claude-sonnet-4.6`, `claude-opus-4.6`, `gpt-oss-120b`) accesible mediante `ModelSelectionSheet` (Modal Bottom Sheet) al pulsar `ModelStatusBarBadge` en la barra de estado inferior o al invocar `/model` en la terminal, conmutando reactivamente el modelo en `RealAgentEngine`.",
-                "verification_method": "Test unitario y de UI con `ComposeTestRule` verificando la apertura del Modal Bottom Sheet, la ejecución de `/model` en la PTY y la conmutación efectiva del modelo en las solicitudes a Cloud Code.",
-                "line_number": 1289
+                "description": "El selector de modelos expone el catálogo oficial con los identificadores canónicos de Antigravity 1.2.2 (`gemini-3.8-flash-high` [Por defecto], `gemini-3.7-flash-high`, `gemini-3.6-flash-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium`) con sus etiquetas de rendimiento (`High`, `Fast`, `Medium`, `Low`, `Thinking`), accesible mediante `ModelSelectionSheet` (Modal Bottom Sheet) al pulsar `ModelStatusBarBadge` en la barra de estado inferior o al invocar `/model` en la terminal, conmutando reactivamente el modelo en `RealAgentEngine`.",
+                "verification_method": "Test unitario y de UI con `ComposeTestRule` verificando la apertura del Modal Bottom Sheet, la ejecución de `/model` en la PTY y la conmutación efectiva del modelo con los IDs canónicos en las solicitudes a Cloud Code.",
+                "line_number": 1374
               }
             ],
             "diagram_count": 4,
             "contract_count": 15,
+            "errors": [],
+            "warnings": []
+          },
+          {
+            "file_path": "specs/03-antigravity-studio-ide.md",
+            "is_valid": true,
+            "metadata": {
+              "id": "SPEC-003",
+              "title": "Antigravity Studio IDE: Multi-Project Workspace, Dual Canvas & HyperOS Background Persistence",
+              "author": "spec_architect",
+              "status": "APPROVED FOR IMPLEMENTATION",
+              "target_device": "Xiaomi Pad 6 (Qualcomm Snapdragon 870, ARM64-v8a, 6 GB RAM, 11\" 2.8K 144Hz, HyperOS / Android 13/14)",
+              "runtime_target": "Kotlin / Jetpack Compose / Android NDK C++ / PRoot Linux ARM64"
+            },
+            "acceptance_criteria": [
+              {
+                "id": "AC-IDE-001",
+                "module": "ProjectManager",
+                "description": "`ProjectManager` escanea el directorio `$filesDir/projects/`, detecta carpetas existentes (`tateti`, `backend`, `Analista`), ordena los elementos por `lastModified` descendente y permite crear proyectos con plantillas base.",
+                "verification_method": "Test unitario creando carpetas temporales con diferentes marcas de tiempo y validando la lista emitida en `StateFlow<List<ProjectItem>>`.",
+                "line_number": 531
+              },
+              {
+                "id": "AC-IDE-002",
+                "module": "Project Workspace Binding",
+                "description": "Al invocar `switchProject(projectId)`, `RealAgentEngine.workspaceDir` y el `cwd` de la sesión PTY se actualizan atómicamente a la ruta del nuevo proyecto sin dejar procesos huérfanos ni fugas de descriptores de archivo.",
+                "verification_method": "Test de integración verificando la variable de entorno `PWD` en el subproceso PTY y la propiedad `workspaceDir` tras conmutar entre `tateti` y `backend`.",
+                "line_number": 532
+              },
+              {
+                "id": "AC-IDE-003",
+                "module": "DualCanvas Tablet UI",
+                "description": "El componente `DualCanvas` soporta renderizado a 144Hz de `Agent Terminal` mediante WebGL/xterm.js y permite conmutar o dividir la pantalla (50/50) con `Workspace Canvas` para inspección simultánea de código fuente.",
+                "verification_method": "Benchmark UI midiendo tasa de refresco a 144Hz en la pantalla 2.8K de Xiaomi Pad 6 y validando composición de nodos Compose en modo split.",
+                "line_number": 533
+              },
+              {
+                "id": "AC-IDE-004",
+                "module": "ProductivityBar Approval",
+                "description": "La pulsación del botón `[✓ Aprobar (Ctrl+K)]` transmite de forma inmediata el byte de control `\\u000B` (`0x0B`) al flujo de entrada del PTY maestro con vibración háptica instantánea.",
+                "verification_method": "Test de instrumentación con `ComposeTestRule` simulando el clic en el botón táctil de aprobación y verificando la captura exacta del byte `0x0B` en el buffer de entrada PTY.",
+                "line_number": 534
+              },
+              {
+                "id": "AC-IDE-005",
+                "module": "ProductivityBar Controls",
+                "description": "Los botones de acceso rápido `[⚡ Modelo]`, `[📁 Archivos]`, `[⏹ Detener]` y `[⚙ Ajustes]` ejecutan sus acciones respectivas, y las teclas `[CTRL]`, `[TAB]` y `[ESC]` emiten sus secuencias de código ASCII correspondientes.",
+                "verification_method": "Prueba unitaria de `ProductivityBar` comprobando emisión de eventos `KeyAction` (`0x1B` para ESC, `0x09` para TAB, `0x03` para Detener) y actualización de estados booleanos.",
+                "line_number": 535
+              },
+              {
+                "id": "AC-IDE-006",
+                "module": "Inspection Drawer Subagents",
+                "description": "El panel auxiliar derecho renderiza la lista de subagentes en tarjetas `SubagentCard`, reflejando en tiempo real el nombre, duración en segundos y estados (`REASONING`, `EXECUTING`, `COMPLETED ✓`).",
+                "verification_method": "Test de Compose verificando la presencia y contenido de `SubagentCard` ante actualizaciones emitidas en `InspectionDrawerState`.",
+                "line_number": 536
+              },
+              {
+                "id": "AC-IDE-007",
+                "module": "Inspection Drawer Files",
+                "description": "`FilesChangedCard` presenta la lista de archivos modificados con el cálculo preciso de líneas agregadas (`+`) y eliminadas (`-`), abriendo el archivo en el canvas central al ser pulsado.",
+                "verification_method": "Test unitario proveyendo una lista de `FileChangeSummary` y verificando que el callback `onFileSelected` es invocado con la ruta correcta.",
+                "line_number": 537
+              },
+              {
+                "id": "AC-IDE-008",
+                "module": "HyperOS Background Persistence",
+                "description": "`StudioBackgroundService` adquiere `PARTIAL_WAKE_LOCK` y `WifiLock`, manteniéndose en primer plano con `startForeground()` y evitando que el freezer de HyperOS o el OOM killer detengan el agente al apagar la pantalla.",
+                "verification_method": "Verificación de servicio en Android (`dumpsys power` y `dumpsys wifi`) confirmando el estado activo de locks con tags `antigravity:*` tras el bloqueo de pantalla.",
+                "line_number": 538
+              },
+              {
+                "id": "AC-IDE-009",
+                "module": "Background Notifications",
+                "description": "El servicio emite una notificación persistente con la tarea actual y dispara una notificación flotante Heads-Up con sonido y vibración en el canal `studio_alerts_channel` al concluir tareas o requerir aprobación.",
+                "verification_method": "Test instrumentado validando la creación de `NotificationChannel` con importancia `HIGH` y la emisión correcta de notificaciones ante eventos del agente.",
+                "line_number": 539
+              },
+              {
+                "id": "AC-IDE-010",
+                "module": "Permission Governance Engine",
+                "description": "`PermissionEngine` respeta las políticas: auto-aprueba lecturas si `autoApproveRead=true`, auto-aprueba bash seguro si `autoApproveSafeBash=true`, e intercepta obligatoriamente comandos en lista negra destructiva (`rm -rf`, `dd`).",
+                "verification_method": "Test unitario de `PermissionEngine` evaluando comandos clasificados como seguros vs destructivos y confirmando la suspensión de ejecución hasta recibir aprobación táctil.",
+                "line_number": 540
+              }
+            ],
+            "diagram_count": 4,
+            "contract_count": 6,
+            "errors": [],
+            "warnings": []
+          },
+          {
+            "file_path": "specs/04-termux-antigravity-adapter.md",
+            "is_valid": true,
+            "metadata": {
+              "id": "SPEC-004",
+              "title": "Antigravity Studio: Termux Platform Adaptation, Cyber-Obsidian UI & Official CLI Pipeline",
+              "author": "spec_architect",
+              "status": "APPROVED FOR IMPLEMENTATION",
+              "target_device": "Xiaomi Pad 6 (Qualcomm Snapdragon 870, ARM64-v8a, 6 GB RAM, 11\" 2.8K 144Hz, HyperOS / Android 13/14)",
+              "runtime_target": "Termux Linux ARM64 / Bash / Python / Official Google Antigravity CLI (agy)"
+            },
+            "acceptance_criteria": [
+              {
+                "id": "AC-TRMX-001",
+                "module": "Cyber-Obsidian Theme",
+                "description": "El archivo `~/.termux/colors.properties` define con precisión los colores requeridos: `background=#0B0F19`, `foreground=#E2E8F0`, `cursor=#00F0FF`, y la totalidad de los 16 códigos ANSI satisfaciendo ratios de contraste WCAG 2.1 AAA ($\\ge 7:1$).",
+                "verification_method": "Validación de parseo del archivo `.properties` y cálculo matemático del ratio de contraste relativo entre `foreground` y `background`.",
+                "line_number": 884
+              },
+              {
+                "id": "AC-TRMX-002",
+                "module": "Ergonomic Extra-Keys",
+                "description": "El archivo `~/.termux/termux.properties` configura la matriz de dos filas con los botones `[✓ Aprobar]`, `[⚡ Modelo]`, `[⏹ Detener]`, `[📁 Proyectos]`, habilitando `extra-keys-haptic-feedback = true` y estilo `arrows-only`.",
+                "verification_method": "Inspección del archivo de configuración verificando la estructura del array JSON de `extra-keys` y la presencia de macros específicas (`\\u000b`, `\\u0003`).",
+                "line_number": 885
+              },
+              {
+                "id": "AC-TRMX-003",
+                "module": "Google Ultra Auth Integration",
+                "description": "La rutina de inicialización de shell comprueba la existencia de `~/.gemini/oauth_creds.json`, verifica la validez del token de acceso para la cuenta Ultra y alerta visualmente al usuario si el token está ausente o expirado.",
+                "verification_method": "Prueba de ejecución en bash simulando presencia vs ausencia de `oauth_creds.json` y validando los mensajes de estado coloreados emitidos en stdout.",
+                "line_number": 886
+              },
+              {
+                "id": "AC-TRMX-004",
+                "module": "ANSI Banner & Telemetry",
+                "description": "Al iniciarse una sesión interactiva de Bash, el banner de Antigravity Studio se proyecta correctamente en arte ANSI, desplegando el hardware reconocido (Snapdragon 870, 6GB RAM, 144Hz) y el estado del CLI `agy`.",
+                "verification_method": "Ejecución de `bash -ic exit` capturando la salida y comprobando mediante regex las cadenas `Xiaomi Pad 6`, `Snapdragon 870` y `Antigravity`.",
+                "line_number": 887
+              },
+              {
+                "id": "AC-TRMX-005",
+                "module": "Official agy CLI Pipeline",
+                "description": "El ejecutable oficial de `agy` en `$PREFIX/bin/agy` responde a invocaciones de comandos (`--version`, `auth status`, `model`, `projects`, `run`), soportando redirección de streams sin desincronización de terminal.",
+                "verification_method": "Test automatizado ejecutando cada subcomando de `agy` y verificando códigos de salida $0$ y contenido esperado en stdout.",
+                "line_number": 888
+              },
+              {
+                "id": "AC-TRMX-006",
+                "module": "Instant Touch Approval",
+                "description": "La pulsación del botón `[✓ Aprobar]` en la fila `extra-keys` transmite el byte de control ASCII `0x0B` (`\\u000b`) al descriptor de lectura del PTY maestro en un tiempo inferior a $10\\,\\text{ms}$, desbloqueando la ejecución del agente.",
+                "verification_method": "Test de integración en Termux leyendo el flujo de entrada de un script mock receptor tras la emisión de la señal de tecla y midiendo el delta de tiempo.",
+                "line_number": 889
+              },
+              {
+                "id": "AC-TRMX-007",
+                "module": "HyperOS Background Persistence",
+                "description": "La activación de `termux-wake-lock` mantiene el subproceso de compilación/inferencia activo en segundo plano sin ser congelado por el subsistema cgroups/joyose de HyperOS tras 10 minutos de pantalla apagada.",
+                "verification_method": "Monitoreo de telemetría de proceso mediante `dumpsys power` y verificación de avance del PID en `/proc/[pid]/stat` durante suspensión simulada.",
+                "line_number": 890
+              },
+              {
+                "id": "AC-TRMX-008",
+                "module": "Standalone APK Fork Architecture",
+                "description": "La especificación técnica de la Fase 3 define el cambio de paquete a `com.antigravity.studio`, inclusión del rootfs comprimido en `assets/bootstrap-arm64.zip`, y el servicio en primer plano `AntigravityStudioService`.",
+                "verification_method": "Análisis estático del manifiesto Android y clases de puente Kotlin asegurando la conformidad con el contrato de servicio y package ID.",
+                "line_number": 891
+              }
+            ],
+            "diagram_count": 4,
+            "contract_count": 3,
             "errors": [],
             "warnings": []
           }
@@ -296,10 +458,10 @@
       "name": "code_linter",
       "display_name": "Static Analysis & Syntax Linter Suite",
       "status": "PASS",
-      "duration_ms": 14.38,
-      "summary": "Análisis sintáctico completado sin errores en 6 archivos",
+      "duration_ms": 18.53,
+      "summary": "Análisis sintáctico completado sin errores en 8 archivos",
       "details": {
-        "scanned_files": 6
+        "scanned_files": 8
       },
       "errors": [],
       "warnings": [],
@@ -309,10 +471,10 @@
       "name": "test_suite",
       "display_name": "Automated Unit & Regression Test Suite",
       "status": "PASS",
-      "duration_ms": 31.26,
-      "summary": "8 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
+      "duration_ms": 1717.12,
+      "summary": "16 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
       "details": {
-        "tests_run": 8,
+        "tests_run": 16,
         "failures": 0,
         "errors": 0
       },
