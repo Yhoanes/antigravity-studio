@@ -43,7 +43,7 @@ class GoogleOAuthManagerTest {
             GoogleOAuthManager.FALLBACK_REDIRECT_URI
         )
         assertEquals(
-            "openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever",
+            "openid email profile https://www.googleapis.com/auth/cloud-platform",
             GoogleOAuthManager.SCOPES
         )
 
@@ -171,12 +171,54 @@ class GoogleOAuthManagerTest {
     }
 
     @Test
-    fun testScopeVerificationContainsGenerativeLanguage() {
-        val legacyScope = "https://www.googleapis.com/auth/cloud-platform openid email profile"
+    fun testScopeVerificationContainsCloudPlatform() {
         val currentScope = GoogleOAuthManager.SCOPES
+        assertTrue(currentScope.contains("https://www.googleapis.com/auth/cloud-platform"))
+        assertTrue(currentScope.contains("openid"))
+        assertTrue(currentScope.contains("email"))
+        assertTrue(currentScope.contains("profile"))
+        org.junit.Assert.assertFalse(currentScope.contains("generative-language"))
+        org.junit.Assert.assertFalse(currentScope.contains("generative-language.retriever"))
+    }
 
-        org.junit.Assert.assertFalse(legacyScope.contains("generative-language"))
-        assertTrue(currentScope.contains("generative-language"))
-        assertTrue(currentScope.contains("generative-language.retriever"))
+    @Test
+    fun testLocalhostLoopbackReceiverOauthCallbackFlow() = runBlocking {
+        val testPort = 54131
+        val testState = "secure_state_oauth_cb"
+        val testCode = "4/0AeanS0_sample_oauth_cb_code"
+
+        val receiverDeferred = async(Dispatchers.IO) {
+            LocalhostLoopbackReceiverImpl.startListening(
+                port = testPort,
+                timeoutSeconds = 5,
+                expectedState = testState
+            )
+        }
+
+        var socket: Socket? = null
+        for (i in 1..25) {
+            try {
+                socket = Socket("127.0.0.1", testPort)
+                break
+            } catch (e: Exception) {
+                delay(50)
+            }
+        }
+
+        val client = socket ?: throw IllegalStateException("Could not connect to loopback socket")
+        val out = client.getOutputStream()
+        val request = "GET /oauth-callback?code=$testCode&state=$testState HTTP/1.1\r\nHost: localhost:$testPort\r\n\r\n"
+        out.write(request.toByteArray(Charsets.UTF_8))
+        out.flush()
+
+        val reader = BufferedReader(InputStreamReader(client.getInputStream(), Charsets.UTF_8))
+        val statusLine = reader.readLine()
+        client.close()
+
+        assertEquals("HTTP/1.1 200 OK", statusLine)
+
+        val result = receiverDeferred.await()
+        assertTrue(result.isSuccess)
+        assertEquals(testCode, result.getOrNull())
     }
 }

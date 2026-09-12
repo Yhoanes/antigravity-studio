@@ -6,6 +6,7 @@ import com.antigravity.studio.auth.GoogleOAuthManager
 import com.antigravity.studio.pty.NativePty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
@@ -36,17 +37,22 @@ interface IRealAgentEngine {
 }
 
 /**
- * RealAgentEngine connects Antigravity Agent directly to Google Generative Language
- * APIs (`gemini-2.0-flash`) using the authenticated user's Google OAuth token.
+ * RealAgentEngine connects Antigravity Agent directly to the official Google Cloud Code
+ * backend (`cloudcode-pa.googleapis.com`) using Bearer tokens with the `cloud-platform` scope.
  *
- * Streams tokens via SSE with sub-16ms frame latency directly to the PTY master descriptor.
+ * Implements SPEC-002:
+ * - Handshake with `loadCodeAssist` to discover companion project.
+ * - Streaming inference with `v1internal:streamGenerateContent` via SSE.
+ * - Sub-16ms latency token delivery directly to PTY master descriptor at 144Hz.
+ * - Direct Gemini API fallback (`gemini-2.0-flash`) via saved API key or diagnostic reporting.
  */
 object RealAgentEngine : IRealAgentEngine {
 
     private const val TAG = "RealAgentEngine"
     private const val GEMINI_MODEL = "gemini-2.0-flash"
-    private const val STREAM_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/$GEMINI_MODEL:streamGenerateContent?alt=sse"
-    private const val SYNC_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/$GEMINI_MODEL:generateContent"
+    private const val CLOUD_CODE_STREAM_URL = "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent"
+    private const val CLOUD_CODE_LOAD_URL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
+    private const val FALLBACK_GEMINI_STREAM_URL = "https://generativelanguage.googleapis.com/v1beta/models/$GEMINI_MODEL:streamGenerateContent"
 
     private val httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
@@ -54,9 +60,10 @@ object RealAgentEngine : IRealAgentEngine {
         .build()
 
     var workspaceDir: File? = null
+    private var companionProjectId: String? = null
 
     /**
-     * Executes an agent task with real-time SSE streaming from Google Gemini.
+     * Executes an agent task with real-time SSE streaming from Google Cloud Code.
      */
     override fun executeAgentTask(
         userPrompt: String,
@@ -68,7 +75,7 @@ object RealAgentEngine : IRealAgentEngine {
             val unauthMessage = """
                 \u001b[1;33m[!] Antigravity Agent: No se ha detectado una sesión activa de Google OAuth.\u001b[0m
                 
-                \u001b[38;2;139;92;246mAntigravity Agent se conecta directamente a Gemini 2.5 Flash\u001b[0m
+                \u001b[38;2;139;92;246mAntigravity Agent se conecta directamente a Cloud Code / Gemini 2.0 Flash\u001b[0m
                 \u001b[38;2;139;92;246mutilizando tu cuenta de Google mediante OAuth 2.0 PKCE.\u001b[0m
                 
                 \u001b[1;36mPara activar el agente con IA real:\u001b[0m
@@ -88,35 +95,46 @@ object RealAgentEngine : IRealAgentEngine {
                 Responde de forma concisa, precisa y profesional con formato compatible con terminal ANSI.
             """.trimIndent()
 
+            // 1. Discover companion project if not resolved yet
+            if (companionProjectId.isNullOrEmpty()) {
+                discoverCompanionProject(accessToken)
+            }
+
+            // 2. Build Cloud Code v1internal:streamGenerateContent request payload
             val requestJson = JSONObject().apply {
-                val contents = JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("role", "user")
+                put("project", companionProjectId ?: "")
+                put("model", GEMINI_MODEL)
+                put("request", JSONObject().apply {
+                    val contents = JSONArray().apply {
+                        put(JSONObject().apply {
+                            put("role", "user")
+                            put("parts", JSONArray().apply {
+                                put(JSONObject().put("text", userPrompt))
+                            })
+                        })
+                    }
+                    put("contents", contents)
+
+                    put("systemInstruction", JSONObject().apply {
                         put("parts", JSONArray().apply {
-                            put(JSONObject().put("text", userPrompt))
+                            put(JSONObject().put("text", defaultSystem))
                         })
                     })
-                }
-                put("contents", contents)
 
-                put("systemInstruction", JSONObject().apply {
-                    put("parts", JSONArray().apply {
-                        put(JSONObject().put("text", defaultSystem))
+                    put("generationConfig", JSONObject().apply {
+                        put("temperature", 0.7)
+                        put("maxOutputTokens", 4096)
                     })
-                })
-
-                put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.7)
-                    put("maxOutputTokens", 4096)
                 })
             }
 
             val requestBody = requestJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
             val request = Request.Builder()
-                .url(STREAM_API_URL)
+                .url(CLOUD_CODE_STREAM_URL)
                 .header("Authorization", "Bearer $accessToken")
                 .header("Content-Type", "application/json")
                 .header("Accept", "text/event-stream")
+                .header("User-Agent", "antigravity/1.0.0")
                 .post(requestBody)
                 .build()
 
@@ -124,25 +142,50 @@ object RealAgentEngine : IRealAgentEngine {
 
             if (!response.isSuccessful) {
                 val errorBody = response.body?.string().orEmpty()
-                if (response.code == 403 || errorBody.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT")) {
-                    try {
-                        GoogleOAuthManager.signOut()
-                    } catch (_: Exception) {}
-                    val friendly403 = "\r\n\u001b[1;33m[!] Tu cuenta necesita autorizar los permisos de Gemini.\u001b[0m\r\n" +
-                        "\u001b[38;2;139;92;246mPor favor, toca el botón [Iniciar Sesión con Google] en la barra superior para conceder los permisos de IA.\u001b[0m\r\n\r\n> "
-                    emit(AgentStreamEvent.TextDelta(friendly403))
-                    emit(AgentStreamEvent.Completed(0))
-                    return@flow
+                Log.w(TAG, "Cloud Code streaming failed HTTP ${response.code}: $errorBody")
+
+                // Try direct Gemini API key fallback if available
+                val apiKey = getApiKeyFallback()
+                if (!apiKey.isNullOrBlank()) {
+                    Log.i(TAG, "Attempting direct fallback to Generative Language API with saved key...")
+                    val fallbackHandled = streamDirectGeminiFallback(apiKey, userPrompt, defaultSystem)
+                    if (fallbackHandled) {
+                        return@flow
+                    }
                 }
-                val errMsg = "\r\n\u001b[1;31m[Antigravity Agent Error Google ${response.code}]\u001b[0m: $errorBody\r\n"
-                emit(AgentStreamEvent.TextDelta(errMsg))
+
+                // Legible diagnostic message in terminal
+                val diagMsg = buildString {
+                    append("\r\n\u001b[1;31m[Antigravity Agent Error Google Cloud Code ${response.code}]\u001b[0m\r\n")
+                    append("\u001b[38;2;139;148;158mEndpoint:\u001b[0m $CLOUD_CODE_STREAM_URL\r\n")
+                    append("\u001b[38;2;139;148;158mDetalle:\u001b[0m $errorBody\r\n\r\n")
+                    append("\u001b[1;33m[Diagnóstico]:\u001b[0m\r\n")
+                    when (response.code) {
+                        403 -> {
+                            append("• Acceso restringido en Cloud Code para la cuenta actual o falta de permisos en el proyecto.\r\n")
+                            append("• Verifica que Cloud AI Companion API esté habilitada en tu proyecto de Google Cloud.\r\n")
+                            append("• Puedes guardar una clave Gemini en \u001b[1;36m~/.gemini/api_key\u001b[0m o variable \u001b[1;36mGEMINI_API_KEY\u001b[0m como fallback.\r\n")
+                            append("• O reintentar login con \u001b[1;32magy auth login\u001b[0m.\r\n")
+                        }
+                        404 -> {
+                            append("• El modelo o recurso solicitado no fue encontrado en el endpoint de Cloud Code.\r\n")
+                            append("• Puedes suministrar una clave Gemini en \u001b[1;36m~/.gemini/api_key\u001b[0m como fallback.\r\n")
+                        }
+                        else -> {
+                            append("• La solicitud al backend de Cloud Code falló con código ${response.code}.\r\n")
+                            append("• Puedes suministrar una clave Gemini en \u001b[1;36m~/.gemini/api_key\u001b[0m como fallback.\r\n")
+                        }
+                    }
+                    append("\r\n")
+                }
+                emit(AgentStreamEvent.TextDelta(diagMsg))
                 emit(AgentStreamEvent.Error(IllegalStateException("HTTP ${response.code}: $errorBody")))
                 return@flow
             }
 
             val source = response.body?.source()
             if (source == null) {
-                emit(AgentStreamEvent.Error(IllegalStateException("Empty response body from Google API")))
+                emit(AgentStreamEvent.Error(IllegalStateException("Empty response body from Cloud Code API")))
                 return@flow
             }
 
@@ -151,10 +194,11 @@ object RealAgentEngine : IRealAgentEngine {
                 val line = source.readUtf8Line() ?: break
                 if (line.startsWith("data: ")) {
                     val data = line.removePrefix("data: ").trim()
-                    if (data.isNotEmpty()) {
+                    if (data.isNotEmpty() && data != "[DONE]") {
                         try {
                             val chunkJson = JSONObject(data)
-                            val candidates = chunkJson.optJSONArray("candidates")
+                            val rootObj = chunkJson.optJSONObject("response") ?: chunkJson
+                            val candidates = rootObj.optJSONArray("candidates")
                             if (candidates != null && candidates.length() > 0) {
                                 val candidate = candidates.getJSONObject(0)
                                 val content = candidate.optJSONObject("content")
@@ -184,6 +228,170 @@ object RealAgentEngine : IRealAgentEngine {
             emit(AgentStreamEvent.Error(e))
         }
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Discovers companion project id by calling loadCodeAssist endpoint.
+     */
+    private fun discoverCompanionProject(accessToken: String): String? {
+        try {
+            val reqJson = JSONObject().apply {
+                put("metadata", JSONObject().apply {
+                    put("ideType", "ANTIGRAVITY")
+                    put("ideVersion", "1.0.0")
+                    put("pluginVersion", "1.0.0")
+                })
+            }
+            val requestBody = reqJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder()
+                .url(CLOUD_CODE_LOAD_URL)
+                .header("Authorization", "Bearer $accessToken")
+                .header("Content-Type", "application/json")
+                .header("User-Agent", "antigravity/1.0.0")
+                .post(requestBody)
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            if (response.isSuccessful) {
+                val bodyStr = response.body?.string().orEmpty()
+                if (bodyStr.isNotEmpty()) {
+                    val json = JSONObject(bodyStr)
+                    var project = ""
+                    if (json.has("cloudaicompanionProject")) {
+                        val projVal = json.get("cloudaicompanionProject")
+                        project = if (projVal is JSONObject) {
+                            projVal.optString("id", projVal.optString("name", ""))
+                        } else {
+                            projVal.toString()
+                        }
+                    }
+                    if (project.isNotEmpty() && project != "null") {
+                        companionProjectId = project
+                        Log.i(TAG, "Discovered companion project: $project")
+                        return project
+                    }
+                }
+            } else {
+                Log.w(TAG, "loadCodeAssist returned HTTP ${response.code}: ${response.body?.string()}")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed discovering companion project via loadCodeAssist", e)
+        }
+        return null
+    }
+
+    /**
+     * Resolves fallback Gemini API key from environment variable or filesDir/.gemini/api_key.
+     */
+    private fun getApiKeyFallback(): String? {
+        try {
+            val envKey = System.getenv("GEMINI_API_KEY")
+            if (!envKey.isNullOrBlank()) return envKey.trim()
+
+            val possibleDirs = listOfNotNull(
+                GoogleOAuthManager.getAppContext()?.filesDir,
+                workspaceDir?.parentFile,
+                File("/data/data/com.antigravity.studio/files")
+            )
+            for (dir in possibleDirs) {
+                val keyFile = File(dir, ".gemini/api_key")
+                if (keyFile.exists() && keyFile.isFile) {
+                    val content = keyFile.readText(Charsets.UTF_8).trim()
+                    if (content.isNotEmpty()) return content
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Error checking API key fallback", e)
+        }
+        return null
+    }
+
+    /**
+     * Streams inference directly from generativelanguage API using a local API key.
+     */
+    private suspend fun FlowCollector<AgentStreamEvent>.streamDirectGeminiFallback(
+        apiKey: String,
+        userPrompt: String,
+        defaultSystem: String
+    ): Boolean {
+        return try {
+            val fallbackUrl = "$FALLBACK_GEMINI_STREAM_URL?key=$apiKey&alt=sse"
+            val fallbackPayload = JSONObject().apply {
+                val contents = JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().put("text", userPrompt))
+                        })
+                    })
+                }
+                put("contents", contents)
+
+                put("systemInstruction", JSONObject().apply {
+                    put("parts", JSONArray().apply {
+                        put(JSONObject().put("text", defaultSystem))
+                    })
+                })
+
+                put("generationConfig", JSONObject().apply {
+                    put("temperature", 0.7)
+                    put("maxOutputTokens", 4096)
+                })
+            }
+
+            val requestBody = fallbackPayload.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val request = Request.Builder()
+                .url(fallbackUrl)
+                .header("Content-Type", "application/json")
+                .header("Accept", "text/event-stream")
+                .header("User-Agent", "antigravity/1.0.0")
+                .post(requestBody)
+                .build()
+
+            val response = httpClient.newCall(request).execute()
+            if (!response.isSuccessful) {
+                Log.w(TAG, "Gemini fallback failed HTTP ${response.code}: ${response.body?.string()}")
+                return false
+            }
+
+            val source = response.body?.source() ?: return false
+            var totalTokens = 0
+            while (!source.exhausted()) {
+                val line = source.readUtf8Line() ?: break
+                if (line.startsWith("data: ")) {
+                    val data = line.removePrefix("data: ").trim()
+                    if (data.isNotEmpty() && data != "[DONE]") {
+                        try {
+                            val chunkJson = JSONObject(data)
+                            val rootObj = chunkJson.optJSONObject("response") ?: chunkJson
+                            val candidates = rootObj.optJSONArray("candidates")
+                            if (candidates != null && candidates.length() > 0) {
+                                val candidate = candidates.getJSONObject(0)
+                                val content = candidate.optJSONObject("content")
+                                val parts = content?.optJSONArray("parts")
+                                if (parts != null) {
+                                    for (i in 0 until parts.length()) {
+                                        val part = parts.getJSONObject(i)
+                                        val text = part.optString("text", "")
+                                        if (text.isNotEmpty()) {
+                                            emit(AgentStreamEvent.TextDelta(text))
+                                            totalTokens += text.length / 4
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Error parsing fallback SSE chunk: ${e.message}")
+                        }
+                    }
+                }
+            }
+            emit(AgentStreamEvent.Completed(totalTokens))
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "Exception during fallback Gemini stream", e)
+            false
+        }
+    }
 
     /**
      * Executes an agent task and pipes the streaming text tokens directly into the PTY master FD.

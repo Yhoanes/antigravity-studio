@@ -70,7 +70,7 @@ object GoogleOAuthManager {
     const val LOOPBACK_PORT = 54123
     const val REDIRECT_URI = "http://localhost:54123/callback"
     const val FALLBACK_REDIRECT_URI = "antigravity://oauth2callback"
-    const val SCOPES = "openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever"
+    const val SCOPES = "openid email profile https://www.googleapis.com/auth/cloud-platform"
 
     private const val AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
     private const val TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
@@ -206,6 +206,8 @@ object GoogleOAuthManager {
         loadSavedCredentials()
     }
 
+    fun getAppContext(): Context? = appContext
+
     /**
      * Returns the currently active authenticated account email, if any.
      */
@@ -323,8 +325,9 @@ object GoogleOAuthManager {
 
                         val reader = BufferedReader(InputStreamReader(client.getInputStream(), Charsets.UTF_8))
                         val requestLine = reader.readLine().orEmpty()
-
-                        if (requestLine.startsWith("GET /callback") || requestLine.contains("/callback?")) {
+                        val isCallback = requestLine.startsWith("GET /callback") || requestLine.contains("/callback?") ||
+                            requestLine.startsWith("GET /oauth-callback") || requestLine.contains("/oauth-callback?")
+                        if (isCallback) {
                             val path = requestLine.split(" ").getOrNull(1) ?: ""
                             authCode = extractQueryParam(path, "code")
                             returnedState = extractQueryParam(path, "state")
@@ -585,8 +588,8 @@ object GoogleOAuthManager {
     suspend fun getValidAccessToken(): String? = withContext(Dispatchers.IO) {
         val tokens = currentTokens ?: loadSavedTokens() ?: return@withContext null
 
-        if (!tokens.scope.contains("generative-language")) {
-            Log.w(TAG, "Current token missing 'generative-language' scope. Invalidating token.")
+        if (tokens.scope.isNotEmpty() && !tokens.scope.contains("cloud-platform")) {
+            Log.w(TAG, "Current token missing 'cloud-platform' scope. Invalidating token.")
             val ctx = appContext
             if (ctx != null) {
                 File(ctx.filesDir, ".gemini/oauth_creds.json").delete()
@@ -853,8 +856,8 @@ object GoogleOAuthManager {
         return try {
             val json = JSONObject(credsFile.readText(Charsets.UTF_8))
             val savedScope = json.optString("scope", "")
-            if (!savedScope.contains("generative-language")) {
-                Log.w(TAG, "Loaded token missing 'generative-language' scope ($savedScope). Invalidating saved token.")
+            if (savedScope.isNotEmpty() && !savedScope.contains("cloud-platform")) {
+                Log.w(TAG, "Loaded token missing 'cloud-platform' scope ($savedScope). Invalidating saved token.")
                 credsFile.delete()
                 null
             } else {

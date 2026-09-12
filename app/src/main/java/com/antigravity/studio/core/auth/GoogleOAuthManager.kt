@@ -77,7 +77,9 @@ object LocalhostLoopbackReceiverImpl : LocalhostLoopbackReceiver {
                     val reader = BufferedReader(InputStreamReader(client.getInputStream(), Charsets.UTF_8))
                     val requestLine = reader.readLine().orEmpty()
 
-                    if (requestLine.startsWith("GET /callback") || requestLine.contains("/callback?")) {
+                    val isCallback = requestLine.startsWith("GET /callback") || requestLine.contains("/callback?") ||
+                        requestLine.startsWith("GET /oauth-callback") || requestLine.contains("/oauth-callback?")
+                    if (isCallback) {
                         val path = requestLine.split(" ").getOrNull(1) ?: ""
                         authCode = ActualOAuthManager.extractQueryParam(path, "code")
                         returnedState = ActualOAuthManager.extractQueryParam(path, "state")
@@ -146,7 +148,7 @@ interface GoogleOAuthManager {
     suspend fun signOut(): Result<Unit>
 
     companion object {
-        const val SCOPES: String = "openid email profile https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/generative-language https://www.googleapis.com/auth/generative-language.retriever"
+        const val SCOPES: String = "openid email profile https://www.googleapis.com/auth/cloud-platform"
         val DEFAULT_CLIENT_ID: String = buildString {
             append("884354919052")
             append("-36trc1jjb3tguiac32ov6cod268c5blh")
