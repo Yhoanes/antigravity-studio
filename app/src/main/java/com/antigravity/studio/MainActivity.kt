@@ -154,6 +154,15 @@ class MainActivity : ComponentActivity() {
                                         is AgentStreamEvent.ToolCallFinished -> {
                                             uiSession.emitOutput("\u001b[38;2;34;197;94m✔ [Antigravity Agent] ${event.toolName} finalizada: ${event.resultSummary}\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
                                         }
+                                        is AgentStreamEvent.ApprovalRequired -> {
+                                            uiSession.emitOutput(
+                                                ("\r\n\u001b[1;33m[!] Aprobación Requerida [✓ Aprobar (Ctrl+K)]:\u001b[0m\r\n" +
+                                                 "\u001b[38;2;245;158;11m• Acción: ${event.toolName}\u001b[0m\r\n" +
+                                                 "\u001b[38;2;245;158;11m• Detalle: ${event.description}\u001b[0m\r\n" +
+                                                 "\u001b[38;2;139;148;158mPulsa [✓ Aprobar (Ctrl+K)] en la barra inferior para continuar.\u001b[0m\r\n\r\n")
+                                                    .toByteArray(Charsets.UTF_8)
+                                            )
+                                        }
                                     }
                                 }
                             } catch (t: Throwable) {
@@ -175,6 +184,22 @@ class MainActivity : ComponentActivity() {
         // 0.1 Initialize Google OAuth PKCE manager
         com.antigravity.studio.auth.GoogleOAuthManager.init(this)
         handleOAuthIntent(intent)
+
+        // 0.15 Initialize ProjectManager & AgentSettingsManager
+        val projectsRoot = File(filesDir, "projects")
+        val projectManager = com.antigravity.studio.project.ProjectManager.init(
+            projectsDir = projectsRoot,
+            onProjectChanged = { selectedProject: com.antigravity.studio.project.ProjectItem ->
+                activeNativePty?.tryWrite("cd \"${selectedProject.absolutePath}\" && clear\n".toByteArray(Charsets.UTF_8))
+            }
+        )
+        projectManager.setPtySessionProvider { activeNativePty }
+        com.antigravity.studio.settings.AgentSettingsManager.init(this)
+
+        // Hook stop execution callback from StudioBackgroundService
+        com.antigravity.studio.service.StudioBackgroundService.onStopExecutionRequested = {
+            activeNativePty?.tryWrite(byteArrayOf(0x03))
+        }
 
         // 0.2 Register dynamic BroadcastReceiver for native agent invocation
         val filter = IntentFilter("com.antigravity.studio.RUN_AGENT")
@@ -384,6 +409,15 @@ class MainActivity : ComponentActivity() {
                             is AgentStreamEvent.ToolCallFinished -> {
                                 uiSession.emitOutput("\u001b[38;2;34;197;94m✔ [Antigravity Agent] ${event.toolName} finalizada: ${event.resultSummary}\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
                             }
+                            is AgentStreamEvent.ApprovalRequired -> {
+                                uiSession.emitOutput(
+                                    ("\r\n\u001b[1;33m[!] Aprobación Requerida [✓ Aprobar (Ctrl+K)]:\u001b[0m\r\n" +
+                                     "\u001b[38;2;245;158;11m• Acción: ${event.toolName}\u001b[0m\r\n" +
+                                     "\u001b[38;2;245;158;11m• Detalle: ${event.description}\u001b[0m\r\n" +
+                                     "\u001b[38;2;139;148;158mPulsa [✓ Aprobar (Ctrl+K)] en la barra inferior para continuar.\u001b[0m\r\n\r\n")
+                                        .toByteArray(Charsets.UTF_8)
+                                )
+                            }
                         }
                     }
                 } catch (e: kotlinx.coroutines.CancellationException) {
@@ -510,6 +544,20 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        com.antigravity.studio.service.StudioBackgroundService.updateTelemetry(this)
+    }
+
+    override fun onStop() {
+        super.onStop()
+        val activeProj = com.antigravity.studio.project.ProjectManager.getInstance().activeProject.value
+        com.antigravity.studio.service.StudioBackgroundService.startService(
+            this,
+            activeProj?.name ?: "tateti"
+        )
     }
 
     override fun onDestroy() {

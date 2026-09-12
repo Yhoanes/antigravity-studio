@@ -24,6 +24,13 @@ sealed interface AgentStreamEvent {
     data class TextDelta(val text: String) : AgentStreamEvent
     data class ToolCallStarted(val toolName: String, val argsJson: String) : AgentStreamEvent
     data class ToolCallFinished(val toolName: String, val resultSummary: String) : AgentStreamEvent
+    data class ApprovalRequired(
+        val requestId: String,
+        val actionCategory: com.antigravity.studio.settings.ActionCategory,
+        val toolName: String,
+        val description: String,
+        val commandOrPath: String = ""
+    ) : AgentStreamEvent
     data class Completed(val totalTokens: Int = 0) : AgentStreamEvent
     data class Error(val error: Throwable) : AgentStreamEvent
 }
@@ -525,6 +532,12 @@ object RealAgentEngine : IRealAgentEngine {
                 is AgentStreamEvent.ToolCallFinished -> {
                     writeToPty(masterFd, "\u001b[38;2;34;197;94m✔ [Antigravity Agent] ${event.toolName} finalizada: ${event.resultSummary}\u001b[0m\r\n")
                 }
+                is AgentStreamEvent.ApprovalRequired -> {
+                    writeToPty(masterFd, "\r\n\u001b[1;33m[!] Aprobación Requerida [✓ Aprobar (Ctrl+K)]:\u001b[0m\r\n")
+                    writeToPty(masterFd, "\u001b[38;2;245;158;11m• Acción: ${event.toolName}\u001b[0m\r\n")
+                    writeToPty(masterFd, "\u001b[38;2;245;158;11m• Detalle: ${event.description}\u001b[0m\r\n")
+                    writeToPty(masterFd, "\u001b[38;2;139;148;158mPulsa [✓ Aprobar (Ctrl+K)] en la barra inferior o Ctrl+C para cancelar.\u001b[0m\r\n\r\n")
+                }
                 is AgentStreamEvent.Completed -> {
                     if (!lastDeltaEndsWithPrompt) {
                         writeToPty(masterFd, "\r\n\r\n\u001b[1;36m> \u001b[0m")
@@ -537,6 +550,83 @@ object RealAgentEngine : IRealAgentEngine {
                 }
             }
         }
+    }
+
+    /**
+     * Evalúa la política de permisos para una herramienta o comando.
+     * Retorna true si está auto-aprobada, false si requiere confirmación humana explícita.
+     */
+    fun evaluateActionPermission(
+        toolName: String,
+        targetOrCmd: String = ""
+    ): Boolean {
+        val settings = com.antigravity.studio.settings.AgentSettingsManager.getInstance()
+        val category = when {
+            toolName.contains("read", ignoreCase = true) ||
+            toolName.contains("view", ignoreCase = true) ||
+            toolName.contains("grep", ignoreCase = true) ||
+            toolName.contains("find", ignoreCase = true) ||
+            toolName.contains("list", ignoreCase = true) -> com.antigravity.studio.settings.ActionCategory.FILE_READ
+
+            toolName.contains("write", ignoreCase = true) ||
+            toolName.contains("edit", ignoreCase = true) ||
+            toolName.contains("replace", ignoreCase = true) ||
+            toolName.contains("delete", ignoreCase = true) ||
+            toolName.contains("create", ignoreCase = true) -> com.antigravity.studio.settings.ActionCategory.FILE_WRITE
+
+            settings.isDestructiveBashCommand(targetOrCmd) -> com.antigravity.studio.settings.ActionCategory.BASH_DESTRUCTIVE
+
+            else -> com.antigravity.studio.settings.ActionCategory.BASH_SAFE
+        }
+        return settings.shouldAutoApprove(category, targetOrCmd)
+    }
+
+    /**
+     * Comprueba si una acción requiere aprobación táctil interactiva.
+     * Si no está auto-aprobada, emite la alerta a StudioBackgroundService y retorna el evento ApprovalRequired.
+     */
+    fun checkApprovalRequirement(
+        toolName: String,
+        targetOrCmd: String = ""
+    ): AgentStreamEvent.ApprovalRequired? {
+        val approved = evaluateActionPermission(toolName, targetOrCmd)
+        if (approved) return null
+
+        val settings = com.antigravity.studio.settings.AgentSettingsManager.getInstance()
+        val category = when {
+            toolName.contains("read", ignoreCase = true) || toolName.contains("view", ignoreCase = true) ->
+                com.antigravity.studio.settings.ActionCategory.FILE_READ
+            toolName.contains("write", ignoreCase = true) || toolName.contains("edit", ignoreCase = true) ->
+                com.antigravity.studio.settings.ActionCategory.FILE_WRITE
+            settings.isDestructiveBashCommand(targetOrCmd) ->
+                com.antigravity.studio.settings.ActionCategory.BASH_DESTRUCTIVE
+            else ->
+                com.antigravity.studio.settings.ActionCategory.BASH_SAFE
+        }
+
+        val reqId = java.util.UUID.randomUUID().toString().take(8)
+        val description = when (category) {
+            com.antigravity.studio.settings.ActionCategory.FILE_WRITE -> "Modificación de archivo: $targetOrCmd"
+            com.antigravity.studio.settings.ActionCategory.BASH_DESTRUCTIVE -> "Comando destructivo / alto riesgo: $targetOrCmd"
+            com.antigravity.studio.settings.ActionCategory.BASH_SAFE -> "Comando bash: $targetOrCmd"
+            com.antigravity.studio.settings.ActionCategory.FILE_READ -> "Lectura de archivo: $targetOrCmd"
+        }
+
+        GoogleOAuthManager.getAppContext()?.let { ctx ->
+            com.antigravity.studio.service.StudioBackgroundService.notifyApprovalNeeded(
+                ctx,
+                toolName,
+                description
+            )
+        }
+
+        return AgentStreamEvent.ApprovalRequired(
+            requestId = reqId,
+            actionCategory = category,
+            toolName = toolName,
+            description = description,
+            commandOrPath = targetOrCmd
+        )
     }
 
     private fun writeToPty(masterFd: Int, text: String) {
