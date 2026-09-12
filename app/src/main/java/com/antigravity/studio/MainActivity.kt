@@ -54,6 +54,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // 0. Bootstrap local Antigravity environment (bin/agy, workspace, .profile)
+        com.antigravity.studio.core.AgyBootstrap.setupEnvironment(this)
+
         // 1. Hardware acceleration & edge-to-edge window insets
         WindowCompat.setDecorFitsSystemWindows(window, false)
         window.setFlags(
@@ -108,11 +111,16 @@ class MainActivity : ComponentActivity() {
 
     private fun createSession(title: String): TerminalSession {
         var ptySession: com.antigravity.studio.pty.TerminalSession? = null
+        val filesDirPath = applicationContext.filesDir.absolutePath
+        val workspacePath = java.io.File(applicationContext.filesDir, "workspace").absolutePath
+
         try {
             val session = com.antigravity.studio.pty.TerminalSession(
                 executable = "/system/bin/sh",
                 args = arrayOf("-i"),
-                cwd = applicationContext.filesDir.absolutePath,
+                cwd = workspacePath,
+                filesDir = filesDirPath,
+                envp = com.antigravity.studio.pty.TerminalSession.defaultEnvironment(filesDirPath),
                 initialRows = 24,
                 initialCols = 80
             )
@@ -128,7 +136,7 @@ class MainActivity : ComponentActivity() {
         val finalPty = ptySession
         val uiSession = TerminalSession(
             title = title,
-            initialCwd = applicationContext.filesDir.absolutePath,
+            initialCwd = workspacePath,
             onWriteNative = { bytes ->
                 if (finalPty != null && finalPty.isRunning) {
                     finalPty.tryWrite(bytes)
@@ -153,6 +161,9 @@ class MainActivity : ComponentActivity() {
 
         // Emit futuristic welcome banner on terminal startup
         lifecycleScope.launch {
+            if (finalPty != null && finalPty.isRunning) {
+                finalPty.tryWrite(". \"$filesDirPath/.mkshrc\" 2>/dev/null; clear\r".toByteArray(Charsets.UTF_8))
+            }
             delay(100)
             uiSession.emitOutput(WELCOME_BANNER)
             if (finalPty != null && finalPty.isRunning) {

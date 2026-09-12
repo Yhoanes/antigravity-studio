@@ -31,13 +31,16 @@ class TerminalSession(
     val sessionId: String = UUID.randomUUID().toString(),
     val executable: String = "/system/bin/sh",
     val args: Array<String> = emptyArray(),
-    val envp: Array<String> = defaultEnvironment(),
+    envp: Array<String>? = null,
     val cwd: String = "",
+    val filesDir: String = cwd,
     val initialRows: Int = 24,
     val initialCols: Int = 80,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO + SupervisorJob()),
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : Closeable {
+
+    val envp: Array<String> = envp ?: defaultEnvironment(filesDir.ifEmpty { cwd })
 
     enum class State {
         INITIALIZING,
@@ -289,11 +292,22 @@ class TerminalSession(
         private const val READ_BUFFER_SIZE = 4096
         private const val POLL_INTERVAL_MS = 8L // ~120-144 Hz refresh interval alignment
 
-        fun defaultEnvironment(): Array<String> = arrayOf(
-            "TERM=xterm-256color",
-            "COLORTERM=truecolor",
-            "LANG=en_US.UTF-8",
-            "LC_ALL=en_US.UTF-8"
-        )
+        fun defaultEnvironment(filesDir: String = ""): Array<String> {
+            val binPrefix = if (filesDir.isNotBlank()) "$filesDir/bin:" else ""
+            val homeDir = if (filesDir.isNotBlank()) filesDir else "/data/local/tmp"
+            val workspaceDir = if (filesDir.isNotBlank()) "$filesDir/workspace" else homeDir
+            val rcFile = if (filesDir.isNotBlank()) "$filesDir/.mkshrc" else "/data/local/tmp/.mkshrc"
+            return arrayOf(
+                "PATH=${binPrefix}/system/bin:/system/xbin",
+                "HOME=$homeDir",
+                "WORKSPACE=$workspaceDir",
+                "ENV=$rcFile",
+                "MKSHRC=$rcFile",
+                "TERM=xterm-256color",
+                "COLORTERM=truecolor",
+                "LANG=en_US.UTF-8",
+                "LC_ALL=en_US.UTF-8"
+            )
+        }
     }
 }
