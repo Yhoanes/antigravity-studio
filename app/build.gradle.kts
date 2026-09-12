@@ -7,7 +7,7 @@ plugins {
 android {
     namespace = "com.antigravity.studio"
     compileSdk = 34
-    ndkVersion = "28.2.13676358"
+    ndkVersion = "26.1.10909125"
 
     defaultConfig {
         applicationId = "com.antigravity.studio"

@@ -1,7 +1,6 @@
 package com.antigravity.studio.ui
 
-import com.antigravity.studio.theme.*
-
+import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.RepeatMode
@@ -28,19 +27,26 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Divider
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -48,6 +54,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +62,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -70,6 +78,7 @@ import com.antigravity.studio.theme.AgentBadgeTextStyle
 import com.antigravity.studio.theme.AppThemePreset
 import com.antigravity.studio.theme.BorderObsidian
 import com.antigravity.studio.theme.CosmicViolet
+import com.antigravity.studio.theme.CyberObsidian
 import com.antigravity.studio.theme.NeonCyan
 import com.antigravity.studio.theme.StatusError
 import com.antigravity.studio.theme.StatusSuccess
@@ -78,6 +87,8 @@ import com.antigravity.studio.theme.SurfaceObsidian
 import com.antigravity.studio.theme.TextMuted
 import com.antigravity.studio.theme.TextPrimary
 import com.antigravity.studio.theme.TextSecondary
+import com.antigravity.studio.updater.UpdateManager
+import com.antigravity.studio.updater.UpdateStatus
 
 /**
  * State governing the adaptive tablet multi-panel layout.
@@ -188,7 +199,7 @@ private fun SplitterHandle(
  * Root Workspace Scaffold for Antigravity Studio.
  *
  * Implements the complete studio layout:
- * - TopBar with Branding, Agent Status Badge, Session Tabs, Theme Selector.
+ * - TopBar with Branding, Agent Status Badge, Session Tabs, Theme Selector & In-App OTA Updater.
  * - Central Area with ProjectExplorer and TerminalSurface.
  * - Bottom Area with ProductivityBar and Session Status line.
  */
@@ -203,6 +214,11 @@ fun WorkspaceScaffold(
     agentState: AgentSessionState = AgentSessionState(status = AgentStatus.READY),
     modifier: Modifier = Modifier
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    val updateStatus by UpdateManager.updateStatus.collectAsState()
+    var showUpdateDialog by remember { mutableStateOf(false) }
+
     var isExplorerVisible by remember { mutableStateOf(true) }
     var splitFraction by remember { mutableFloatStateOf(0.72f) }
     var isCtrlActive by remember { mutableStateOf(false) }
@@ -212,6 +228,18 @@ fun WorkspaceScaffold(
     val rows by activeSession.rows.collectAsState()
     val pid by activeSession.pid.collectAsState()
     val cwd by activeSession.cwd.collectAsState()
+
+    // Check updates once on initial launch
+    LaunchedEffect(Unit) {
+        UpdateManager.checkForUpdates(coroutineScope)
+    }
+
+    // Auto-prompt when update is discovered
+    LaunchedEffect(updateStatus) {
+        if (updateStatus is UpdateStatus.AVAILABLE) {
+            showUpdateDialog = true
+        }
+    }
 
     // Sample project workspace files
     val workspaceFiles = remember {
@@ -283,7 +311,10 @@ fun WorkspaceScaffold(
             agentStatus = agentState.status,
             isExplorerVisible = isExplorerVisible,
             onToggleExplorer = { isExplorerVisible = !isExplorerVisible },
-            onSelectTheme = onThemePresetSelected
+            onSelectTheme = onThemePresetSelected,
+            updateStatus = updateStatus,
+            onShowUpdateDialog = { showUpdateDialog = true },
+            onCheckUpdates = { UpdateManager.checkForUpdates(coroutineScope) }
         )
 
         // --- 2. CENTRAL WORKSPACE LAYOUT (Scaffold) ---
@@ -327,7 +358,6 @@ fun WorkspaceScaffold(
                                 is KeyAction.RawBytes -> {
                                     if (isCtrlActive && action.bytes.isNotEmpty()) {
                                         val b = action.bytes[0].toInt()
-                                        // If lower or upper alpha, convert to CTRL code
                                         val ctrlByte = when (b) {
                                             in 97..122 -> (b - 96).toByte()
                                             in 65..90 -> (b - 64).toByte()
@@ -360,10 +390,24 @@ fun WorkspaceScaffold(
             }
         )
     }
+
+    // In-App OTA Update Dialog
+    if (showUpdateDialog) {
+        UpdateDialog(
+            status = updateStatus,
+            onDismiss = { showUpdateDialog = false },
+            onDownload = { url ->
+                UpdateManager.downloadAndInstall(context, url, coroutineScope)
+            },
+            onRetry = {
+                UpdateManager.checkForUpdates(coroutineScope)
+            }
+        )
+    }
 }
 
 /**
- * TopBar Section containing Logo, Agent Badge, Tabs, and Settings.
+ * TopBar Section containing Logo, Agent Badge, Tabs, OTA Updater, and Settings.
  */
 @Composable
 private fun TopBarSection(
@@ -375,7 +419,10 @@ private fun TopBarSection(
     agentStatus: AgentStatus,
     isExplorerVisible: Boolean,
     onToggleExplorer: () -> Unit,
-    onSelectTheme: (AppThemePreset) -> Unit
+    onSelectTheme: (AppThemePreset) -> Unit,
+    updateStatus: UpdateStatus,
+    onShowUpdateDialog: () -> Unit,
+    onCheckUpdates: () -> Unit
 ) {
     var showThemeMenu by remember { mutableStateOf(false) }
 
@@ -478,43 +525,138 @@ private fun TopBarSection(
             }
         }
 
-        // Right: Settings & Theme Preset Menu
-        Box {
-            Box(
-                modifier = Modifier
-                    .size(34.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(SurfaceObsidian)
-                    .border(1.dp, BorderObsidian, RoundedCornerShape(6.dp))
-                    .clickable { showThemeMenu = true },
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    text = "⚙️",
-                    fontSize = 14.sp
-                )
+        // Right: In-App OTA Update Button & Settings
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // OTA Update Pill when status is active
+            when (val s = updateStatus) {
+                is UpdateStatus.AVAILABLE -> {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(AccentAmber.copy(alpha = 0.2f))
+                            .border(1.dp, AccentAmber.copy(alpha = 0.8f), RoundedCornerShape(6.dp))
+                            .clickable { onShowUpdateDialog() }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "✨", fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "UPDATE ${s.version}",
+                                color = AccentAmber,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
+                is UpdateStatus.DOWNLOADING -> {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(NeonCyan.copy(alpha = 0.2f))
+                            .border(1.dp, NeonCyan.copy(alpha = 0.8f), RoundedCornerShape(6.dp))
+                            .clickable { onShowUpdateDialog() }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(text = "⬇", color = NeonCyan, fontSize = 11.sp)
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "${(s.progress * 100).toInt()}%",
+                                color = NeonCyan,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                }
+                is UpdateStatus.READY_TO_INSTALL -> {
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(StatusSuccess.copy(alpha = 0.2f))
+                            .border(1.dp, StatusSuccess.copy(alpha = 0.8f), RoundedCornerShape(6.dp))
+                            .clickable { onShowUpdateDialog() }
+                            .padding(horizontal = 8.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "🚀 INSTALAR",
+                            color = StatusSuccess,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                }
+                else -> Unit
             }
 
-            DropdownMenu(
-                expanded = showThemeMenu,
-                onDismissRequest = { showThemeMenu = false },
-                modifier = Modifier.background(SurfaceElevated)
-            ) {
-                AppThemePreset.values().forEach { preset ->
+            // Settings & Theme Preset Menu
+            Box {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(SurfaceObsidian)
+                        .border(1.dp, BorderObsidian, RoundedCornerShape(6.dp))
+                        .clickable { showThemeMenu = true },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "⚙️",
+                        fontSize = 14.sp
+                    )
+                }
+
+                DropdownMenu(
+                    expanded = showThemeMenu,
+                    onDismissRequest = { showThemeMenu = false },
+                    modifier = Modifier.background(SurfaceElevated)
+                ) {
+                    // Check for updates action
                     DropdownMenuItem(
                         text = {
                             Text(
-                                text = preset.displayName,
-                                color = TextPrimary,
+                                text = "🔄 Buscar Actualizaciones",
+                                color = NeonCyan,
                                 fontSize = 13.sp,
                                 fontFamily = FontFamily.Monospace
                             )
                         },
                         onClick = {
-                            onSelectTheme(preset)
+                            onCheckUpdates()
                             showThemeMenu = false
+                            onShowUpdateDialog()
                         }
                     )
+
+                    HorizontalDivider(color = BorderObsidian)
+
+                    AppThemePreset.values().forEach { preset ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = preset.displayName,
+                                    color = TextPrimary,
+                                    fontSize = 13.sp,
+                                    fontFamily = FontFamily.Monospace
+                                )
+                            },
+                            onClick = {
+                                onSelectTheme(preset)
+                                showThemeMenu = false
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -676,4 +818,171 @@ private fun TerminalStatusBar(
             )
         }
     }
+}
+
+/**
+ * In-App OTA Update Dialog styled with Cyber-Obsidian.
+ */
+@Composable
+private fun UpdateDialog(
+    status: UpdateStatus,
+    onDismiss: () -> Unit,
+    onDownload: (String) -> Unit,
+    onRetry: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = SurfaceElevated,
+        titleContentColor = NeonCyan,
+        textContentColor = TextPrimary,
+        shape = RoundedCornerShape(12.dp),
+        title = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(text = "🚀", fontSize = 18.sp)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = when (status) {
+                        is UpdateStatus.AVAILABLE -> "Actualización Disponible"
+                        is UpdateStatus.DOWNLOADING -> "Descargando Actualización"
+                        is UpdateStatus.READY_TO_INSTALL -> "Listo para Instalar"
+                        is UpdateStatus.ERROR -> "Error de Actualización"
+                        is UpdateStatus.UP_TO_DATE -> "Sistema al Día"
+                        else -> "Buscando Actualizaciones"
+                    },
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    fontFamily = FontFamily.Monospace
+                )
+            }
+        },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                when (status) {
+                    is UpdateStatus.AVAILABLE -> {
+                        Text(
+                            text = "Nueva versión: ${status.version} (Actual: ${UpdateManager.CURRENT_VERSION})",
+                            color = NeonCyan,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Text(
+                            text = "Novedades y cambios:",
+                            color = TextSecondary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 140.dp)
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(SurfaceObsidian)
+                                .border(1.dp, BorderObsidian, RoundedCornerShape(6.dp))
+                                .padding(8.dp)
+                        ) {
+                            Text(
+                                text = status.releaseNotes,
+                                color = TextPrimary,
+                                fontSize = 11.sp,
+                                fontFamily = FontFamily.Monospace
+                            )
+                        }
+                    }
+                    is UpdateStatus.DOWNLOADING -> {
+                        Text(
+                            text = "Descargando paquete OTA desde GitHub...",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                        LinearProgressIndicator(
+                            progress = { status.progress },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = NeonCyan,
+                            trackColor = SurfaceObsidian
+                        )
+                        Text(
+                            text = "${(status.progress * 100).toInt()}% completado",
+                            color = NeonCyan,
+                            fontSize = 11.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                    }
+                    is UpdateStatus.READY_TO_INSTALL -> {
+                        Text(
+                            text = "La descarga se completó. El instalador del paquete Android se abrirá a continuación para instalar la actualización.",
+                            color = StatusSuccess,
+                            fontSize = 12.sp
+                        )
+                    }
+                    is UpdateStatus.ERROR -> {
+                        Text(
+                            text = "Ocurrió un error: ${status.message}",
+                            color = StatusError,
+                            fontSize = 12.sp
+                        )
+                    }
+                    is UpdateStatus.UP_TO_DATE -> {
+                        Text(
+                            text = "¡Estás al día! Tienes la última versión (${status.currentVersion}) instalada en tu Xiaomi Pad 6.",
+                            color = StatusSuccess,
+                            fontSize = 12.sp
+                        )
+                    }
+                    else -> {
+                        Text(
+                            text = "Consultando repositorio GitHub...",
+                            color = TextSecondary,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            when (status) {
+                is UpdateStatus.AVAILABLE -> {
+                    Button(
+                        onClick = { onDownload(status.downloadUrl) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = NeonCyan,
+                            contentColor = CyberObsidian
+                        ),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("Descargar e Instalar", fontWeight = FontWeight.Bold)
+                    }
+                }
+                is UpdateStatus.ERROR -> {
+                    Button(
+                        onClick = onRetry,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = AccentAmber,
+                            contentColor = CyberObsidian
+                        ),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Text("Reintentar")
+                    }
+                }
+                else -> Unit
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(
+                    text = if (status is UpdateStatus.AVAILABLE) "Más tarde" else "Cerrar",
+                    color = TextSecondary
+                )
+            }
+        }
+    )
 }
