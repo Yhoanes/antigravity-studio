@@ -59,10 +59,10 @@ El flujo combina la protección PKCE (mitigación de intercepción de código) c
   - `openid`: Identificación criptográfica del sujeto.
   - `email`: Obtención de la dirección de correo electrónico del usuario.
   - `profile`: Nombre del usuario y avatar (`picture`).
-  - `https://www.googleapis.com/auth/cloud-platform`: Acceso oficial a los servicios de Google Cloud Platform y al backend de inferencia de Cloud Code (`cloudcode-pa.googleapis.com`).
+  - `https://www.googleapis.com/auth/cloud-platform`: Acceso oficial a los servicios de Google Cloud Platform y al backend de inferencia de Cloud Code en el clúster canónico de Antigravity (`https://daily-cloudcode-pa.googleapis.com`).
   - **Lista Canónica Oficial de Scopes:** `openid email profile https://www.googleapis.com/auth/cloud-platform`
   - **Reversión Crítica de Scopes Restringidos:**
-    Se han purgado de forma taxativa `https://www.googleapis.com/auth/generative-language` y `https://www.googleapis.com/auth/generative-language.retriever`. Su solicitud provocaba el error HTTP 403 `restricted_client` en Google Identity al no pertenecer a las concesiones de la app. La inferencia agéntica de Antigravity opera ahora exclusivamente mediante la API oficial de Cloud Code con el scope `cloud-platform`.
+    Se han purgado de forma taxativa `https://www.googleapis.com/auth/generative-language` y `https://www.googleapis.com/auth/generative-language.retriever`. Su solicitud provocaba el error HTTP 403 `restricted_client` en Google Identity al no pertenecer a las concesiones de la app. La inferencia agéntica de Antigravity opera ahora exclusivamente mediante la API oficial de Cloud Code con el scope `cloud-platform` sobre el clúster canónico `https://daily-cloudcode-pa.googleapis.com`.
 
 #### Parámetros Criptográficos PKCE:
 - **`code_verifier`:** Cadena de alta entropía generada con `java.security.SecureRandom` (longitud: 64 caracteres Base64URL sin relleno, 48 bytes aleatorios).
@@ -332,8 +332,8 @@ Los archivos de credenciales se almacenan en el almacenamiento interno privado d
 
 ## 3. Arquitectura del Backend de Inferencia de Antigravity y Motor Agéntico Real (`RealAgentEngine`)
 
-### 3.1 Flujo de Ejecución e Integración con el Servicio Oficial de Cloud Code
-Antigravity Studio prescinde de dependencias no autorizadas y proxies de terceros, integrándose de forma directa y nativa con el servicio oficial **Google Cloud Code API (`cloudcode-pa.googleapis.com`)**. Esta infraestructura corporativa y de desarrollo proporciona la pasarela oficial para el consumo del catálogo de modelos de vanguardia (**Gemini 3.8 Flash** por defecto, junto a Gemini 3.7/3.6 Flash, Gemini 3.1 Pro, Claude Sonnet/Opus 4.6 y GPT-OSS 120B) en Google Cloud Platform.
+### 3.1 Flujo de Ejecución e Integración con el Clúster Canónico de Antigravity (`daily-cloudcode-pa.googleapis.com`)
+Antigravity Studio prescinde de dependencias no autorizadas y proxies de terceros, integrándose de forma directa y nativa con el servicio oficial **Google Cloud Code API en el clúster canónico de Antigravity (`https://daily-cloudcode-pa.googleapis.com`)**. Esta infraestructura corporativa y de desarrollo proporciona la pasarela oficial para el consumo del catálogo de modelos de vanguardia (**Gemini 3.8 Flash** por defecto, junto a Gemini 3.7/3.6 Flash, Gemini 3.1 Pro, Claude Sonnet/Opus 4.6 y GPT-OSS 120B) en Google Cloud Platform con soporte de suscripción Ultra / Google One AI de $200 y el identificador de proyecto de inferencia por defecto `default-cli-project`.
 
 La interacción se autentica estrictamente mediante el encabezado HTTP `Authorization: Bearer <access_token>` emitido bajo el alcance autorizado `https://www.googleapis.com/auth/cloud-platform`, garantizando total compatibilidad, eliminación del error 403 `restricted_client` y administración directa de cuotas por proyecto GCP.
 
@@ -349,12 +349,12 @@ graph TD
         A2 --> B0[loadCodeAssist Discovery & Project Context]
         B0 -->|Verify cloudaicompanionProject & paidTier: GOOGLE_ONE_AI| B1{Companion Project?}
         B1 -->|Found| B3[Cache cloudaicompanionProject]
-        B1 -->|Missing / Error #3501| B2[Fallback: onboardUser tierId: free-tier]
-        B2 -->|Provisioned| B3
-        B3 --> B4[Inject Project & Model into streamGenerateContent]
+        B1 -->|Missing / Error #3501| B2[Fallback: onboardUser / default-cli-project]
+        B2 -->|Provisioned or Default| B3
+        B3 --> B4[Inject Project default-cli-project or companion & Model]
         B4 --> B5[GoogleOAuthManager Inject Bearer Token: cloud-platform]
-        B5 --> B6[OkHttp SSE Client streamGenerateContent]
-        B6 -->|Raw SSE Stream cloudcode-pa.googleapis.com| B7[Streaming JSON Parser]
+        B5 --> B6[OkHttp SSE Client streamGenerateContent alt=sse]
+        B6 -->|Raw SSE Stream daily-cloudcode-pa.googleapis.com| B7[Streaming JSON Parser]
         B7 -->|ModelHeader Gemini 3.8 Flash or active model| A3
         B7 -->|Thought Chunks: • Thought| A3
         B7 -->|Text Delta Stream| A3
@@ -371,15 +371,16 @@ graph TD
 
 ### 3.2 Especificación de Endpoints y Protocolo de Inferencia de Cloud Code
 
-El motor agéntico opera mediante tres endpoints REST/SSE sobre la infraestructura oficial de Cloud Code:
+El motor agéntico opera mediante tres endpoints REST/SSE sobre la infraestructura oficial de Cloud Code en el clúster canónico de Antigravity:
 
 #### 3.2.1 Endpoint de Inicio y Descubrimiento (`loadCodeAssist`)
-- **URL Canónica:** `https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist`
+- **Host Canónico:** `https://daily-cloudcode-pa.googleapis.com`
+- **URL Canónica:** `https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist`
 - **Método HTTP:** `POST`
 - **Encabezados Obligatorios:**
   - `Authorization: Bearer <valid_access_token>` (Scope requerido: `https://www.googleapis.com/auth/cloud-platform`)
   - `Content-Type: application/json`
-- **Propósito:** Se ejecuta al inicializar el runtime agéntico o tras renovar credenciales. Resuelve el identificador del proyecto Google Cloud asociado al usuario, determina el nivel de suscripción y cuota (*tier*), y descubre los modelos autorizados.
+- **Propósito:** Se ejecuta al inicializar el runtime agéntico o tras renovar credenciales. Resuelve el identificador del proyecto Google Cloud asociado al usuario, determina el nivel de suscripción y cuota (*tier*), y descubre los modelos autorizados. Si no se resuelve un proyecto complementario específico, se adopta como proyecto de inferencia por defecto: `default-cli-project`.
 - **Payload de Solicitud Estándar:**
   ```json
   {
@@ -415,7 +416,7 @@ El motor agéntico opera mediante tres endpoints REST/SSE sobre la infraestructu
 En entornos donde el usuario cuenta con una suscripción Ultra / Google One AI ($200) o cuentas recién autenticadas, las peticiones directas de generación de contenido pueden fallar inmediatamente con el código de error:
 `#3501 (SUBSCRIPTION_REQUIRED): Cloud AI Companion project is required or user is not onboarded`.
 
-Para erradicar este error, `RealAgentEngine` ejecuta obligatoriamente el siguiente protocolo de handshake y aprovisionamiento:
+Para erradicar este error y asegurar conectividad permanente, `RealAgentEngine` ejecuta obligatoriamente el siguiente protocolo de handshake y aprovisionamiento:
 
 ```mermaid
 sequenceDiagram
@@ -423,7 +424,7 @@ sequenceDiagram
     participant UI as Terminal / UI Compose
     participant Engine as RealAgentEngine
     participant Auth as GoogleOAuthManager
-    participant CloudCode as Cloud Code API (cloudcode-pa)
+    participant CloudCode as Cloud Code API (daily-cloudcode-pa)
 
     UI->>Engine: executeAgentTask(userPrompt)
     Engine->>Auth: getValidAccessToken()
@@ -434,20 +435,25 @@ sequenceDiagram
             CloudCode-->>Engine: { cloudaicompanionProject: "projects/cloudaicompanion-...", paidTier: { creditType: "GOOGLE_ONE_AI" } }
             Engine->>Engine: Cache companionProjectId
         else cloudaicompanionProject ausente / Error #3501 (SUBSCRIPTION_REQUIRED)
-            Note over Engine,CloudCode: Disparo automático de fallback de onboarding
+            Note over Engine,CloudCode: Disparo automático de fallback de onboarding o proyecto por defecto
             Engine->>CloudCode: POST /v1internal:onboardUser {"tierId": "free-tier"}
-            CloudCode-->>Engine: 200 OK: { cloudaicompanionProject: "projects/cloudaicompanion-..." }
-            Engine->>Engine: Cache companionProjectId provisionado
+            alt Onboarding exitoso
+                CloudCode-->>Engine: 200 OK: { cloudaicompanionProject: "projects/cloudaicompanion-..." }
+                Engine->>Engine: Cache companionProjectId provisionado
+            else Fallback a proyecto por defecto
+                Engine->>Engine: Asignar companionProjectId = "default-cli-project"
+            end
         end
     end
-    Engine->>CloudCode: POST /v1internal:streamGenerateContent {"project": companionProjectId, "model": "gemini-3.8-flash", ...}
+    Engine->>CloudCode: POST /v1internal:streamGenerateContent?alt=sse {"project": companionProjectId ?: "default-cli-project", "model": "gemini-3.8-flash", ...}
     CloudCode-->>Engine: SSE Stream (thought, text delta, functionCall)
     Engine->>UI: Renderizado continuo en PTY a 144Hz
 ```
 
 1. **Flujo de Fallback de Onboarding (`onboardUser`):**
    Si `cloudaicompanionProject` no está inicializado en la respuesta de `loadCodeAssist`, es una cadena vacía/nula, o si la llamada a inferencia retorna el error `#3501 (SUBSCRIPTION_REQUIRED)`, el motor dispara de manera transparente:
-   - **URL Canónica:** `https://cloudcode-pa.googleapis.com/v1internal:onboardUser`
+   - **Host Canónico:** `https://daily-cloudcode-pa.googleapis.com`
+   - **URL Canónica:** `https://daily-cloudcode-pa.googleapis.com/v1internal:onboardUser`
    - **Método HTTP:** `POST`
    - **Encabezados:**
      - `Authorization: Bearer <valid_access_token>`
@@ -463,22 +469,24 @@ sequenceDiagram
        }
      }
      ```
-   - **Comportamiento:** La llamada provisiona el proyecto complementario del usuario en el clúster de Google Cloud y retorna la referencia `cloudaicompanionProject` válida.
-2. **Inyección Obligatoria del Campo `project`:**
-   `RealAgentEngine` almacena en cache en memoria el valor de `cloudaicompanionProject` (ej. `projects/cloudaicompanion-corp-dev`) y lo **inyecta de forma obligatoria** en el atributo `project` en la raíz del payload de cada petición enviada a `streamGenerateContent`. Las peticiones sin el parámetro `project` inyectado son rechazadas de inmediato por Google Cloud Code.
+   - **Comportamiento:** La llamada provisiona el proyecto complementario del usuario en el clúster canónico de Google Cloud y retorna la referencia `cloudaicompanionProject` válida.
+
+2. **Inyección Obligatoria del Campo `project` e Identificador por Defecto (`default-cli-project`):**
+   `RealAgentEngine` almacena en cache en memoria el valor de `cloudaicompanionProject` (ej. `projects/cloudaicompanion-corp-dev`) si fue descubierto exitosamente. Si no está disponible o no se ha provisionado, recurre al **identificador de proyecto de inferencia por defecto oficial de Antigravity: `default-cli-project`**. Este valor se **inyecta de forma obligatoria** en el atributo `project` en la raíz del payload de cada petición enviada al endpoint de streaming `https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse`. Las peticiones sin el parámetro `project` inyectado son rechazadas de inmediato por Google Cloud Code.
 
 #### 3.2.3 Endpoint de Streaming Agéntico (`streamGenerateContent`)
-- **URL Canónica:** `https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent`
+- **Host Canónico:** `https://daily-cloudcode-pa.googleapis.com`
+- **URL Canónica:** `https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse`
 - **Método HTTP:** `POST`
 - **Encabezados Obligatorios:**
   - `Authorization: Bearer <valid_access_token>` (Scope: `https://www.googleapis.com/auth/cloud-platform`)
   - `Content-Type: application/json`
   - `Accept: text/event-stream`
-- **Propósito:** Canal de inferencia generativa interactiva bidireccional. Emite fragmentos SSE con razonamiento de pensamiento nativo (`thought`), texto generado y definiciones estructuradas de invocación de herramientas (`functionCall`).
+- **Propósito:** Canal de inferencia generativa interactiva bidireccional sobre el clúster canónico de Antigravity. Requiere el parámetro de query `?alt=sse` para establecer la conexión Server-Sent Events continua. Emite fragmentos SSE con razonamiento de pensamiento nativo (`thought`), texto generado y definiciones estructuradas de invocación de herramientas (`functionCall`).
 - **Payload de Solicitud Estructurado con Inyección de Proyecto:**
   ```json
   {
-    "project": "projects/cloudaicompanion-corp-dev",
+    "project": "default-cli-project",
     "model": "gemini-3.8-flash",
     "contents": [
       {
@@ -613,7 +621,7 @@ La experiencia de interacción del agente en Antigravity Studio hereda el están
 
 [Gemini 3.8 Flash] ⚡
 • Thought
-  El usuario requiere verificar la integración con el servicio oficial de Cloud Code (cloudcode-pa.googleapis.com) y confirmar que los scopes vigentes correspondan a openid, email, profile y cloud-platform.
+  El usuario requiere verificar la integración con el servicio oficial de Cloud Code en el host canónico daily-cloudcode-pa.googleapis.com y confirmar que los scopes vigentes correspondan a openid, email, profile y cloud-platform.
   Inspeccionaré la especificación SPEC-002 y los contratos de OAuthConstants.kt.
   Procederé a auditar los archivos afectados mediante read_file.
 
@@ -621,13 +629,13 @@ La experiencia de interacción del agente en Antigravity Studio hereda el están
   ✓ Archivo leído con éxito (1040 líneas)
 
 • Thought
-  Confirmado: los endpoints oficiales son loadCodeAssist, onboardUser y streamGenerateContent bajo cloudcode-pa.googleapis.com con el scope cloud-platform y el modelo predeterminado gemini-3.8-flash.
+  Confirmado: el host canónico es daily-cloudcode-pa.googleapis.com, el identificador de proyecto por defecto es default-cli-project y el endpoint de streaming es https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse con el scope cloud-platform y el modelo predeterminado gemini-3.8-flash.
   Verificaré la ejecución del arnés de pruebas SDD.
 
 • run_command command="python harness/spec_validator.py"
   ✓ Ejecución completada: 100% CUMPLIMIENTO SDD [PASS]
 
-Se ha consolidado la arquitectura de inferencia con Cloud Code, el handshake de suscripción Ultra y el catálogo oficial de modelos de Antigravity.
+Se ha consolidado la arquitectura de inferencia con el clúster oficial de Antigravity, el proyecto default-cli-project y el catálogo oficial de modelos.
 ```
 
 ---
@@ -742,9 +750,11 @@ data class OAuthConstants(
     val authEndpoint: String = "https://accounts.google.com/o/oauth2/v2/auth",
     val tokenEndpoint: String = "https://oauth2.googleapis.com/token",
     val userinfoEndpoint: String = "https://www.googleapis.com/oauth2/v3/userinfo",
-    val cloudCodeLoadEndpoint: String = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
-    val cloudCodeOnboardEndpoint: String = "https://cloudcode-pa.googleapis.com/v1internal:onboardUser",
-    val cloudCodeStreamEndpoint: String = "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent",
+    val canonicalHost: String = "https://daily-cloudcode-pa.googleapis.com",
+    val defaultInferenceProject: String = "default-cli-project",
+    val cloudCodeLoadEndpoint: String = "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+    val cloudCodeOnboardEndpoint: String = "https://daily-cloudcode-pa.googleapis.com/v1internal:onboardUser",
+    val cloudCodeStreamEndpoint: String = "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse",
     val scopes: String = "openid email profile https://www.googleapis.com/auth/cloud-platform"
 )
 
@@ -859,6 +869,21 @@ sealed interface AgentStreamEvent {
 
 interface RealAgentEngine {
     /**
+     * Host canónico del clúster oficial de Antigravity ("https://daily-cloudcode-pa.googleapis.com").
+     */
+    val canonicalHost: String get() = "https://daily-cloudcode-pa.googleapis.com"
+
+    /**
+     * Identificador de proyecto de inferencia por defecto ("default-cli-project").
+     */
+    val defaultProject: String get() = "default-cli-project"
+
+    /**
+     * Endpoint oficial de streaming de inferencia agéntica con alt=sse.
+     */
+    val streamEndpoint: String get() = "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse"
+
+    /**
      * Identificador del modelo generativo por defecto del motor agéntico ("gemini-3.8-flash").
      */
     val defaultModel: String get() = "gemini-3.8-flash"
@@ -869,20 +894,21 @@ interface RealAgentEngine {
     val currentModel: StateFlow<AntigravityModel>
 
     /**
-     * Identificador de proyecto companion descubierto (projects/cloudaicompanion-...) en cache.
+     * Identificador de proyecto companion descubierto (projects/cloudaicompanion-...) o default-cli-project en cache.
      */
     val companionProjectId: StateFlow<String?>
 
     /**
      * Inicializa el descubrimiento de proyecto y modelos con el servicio oficial de Cloud Code
-     * (POST https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist).
-     * Resuelve cloudaicompanionProject y valida el creditType (ej: GOOGLE_ONE_AI).
+     * (POST https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist).
+     * Resuelve cloudaicompanionProject y valida el creditType (ej: GOOGLE_ONE_AI); ante su ausencia,
+     * se asume el identificador de proyecto por defecto default-cli-project.
      */
     suspend fun initializeCodeAssist(): Result<String>
 
     /**
      * Fallback de onboarding ante error #3501 (SUBSCRIPTION_REQUIRED) o proyecto no inicializado.
-     * Invoca POST https://cloudcode-pa.googleapis.com/v1internal:onboardUser con tierId: "free-tier".
+     * Invoca POST https://daily-cloudcode-pa.googleapis.com/v1internal:onboardUser con tierId: "free-tier".
      */
     suspend fun onboardUser(tierId: String = "free-tier"): Result<String>
 
@@ -892,9 +918,10 @@ interface RealAgentEngine {
     fun selectModel(modelId: String): Result<AntigravityModel>
 
     /**
-     * Ejecuta una consulta agéntica con streaming SSE contra streamGenerateContent de Cloud Code,
-     * inyectando obligatoriamente el companionProjectId en el campo "project",
-     * soporte de pensamiento (`• Thought`) y ejecución automática de herramientas (`• ToolName`).
+     * Ejecuta una consulta agéntica con streaming SSE contra streamGenerateContent de Cloud Code
+     * (https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse),
+     * inyectando obligatoriamente el identificador de proyecto en el campo "project" ("default-cli-project"
+     * o companionProjectId en caché), soporte de pensamiento (`• Thought`) y ejecución automática de herramientas (`• ToolName`).
      */
     fun executeAgentTask(
         userPrompt: String,
@@ -1255,7 +1282,7 @@ La siguiente tabla estipula los criterios de verificación obligatorios para el 
 | **`AC-AUTH-003`** | Token Exchange & Secure Storage | El intercambio POST contra `https://oauth2.googleapis.com/token` envía `code_verifier` y `client_secret`, persistiendo las credenciales con scope `https://www.googleapis.com/auth/cloud-platform` en `$filesDir/.gemini/oauth_creds.json` y `google_accounts.json` con permisos POSIX `0600`. | Test de integración con mock server de Google OAuth verificando la creación de archivos con máscara de permisos `0600` y almacenamiento de scopes autorizados. |
 | **`AC-AUTH-004`** | Token Auto-Refresh | `getValidAccessToken` detecta tokens con vigencia remanente $\le 300\,\text{s}$ o errores 401, ejecutando silenciosamente el refresco mediante `grant_type=refresh_token` y `client_secret` oficial sin interrumpir al usuario. | Test unitario inyectando un token expirado y comprobando la renovación atómica y transparente del `access_token`. |
 | **`AC-AUTH-005`** | Multi-Usuario y Persistencia | El registro `google_accounts.json` almacena múltiples cuentas de desarrollador y conmuta la cuenta activa sin degradar ni eliminar credenciales previas. | Test unitario registrando dos perfiles distintos y alternando el valor de `active_account_email`. |
-| **`AC-AUTH-006`** | Cloud Code Handshake, Suscripción Ultra / Google One AI ($200) y Fallback `onboardUser` | `RealAgentEngine` ejecuta el handshake con `POST loadCodeAssist` enviando `{"metadata": {"ideType": "ANTIGRAVITY", "ideVersion": "1.0.0", "pluginVersion": "1.0.0"}}`, resuelve `cloudaicompanionProject` y detecta `paidTier` con `creditType: GOOGLE_ONE_AI`. Si `cloudaicompanionProject` no está inicializado o surge el error `#3501 (SUBSCRIPTION_REQUIRED)`, dispara el fallback `POST onboardUser` con `tierId: "free-tier"` e inyecta obligatoriamente el `project` en el payload de `streamGenerateContent` con streaming SSE a 144Hz. | Test de integración con mock server de Cloud Code validando detección de `paidTier`, ejecución de fallback ante error 3501, e inyección estricta del campo `project` en inferencia. |
+| **`AC-AUTH-006`** | Handshake en Clúster Oficial (`daily-cloudcode-pa`), Suscripción Ultra y Streaming SSE | `RealAgentEngine` se conecta al host canónico `https://daily-cloudcode-pa.googleapis.com` y ejecuta el handshake con `POST /v1internal:loadCodeAssist` enviando metadata de Antigravity, resolviendo `cloudaicompanionProject` y `paidTier` (`creditType: GOOGLE_ONE_AI`). Si `cloudaicompanionProject` no está inicializado o surge el error `#3501 (SUBSCRIPTION_REQUIRED)`, dispara el fallback `POST /v1internal:onboardUser` (`tierId: "free-tier"`) o asigna el identificador por defecto `default-cli-project`. Inyecta obligatoriamente el campo `project` en el payload del endpoint de streaming `https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse` canalizando el stream SSE a 144Hz. | Test de integración con mock server de Cloud Code en clúster daily-cloudcode-pa validando detección de `paidTier`, adopción de `default-cli-project` ante error 3501, e inyección estricta del campo `project` en `streamGenerateContent?alt=sse`. |
 | **`AC-AUTH-007`** | Workspace Tool Sandboxing | Las herramientas de ejecución (`write_file`, `read_file`, `list_directory`) operan exclusivamente en `$filesDir/workspace`, bloqueando cualquier intento de escape o traversal (`../`). | Test de seguridad ejecutando peticiones con rutas prohibidas como `/system/` o `/data/data/com.antigravity.studio/databases`. |
 | **`AC-AUTH-008`** | UI Auth Integration & State Flow | El componente `GoogleAuthTopBarAction` reacciona a los cambios en `AuthState`, mostrando botón de login en estado desconectado y el badge `shadrick1212@gmail.com 🟢 ONLINE` al autenticarse. | Test de interfaz con `ComposeTestRule` inyectando secuencias de estados de autenticación y verificando nodos semánticos. |
 | **`AC-AUTH-009`** | Antigravity 2.0 Visual Presentation Contract | `RealAgentEngine` y `AntigravityVisualPresenter` estructuran el turno agéntico con prompt de usuario `>`, badge de modelo predeterminado `Gemini 3.8 Flash`, bloque colapsable `• Thought` y llamadas a herramientas trazables `• ToolName`. | Test unitario verificando la emisión de eventos estructurados (`ModelHeader`, `ThoughtDelta`, `ToolCallStarted`) y el formateo ANSI y Compose de prompt `>`, `• Thought` y `• ToolName`. |
@@ -1268,9 +1295,10 @@ La siguiente tabla estipula los criterios de verificación obligatorios para el 
 1. **`android-core`:**
    - Implementar `LocalhostLoopbackReceiverImpl` con `ServerSocket(54123)` interceptando `/callback` y `/oauth-callback` y sirviendo HTML Cyber-Obsidian.
    - Actualizar `GoogleOAuthManagerImpl` con las credenciales oficiales de Antigravity (`1071006060591-antigravity.apps.googleusercontent.com` con fallback a `884354919052-...`) y la lista oficial de scopes (`openid email profile https://www.googleapis.com/auth/cloud-platform`), purgando los scopes restringidos causantes del error 403 `restricted_client`.
-   - Implementar el handshake de `loadCodeAssist` con metadata (`ideType: ANTIGRAVITY`, `ideVersion: 1.0.0`, `pluginVersion: 1.0.0`), captura de `cloudaicompanionProject` y detección de `paidTier` con `creditType: GOOGLE_ONE_AI`.
-   - Implementar el fallback de `onboardUser` con `tierId: "free-tier"` para erradicar el error `#3501 (SUBSCRIPTION_REQUIRED)` y cachear el proyecto complementario en `RealAgentEngine`.
-   - Inyectar obligatoriamente el parámetro `project` en la raíz de cada payload enviado a `streamGenerateContent`.
+   - Configurar el host canónico oficial de Antigravity `https://daily-cloudcode-pa.googleapis.com`, el identificador de proyecto por defecto `default-cli-project` y el endpoint de streaming `https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse`.
+   - Implementar el handshake de `loadCodeAssist` (`https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist`) con metadata (`ideType: ANTIGRAVITY`, `ideVersion: 1.0.0`, `pluginVersion: 1.0.0`), captura de `cloudaicompanionProject` y detección de `paidTier` con `creditType: GOOGLE_ONE_AI`.
+   - Implementar el fallback de `onboardUser` (`https://daily-cloudcode-pa.googleapis.com/v1internal:onboardUser`) con `tierId: "free-tier"` para erradicar el error `#3501 (SUBSCRIPTION_REQUIRED)` y cachear el proyecto complementario o recurrir a `default-cli-project`.
+   - Inyectar obligatoriamente el parámetro `project` (`default-cli-project` o companion cacheado) en la raíz de cada payload enviado a `streamGenerateContent?alt=sse`.
    - Implementar el catálogo `AntigravityModelCatalog` con los 7 modelos admitidos (`gemini-3.8-flash` por defecto, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.1-pro`, `claude-sonnet-4.6`, `claude-opus-4.6`, `gpt-oss-120b`).
    - Implementar `TerminalModelCommandHandler` para interceptar `/model` y `/model <id>` conmutando modelos en caliente desde la terminal PTY.
    - Reforzar el interceptor OkHttp para inyección y auto-refresco transparente del Bearer token.

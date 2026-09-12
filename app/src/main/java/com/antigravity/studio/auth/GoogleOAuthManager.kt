@@ -71,6 +71,8 @@ object GoogleOAuthManager {
     const val REDIRECT_URI = "http://localhost:54123/callback"
     const val FALLBACK_REDIRECT_URI = "antigravity://oauth2callback"
     const val SCOPES = "openid email profile https://www.googleapis.com/auth/cloud-platform"
+    const val CANONICAL_HOST = "https://daily-cloudcode-pa.googleapis.com"
+    const val DEFAULT_INFERENCE_PROJECT = "default-cli-project"
 
     private const val AUTH_ENDPOINT = "https://accounts.google.com/o/oauth2/v2/auth"
     private const val TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
@@ -213,6 +215,20 @@ object GoogleOAuthManager {
      */
     fun getActiveAccount(): String? {
         return _activeAccountEmail.value ?: currentTokens?.accountId
+    }
+
+    internal fun setCurrentTokensForTest(tokens: OAuthTokens?) {
+        this.currentTokens = tokens
+        this._activeAccountEmail.value = tokens?.accountId
+        if (tokens != null) {
+            _authState.value = AuthState.Authenticated(
+                email = tokens.accountId,
+                displayName = tokens.accountId.substringBefore("@"),
+                pictureUrl = null
+            )
+        } else {
+            _authState.value = AuthState.Unauthenticated
+        }
     }
 
     /**

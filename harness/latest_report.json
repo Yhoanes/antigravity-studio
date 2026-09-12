@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-12T17:03:25.263556+00:00",
+  "timestamp": "2026-09-12T17:26:11.389664+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,14 +7,14 @@
     "passed_suites": 3,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 56.3
+    "total_duration_ms": 52.24
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 6.58,
+      "duration_ms": 6.51,
       "summary": "3/3 especificaciones SDD válidas | 30 Criterios de Aceptación (AC) verificados",
       "details": {
         "total_specs": 3,
@@ -215,70 +215,70 @@
                 "module": "OAuth PKCE & Official Credentials",
                 "description": "`createAuthorizationUrl` genera `code_verifier` de 64 caracteres Base64URL, `code_challenge` SHA-256 S256 e incorpora las credenciales oficiales (`1071006060591-antigravity.apps.googleusercontent.com`, con fallback a `884354919052-...`) con `redirect_uri=http://localhost:54123/callback` (o `http://localhost:54123/oauth-callback`) y la lista oficial de scopes autorizados (`openid email profile https://www.googleapis.com/auth/cloud-platform`), habiendo purgado los scopes restringidos (`generative-language`).",
                 "verification_method": "Test unitario validando la composición exacta de parámetros, ausencia de scopes restringidos y el resumen SHA-256 en la URL de autorización.",
-                "line_number": 1253
+                "line_number": 1280
               },
               {
                 "id": "AC-AUTH-002",
                 "module": "Localhost Loopback Receiver & Fallback",
                 "description": "`LocalhostLoopbackReceiver` abre `ServerSocket(54123)`, intercepta el callback `GET /callback?code=...&state=...` o `GET /oauth-callback?code=...&state=...`, valida `state`, sirve página HTML Cyber-Obsidian 200 OK y soporta fallback a `antigravity://oauth2callback`.",
                 "verification_method": "Test de integración enviando peticiones HTTP locales simuladas a `127.0.0.1:54123/callback` y `/oauth-callback`, verificando respuesta 200 OK y extracción del código.",
-                "line_number": 1254
+                "line_number": 1281
               },
               {
                 "id": "AC-AUTH-003",
                 "module": "Token Exchange & Secure Storage",
                 "description": "El intercambio POST contra `https://oauth2.googleapis.com/token` envía `code_verifier` y `client_secret`, persistiendo las credenciales con scope `https://www.googleapis.com/auth/cloud-platform` en `$filesDir/.gemini/oauth_creds.json` y `google_accounts.json` con permisos POSIX `0600`.",
                 "verification_method": "Test de integración con mock server de Google OAuth verificando la creación de archivos con máscara de permisos `0600` y almacenamiento de scopes autorizados.",
-                "line_number": 1255
+                "line_number": 1282
               },
               {
                 "id": "AC-AUTH-004",
                 "module": "Token Auto-Refresh",
                 "description": "`getValidAccessToken` detecta tokens con vigencia remanente $\\le 300\\,\\text{s}$ o errores 401, ejecutando silenciosamente el refresco mediante `grant_type=refresh_token` y `client_secret` oficial sin interrumpir al usuario.",
                 "verification_method": "Test unitario inyectando un token expirado y comprobando la renovación atómica y transparente del `access_token`.",
-                "line_number": 1256
+                "line_number": 1283
               },
               {
                 "id": "AC-AUTH-005",
                 "module": "Multi-Usuario y Persistencia",
                 "description": "El registro `google_accounts.json` almacena múltiples cuentas de desarrollador y conmuta la cuenta activa sin degradar ni eliminar credenciales previas.",
                 "verification_method": "Test unitario registrando dos perfiles distintos y alternando el valor de `active_account_email`.",
-                "line_number": 1257
+                "line_number": 1284
               },
               {
                 "id": "AC-AUTH-006",
-                "module": "Cloud Code Handshake, Suscripción Ultra / Google One AI ($200) y Fallback `onboardUser`",
-                "description": "`RealAgentEngine` ejecuta el handshake con `POST loadCodeAssist` enviando `{\"metadata\": {\"ideType\": \"ANTIGRAVITY\", \"ideVersion\": \"1.0.0\", \"pluginVersion\": \"1.0.0\"}}`, resuelve `cloudaicompanionProject` y detecta `paidTier` con `creditType: GOOGLE_ONE_AI`. Si `cloudaicompanionProject` no está inicializado o surge el error `#3501 (SUBSCRIPTION_REQUIRED)`, dispara el fallback `POST onboardUser` con `tierId: \"free-tier\"` e inyecta obligatoriamente el `project` en el payload de `streamGenerateContent` con streaming SSE a 144Hz.",
-                "verification_method": "Test de integración con mock server de Cloud Code validando detección de `paidTier`, ejecución de fallback ante error 3501, e inyección estricta del campo `project` en inferencia.",
-                "line_number": 1258
+                "module": "Handshake en Clúster Oficial (`daily-cloudcode-pa`), Suscripción Ultra y Streaming SSE",
+                "description": "`RealAgentEngine` se conecta al host canónico `https://daily-cloudcode-pa.googleapis.com` y ejecuta el handshake con `POST /v1internal:loadCodeAssist` enviando metadata de Antigravity, resolviendo `cloudaicompanionProject` y `paidTier` (`creditType: GOOGLE_ONE_AI`). Si `cloudaicompanionProject` no está inicializado o surge el error `#3501 (SUBSCRIPTION_REQUIRED)`, dispara el fallback `POST /v1internal:onboardUser` (`tierId: \"free-tier\"`) o asigna el identificador por defecto `default-cli-project`. Inyecta obligatoriamente el campo `project` en el payload del endpoint de streaming `https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse` canalizando el stream SSE a 144Hz.",
+                "verification_method": "Test de integración con mock server de Cloud Code en clúster daily-cloudcode-pa validando detección de `paidTier`, adopción de `default-cli-project` ante error 3501, e inyección estricta del campo `project` en `streamGenerateContent?alt=sse`.",
+                "line_number": 1285
               },
               {
                 "id": "AC-AUTH-007",
                 "module": "Workspace Tool Sandboxing",
                 "description": "Las herramientas de ejecución (`write_file`, `read_file`, `list_directory`) operan exclusivamente en `$filesDir/workspace`, bloqueando cualquier intento de escape o traversal (`../`).",
                 "verification_method": "Test de seguridad ejecutando peticiones con rutas prohibidas como `/system/` o `/data/data/com.antigravity.studio/databases`.",
-                "line_number": 1259
+                "line_number": 1286
               },
               {
                 "id": "AC-AUTH-008",
                 "module": "UI Auth Integration & State Flow",
                 "description": "El componente `GoogleAuthTopBarAction` reacciona a los cambios en `AuthState`, mostrando botón de login en estado desconectado y el badge `shadrick1212@gmail.com 🟢 ONLINE` al autenticarse.",
                 "verification_method": "Test de interfaz con `ComposeTestRule` inyectando secuencias de estados de autenticación y verificando nodos semánticos.",
-                "line_number": 1260
+                "line_number": 1287
               },
               {
                 "id": "AC-AUTH-009",
                 "module": "Antigravity 2.0 Visual Presentation Contract",
                 "description": "`RealAgentEngine` y `AntigravityVisualPresenter` estructuran el turno agéntico con prompt de usuario `>`, badge de modelo predeterminado `Gemini 3.8 Flash`, bloque colapsable `• Thought` y llamadas a herramientas trazables `• ToolName`.",
                 "verification_method": "Test unitario verificando la emisión de eventos estructurados (`ModelHeader`, `ThoughtDelta`, `ToolCallStarted`) y el formateo ANSI y Compose de prompt `>`, `• Thought` y `• ToolName`.",
-                "line_number": 1261
+                "line_number": 1288
               },
               {
                 "id": "AC-AUTH-010",
                 "module": "Catálogo Oficial de Modelos y Contrato del Selector (`ModelSelectionSheet`)",
                 "description": "El selector de modelos expone el catálogo oficial (`gemini-3.8-flash` [Por defecto], `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.1-pro`, `claude-sonnet-4.6`, `claude-opus-4.6`, `gpt-oss-120b`) accesible mediante `ModelSelectionSheet` (Modal Bottom Sheet) al pulsar `ModelStatusBarBadge` en la barra de estado inferior o al invocar `/model` en la terminal, conmutando reactivamente el modelo en `RealAgentEngine`.",
                 "verification_method": "Test unitario y de UI con `ComposeTestRule` verificando la apertura del Modal Bottom Sheet, la ejecución de `/model` en la PTY y la conmutación efectiva del modelo en las solicitudes a Cloud Code.",
-                "line_number": 1262
+                "line_number": 1289
               }
             ],
             "diagram_count": 4,
@@ -296,7 +296,7 @@
       "name": "code_linter",
       "display_name": "Static Analysis & Syntax Linter Suite",
       "status": "PASS",
-      "duration_ms": 14.29,
+      "duration_ms": 14.38,
       "summary": "Análisis sintáctico completado sin errores en 6 archivos",
       "details": {
         "scanned_files": 6
@@ -309,7 +309,7 @@
       "name": "test_suite",
       "display_name": "Automated Unit & Regression Test Suite",
       "status": "PASS",
-      "duration_ms": 35.35,
+      "duration_ms": 31.26,
       "summary": "8 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
       "details": {
         "tests_run": 8,

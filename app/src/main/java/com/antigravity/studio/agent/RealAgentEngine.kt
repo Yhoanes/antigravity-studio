@@ -39,11 +39,11 @@ interface IRealAgentEngine {
 
 /**
  * RealAgentEngine connects Antigravity Agent directly to the official Google Cloud Code
- * backend (`cloudcode-pa.googleapis.com`) using Bearer tokens with the `cloud-platform` scope.
+ * backend (`daily-cloudcode-pa.googleapis.com`) using Bearer tokens with the `cloud-platform` scope.
  *
  * Implements SPEC-002:
  * - Handshake with `loadCodeAssist` to discover companion project.
- * - Streaming inference with `v1internal:streamGenerateContent` via SSE.
+ * - Streaming inference with `v1internal:streamGenerateContent?alt=sse` via SSE.
  * - Sub-16ms latency token delivery directly to PTY master descriptor at 144Hz.
  * - Direct Gemini API fallback (`gemini-2.0-flash`) via saved API key or diagnostic reporting.
  */
@@ -51,9 +51,11 @@ object RealAgentEngine : IRealAgentEngine {
 
     private const val TAG = "RealAgentEngine"
     private const val GEMINI_MODEL = "gemini-2.0-flash"
-    private const val CLOUD_CODE_STREAM_URL = "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent"
-    private const val CLOUD_CODE_LOAD_URL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
-    private const val CLOUD_CODE_ONBOARD_URL = "https://cloudcode-pa.googleapis.com/v1internal:onboardUser"
+    private const val CANONICAL_HOST = "https://daily-cloudcode-pa.googleapis.com"
+    const val DEFAULT_INFERENCE_PROJECT = "default-cli-project"
+    private const val CLOUD_CODE_STREAM_URL = "$CANONICAL_HOST/v1internal:streamGenerateContent?alt=sse"
+    private const val CLOUD_CODE_LOAD_URL = "$CANONICAL_HOST/v1internal:loadCodeAssist"
+    private const val CLOUD_CODE_ONBOARD_URL = "$CANONICAL_HOST/v1internal:onboardUser"
     private const val FALLBACK_GEMINI_STREAM_URL = "https://generativelanguage.googleapis.com/v1beta/models/$GEMINI_MODEL:streamGenerateContent"
 
     internal var httpClient = OkHttpClient.Builder()
@@ -108,11 +110,15 @@ object RealAgentEngine : IRealAgentEngine {
             if (projId.isNullOrEmpty()) {
                 projId = resolveCompanionProject(accessToken)
             }
+            if (projId.isNullOrEmpty()) {
+                projId = DEFAULT_INFERENCE_PROJECT
+            }
 
             // 2. Build Cloud Code v1internal:streamGenerateContent request payload
             fun buildStreamRequest(projectId: String): Request {
+                val effectiveProject = if (projectId.isNotEmpty()) projectId else DEFAULT_INFERENCE_PROJECT
                 val requestJson = JSONObject().apply {
-                    put("project", projectId)
+                    put("project", effectiveProject)
                     put("model", modelId)
                     put("request", JSONObject().apply {
                         val contents = JSONArray().apply {
@@ -195,9 +201,10 @@ object RealAgentEngine : IRealAgentEngine {
 
             if (!response.isSuccessful && response.code == 403) {
                 val errorPeek = response.body?.string().orEmpty()
-                if (errorPeek.contains("3501")) {
-                    Log.w(TAG, "Encountered 403 #3501, attempting re-handshake via resolveCompanionProject...")
-                    projId = resolveCompanionProject(accessToken)
+                if (errorPeek.contains("3501") && projId != DEFAULT_INFERENCE_PROJECT) {
+                    Log.w(TAG, "Encountered 403 with #3501, retrying once forcing projId = $DEFAULT_INFERENCE_PROJECT...")
+                    projId = DEFAULT_INFERENCE_PROJECT
+                    companionProjectId = DEFAULT_INFERENCE_PROJECT
                     request = buildStreamRequest(projId)
                     response = httpClient.newCall(request).execute()
                 } else {
@@ -276,12 +283,13 @@ object RealAgentEngine : IRealAgentEngine {
 
     /**
      * Resolves companion project id for Ultra / Google One AI subscriptions.
-     * 1. Attempts loadCodeAssist.
-     * 2. Fallbacks to onboardUser with free-tier if not found.
-     * 3. Returns companionProjectId ?: ""
+     * 1. Attempts loadCodeAssist ($CANONICAL_HOST/v1internal:loadCodeAssist).
+     * 2. Fallbacks to onboardUser ($CANONICAL_HOST/v1internal:onboardUser) with free-tier if not found.
+     * 3. Defaults to canonical DEFAULT_INFERENCE_PROJECT if still not found.
+     * 4. Returns companionProjectId ?: DEFAULT_INFERENCE_PROJECT.
      */
     private suspend fun resolveCompanionProject(accessToken: String): String = withContext(Dispatchers.IO) {
-        // 1. Intentar llamar a POST https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist
+        // 1. Intentar llamar a POST $CANONICAL_HOST/v1internal:loadCodeAssist
         try {
             val reqJson = JSONObject().apply {
                 put("metadata", JSONObject().apply {
@@ -319,7 +327,7 @@ object RealAgentEngine : IRealAgentEngine {
         }
 
         // 2. Si no se obtiene o la respuesta no tiene proyecto, llamar como fallback a:
-        // POST https://cloudcode-pa.googleapis.com/v1internal:onboardUser
+        // POST $CANONICAL_HOST/v1internal:onboardUser
         try {
             val onboardReqJson = JSONObject().apply {
                 put("tierId", "free-tier")
@@ -357,8 +365,12 @@ object RealAgentEngine : IRealAgentEngine {
             Log.w(TAG, "Failed resolving companion project via onboardUser", e)
         }
 
-        // 3. Retornar companionProjectId ?: ""
-        return@withContext companionProjectId ?: ""
+        // 3. Si aún así es nulo o vacío, asignar el proyecto canónico oficial de Antigravity:
+        companionProjectId = DEFAULT_INFERENCE_PROJECT
+        Log.i(TAG, "Defaulting companion project to canonical: $DEFAULT_INFERENCE_PROJECT")
+
+        // 4. Retornar companionProjectId ?: DEFAULT_INFERENCE_PROJECT
+        return@withContext companionProjectId ?: DEFAULT_INFERENCE_PROJECT
     }
 
     internal suspend fun resolveCompanionProjectForTest(accessToken: String): String = resolveCompanionProject(accessToken)

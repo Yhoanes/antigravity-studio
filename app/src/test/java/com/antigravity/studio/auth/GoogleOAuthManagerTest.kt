@@ -53,6 +53,11 @@ class GoogleOAuthManagerTest {
         assertEquals(GoogleOAuthManager.REDIRECT_URI, constants.primaryRedirectUri)
         assertEquals(GoogleOAuthManager.FALLBACK_REDIRECT_URI, constants.fallbackRedirectUri)
         assertEquals(GoogleOAuthManager.LOOPBACK_PORT, constants.loopbackPort)
+        assertEquals("https://daily-cloudcode-pa.googleapis.com", constants.canonicalHost)
+        assertEquals("default-cli-project", constants.defaultInferenceProject)
+        assertEquals("https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist", constants.cloudCodeLoadEndpoint)
+        assertEquals("https://daily-cloudcode-pa.googleapis.com/v1internal:onboardUser", constants.cloudCodeOnboardEndpoint)
+        assertEquals("https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse", constants.cloudCodeStreamEndpoint)
 
         assertEquals(
             buildString { append("884354919052"); append("-36trc1jjb3tguiac32ov6cod268c5blh"); append(".apps."); append("googleusercontent.com") },

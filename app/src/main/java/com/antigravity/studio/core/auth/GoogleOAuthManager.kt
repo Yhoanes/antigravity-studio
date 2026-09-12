@@ -24,6 +24,11 @@ data class OAuthConstants(
     val authEndpoint: String = "https://accounts.google.com/o/oauth2/v2/auth",
     val tokenEndpoint: String = "https://oauth2.googleapis.com/token",
     val userinfoEndpoint: String = "https://www.googleapis.com/oauth2/v3/userinfo",
+    val canonicalHost: String = "https://daily-cloudcode-pa.googleapis.com",
+    val defaultInferenceProject: String = "default-cli-project",
+    val cloudCodeLoadEndpoint: String = "https://daily-cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+    val cloudCodeOnboardEndpoint: String = "https://daily-cloudcode-pa.googleapis.com/v1internal:onboardUser",
+    val cloudCodeStreamEndpoint: String = "https://daily-cloudcode-pa.googleapis.com/v1internal:streamGenerateContent?alt=sse",
     val scopes: String = ActualOAuthManager.SCOPES
 )
 
