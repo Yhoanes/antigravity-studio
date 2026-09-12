@@ -52,7 +52,10 @@ object RealAgentEngine : IRealAgentEngine {
     private const val TAG = "RealAgentEngine"
     private const val GEMINI_MODEL = "gemini-2.0-flash"
     private const val CANONICAL_HOST = "https://daily-cloudcode-pa.googleapis.com"
-    const val DEFAULT_INFERENCE_PROJECT = "default-cli-project"
+    const val DEFAULT_INFERENCE_PROJECT = "aicode-consumers"
+    const val FALLBACK_INFERENCE_PROJECT = "default-cli-project"
+    private const val USER_AGENT_OFFICIAL = "antigravity/1.2.2"
+    private const val IDE_VERSION_OFFICIAL = "1.2.2"
     private const val CLOUD_CODE_STREAM_URL = "$CANONICAL_HOST/v1internal:streamGenerateContent?alt=sse"
     private const val CLOUD_CODE_LOAD_URL = "$CANONICAL_HOST/v1internal:loadCodeAssist"
     private const val CLOUD_CODE_ONBOARD_URL = "$CANONICAL_HOST/v1internal:onboardUser"
@@ -117,26 +120,30 @@ object RealAgentEngine : IRealAgentEngine {
             // 2. Build Cloud Code v1internal:streamGenerateContent request payload
             fun buildStreamRequest(projectId: String): Request {
                 val effectiveProject = if (projectId.isNotEmpty()) projectId else DEFAULT_INFERENCE_PROJECT
+                val contents = JSONArray().apply {
+                    put(JSONObject().apply {
+                        put("role", "user")
+                        put("parts", JSONArray().apply {
+                            put(JSONObject().put("text", userPrompt))
+                        })
+                    })
+                }
                 val requestJson = JSONObject().apply {
                     put("project", effectiveProject)
                     put("model", modelId)
+                    put("requestId", java.util.UUID.randomUUID().toString())
+                    put("userAgent", USER_AGENT_OFFICIAL)
+                    put("requestType", "REQUEST_TYPE_CASCADE")
+                    put("enabledCreditTypes", JSONArray().apply {
+                        put("GOOGLE_ONE_AI")
+                    })
                     put("request", JSONObject().apply {
-                        val contents = JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("role", "user")
-                                put("parts", JSONArray().apply {
-                                    put(JSONObject().put("text", userPrompt))
-                                })
-                            })
-                        }
                         put("contents", contents)
-
                         put("systemInstruction", JSONObject().apply {
                             put("parts", JSONArray().apply {
                                 put(JSONObject().put("text", defaultSystem))
                             })
                         })
-
                         put("generationConfig", JSONObject().apply {
                             put("temperature", 0.7)
                             put("maxOutputTokens", 4096)
@@ -150,7 +157,7 @@ object RealAgentEngine : IRealAgentEngine {
                     .header("Authorization", "Bearer $accessToken")
                     .header("Content-Type", "application/json")
                     .header("Accept", "text/event-stream")
-                    .header("User-Agent", "antigravity/1.0.0")
+                    .header("User-Agent", USER_AGENT_OFFICIAL)
                     .post(requestBody)
                     .build()
             }
@@ -196,24 +203,29 @@ object RealAgentEngine : IRealAgentEngine {
                 emit(AgentStreamEvent.Error(IllegalStateException("HTTP $code: $errorBody")))
             }
 
-            var request = buildStreamRequest(projId)
+            var currentProject = if (projId.isNotEmpty()) projId else DEFAULT_INFERENCE_PROJECT
+            var request = buildStreamRequest(currentProject)
             var response = httpClient.newCall(request).execute()
 
-            if (!response.isSuccessful && response.code == 403) {
+            if (!response.isSuccessful && (response.code == 403 || response.code == 404)) {
                 val errorPeek = response.body?.string().orEmpty()
-                if (errorPeek.contains("3501") && projId != DEFAULT_INFERENCE_PROJECT) {
-                    Log.w(TAG, "Encountered 403 with #3501, retrying once forcing projId = $DEFAULT_INFERENCE_PROJECT...")
-                    projId = DEFAULT_INFERENCE_PROJECT
-                    companionProjectId = DEFAULT_INFERENCE_PROJECT
-                    request = buildStreamRequest(projId)
-                    response = httpClient.newCall(request).execute()
+                val retryProject = if (currentProject == DEFAULT_INFERENCE_PROJECT) {
+                    FALLBACK_INFERENCE_PROJECT
                 } else {
-                    handleError(response.code, errorPeek)
+                    DEFAULT_INFERENCE_PROJECT
+                }
+                Log.w(TAG, "Request failed with HTTP ${response.code} (project=$currentProject). Retrying once with project=$retryProject...")
+                currentProject = retryProject
+                companionProjectId = retryProject
+                request = buildStreamRequest(currentProject)
+                response = httpClient.newCall(request).execute()
+
+                if (!response.isSuccessful) {
+                    val retryErrorBody = response.body?.string().orEmpty()
+                    handleError(response.code, retryErrorBody.ifEmpty { errorPeek })
                     return@flow
                 }
-            }
-
-            if (!response.isSuccessful) {
+            } else if (!response.isSuccessful) {
                 val errorBody = response.body?.string().orEmpty()
                 handleError(response.code, errorBody)
                 return@flow
@@ -294,8 +306,8 @@ object RealAgentEngine : IRealAgentEngine {
             val reqJson = JSONObject().apply {
                 put("metadata", JSONObject().apply {
                     put("ideType", "ANTIGRAVITY")
-                    put("ideVersion", "1.0.0")
-                    put("pluginVersion", "1.0.0")
+                    put("ideVersion", IDE_VERSION_OFFICIAL)
+                    put("pluginVersion", "1.2.2")
                 })
             }
             val requestBody = reqJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -303,7 +315,7 @@ object RealAgentEngine : IRealAgentEngine {
                 .url(CLOUD_CODE_LOAD_URL)
                 .header("Authorization", "Bearer $accessToken")
                 .header("Content-Type", "application/json")
-                .header("User-Agent", "antigravity/1.0.0")
+                .header("User-Agent", USER_AGENT_OFFICIAL)
                 .post(requestBody)
                 .build()
 
@@ -333,8 +345,8 @@ object RealAgentEngine : IRealAgentEngine {
                 put("tierId", "free-tier")
                 put("metadata", JSONObject().apply {
                     put("ideType", "ANTIGRAVITY")
-                    put("ideVersion", "1.0.0")
-                    put("pluginVersion", "1.0.0")
+                    put("ideVersion", IDE_VERSION_OFFICIAL)
+                    put("pluginVersion", "1.2.2")
                 })
             }
             val onboardBody = onboardReqJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
@@ -342,7 +354,7 @@ object RealAgentEngine : IRealAgentEngine {
                 .url(CLOUD_CODE_ONBOARD_URL)
                 .header("Authorization", "Bearer $accessToken")
                 .header("Content-Type", "application/json")
-                .header("User-Agent", "antigravity/1.0.0")
+                .header("User-Agent", USER_AGENT_OFFICIAL)
                 .post(onboardBody)
                 .build()
 
@@ -369,8 +381,8 @@ object RealAgentEngine : IRealAgentEngine {
         companionProjectId = DEFAULT_INFERENCE_PROJECT
         Log.i(TAG, "Defaulting companion project to canonical: $DEFAULT_INFERENCE_PROJECT")
 
-        // 4. Retornar companionProjectId ?: DEFAULT_INFERENCE_PROJECT
-        return@withContext companionProjectId ?: DEFAULT_INFERENCE_PROJECT
+        // 4. Retornar DEFAULT_INFERENCE_PROJECT
+        return@withContext DEFAULT_INFERENCE_PROJECT
     }
 
     internal suspend fun resolveCompanionProjectForTest(accessToken: String): String = resolveCompanionProject(accessToken)
@@ -439,7 +451,7 @@ object RealAgentEngine : IRealAgentEngine {
                 .url(fallbackUrl)
                 .header("Content-Type", "application/json")
                 .header("Accept", "text/event-stream")
-                .header("User-Agent", "antigravity/1.0.0")
+                .header("User-Agent", USER_AGENT_OFFICIAL)
                 .post(requestBody)
                 .build()
 
