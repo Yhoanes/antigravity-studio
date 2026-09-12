@@ -7,7 +7,6 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -17,8 +16,6 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.ripple.rememberRipple
-import androidx.compose.material3.Divider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -31,7 +28,6 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.antigravity.studio.theme.AccentAmber
 import com.antigravity.studio.theme.BorderObsidian
 import com.antigravity.studio.theme.CosmicViolet
@@ -97,7 +93,7 @@ fun ProductivityBar(
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // --- 1. LATCH MODIFIERS (CTRL / ALT) ---
+        // --- 1. LATCH MODIFIERS & ESSENTIAL ESC/TAB ---
         KeyCapButton(
             label = "CTRL",
             isActive = isCtrlActive,
@@ -112,9 +108,6 @@ fun ProductivityBar(
             onClick = { triggerAction(KeyAction.ToggleAlt) }
         )
 
-        VerticalBarDivider()
-
-        // --- 2. ESSENTIAL NAVIGATION & CODE KEYS ---
         KeyCapButton(
             label = "ESC",
             onClick = { triggerAction(KeyAction.RawBytes(byteArrayOf(0x1B))) }
@@ -125,6 +118,59 @@ fun ProductivityBar(
             onClick = { triggerAction(KeyAction.RawBytes(byteArrayOf(0x09))) }
         )
 
+        VerticalBarDivider()
+
+        // --- 2. ANTIGRAVITY AGENT ACTIONS (PROMINENT AT START) ---
+        KeyCapButton(
+            label = "⚡ agy run",
+            accentColor = NeonCyan,
+            textColor = NeonCyan,
+            customBackground = NeonCyan,
+            onClick = { triggerAction(KeyAction.ShortcutCommand("agy run\r")) }
+        )
+
+        KeyCapButton(
+            label = "🧪 agy test",
+            accentColor = CosmicViolet,
+            textColor = CosmicViolet,
+            customBackground = CosmicViolet,
+            onClick = { triggerAction(KeyAction.ShortcutCommand("agy test\r")) }
+        )
+
+        KeyCapButton(
+            label = "^C",
+            accentColor = StatusError,
+            textColor = StatusError,
+            customBackground = StatusError,
+            onClick = { triggerAction(KeyAction.RawBytes(byteArrayOf(0x03))) }
+        )
+
+        VerticalBarDivider()
+
+        // --- 3. DIRECTIONAL ARROWS ---
+        KeyCapButton(
+            label = "↑",
+            onClick = { triggerAction(KeyAction.RawBytes("\u001B[A".toByteArray(Charsets.UTF_8))) }
+        )
+
+        KeyCapButton(
+            label = "↓",
+            onClick = { triggerAction(KeyAction.RawBytes("\u001B[B".toByteArray(Charsets.UTF_8))) }
+        )
+
+        KeyCapButton(
+            label = "←",
+            onClick = { triggerAction(KeyAction.RawBytes("\u001B[D".toByteArray(Charsets.UTF_8))) }
+        )
+
+        KeyCapButton(
+            label = "→",
+            onClick = { triggerAction(KeyAction.RawBytes("\u001B[C".toByteArray(Charsets.UTF_8))) }
+        )
+
+        VerticalBarDivider()
+
+        // --- 4. NAVIGATION & CODE SYMBOLS ---
         KeyCapButton(
             label = "~",
             onClick = { triggerAction(KeyAction.RawBytes("~".toByteArray(Charsets.UTF_8))) }
@@ -157,53 +203,6 @@ fun ProductivityBar(
 
         VerticalBarDivider()
 
-        // --- 3. DIRECTIONAL ARROWS ---
-        KeyCapButton(
-            label = "↑",
-            onClick = { triggerAction(KeyAction.RawBytes("\u001B[A".toByteArray(Charsets.UTF_8))) }
-        )
-
-        KeyCapButton(
-            label = "↓",
-            onClick = { triggerAction(KeyAction.RawBytes("\u001B[B".toByteArray(Charsets.UTF_8))) }
-        )
-
-        KeyCapButton(
-            label = "←",
-            onClick = { triggerAction(KeyAction.RawBytes("\u001B[D".toByteArray(Charsets.UTF_8))) }
-        )
-
-        KeyCapButton(
-            label = "→",
-            onClick = { triggerAction(KeyAction.RawBytes("\u001B[C".toByteArray(Charsets.UTF_8))) }
-        )
-
-        VerticalBarDivider()
-
-        // --- 4. ANTIGRAVITY AGENT SHORTCUTS ---
-        KeyCapButton(
-            label = "^C",
-            accentColor = StatusError,
-            textColor = StatusError,
-            onClick = { triggerAction(KeyAction.RawBytes(byteArrayOf(0x03))) }
-        )
-
-        KeyCapButton(
-            label = "agy run",
-            accentColor = NeonCyan,
-            textColor = NeonCyan,
-            onClick = { triggerAction(KeyAction.ShortcutCommand("agy run\r")) }
-        )
-
-        KeyCapButton(
-            label = "agy test",
-            accentColor = AccentAmber,
-            textColor = AccentAmber,
-            onClick = { triggerAction(KeyAction.ShortcutCommand("agy test\r")) }
-        )
-
-        VerticalBarDivider()
-
         // --- 5. SOFT KEYBOARD TOGGLE ---
         KeyCapButton(
             label = "⌨",
@@ -215,7 +214,7 @@ fun ProductivityBar(
 }
 
 /**
- * Ergonomic KeyCapButton styled as a tactile cyber keycap.
+ * Ergonomic KeyCapButton styled as a tactile cyber keycap with custom tinting.
  */
 @Composable
 private fun KeyCapButton(
@@ -225,19 +224,25 @@ private fun KeyCapButton(
     activeColor: Color = NeonCyan,
     accentColor: Color? = null,
     textColor: Color = TextPrimary,
+    customBackground: Color? = null,
     onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(6.dp)
 
-    val backgroundBrush = if (isActive) {
-        Brush.verticalGradient(
+    val backgroundBrush = when {
+        isActive -> Brush.verticalGradient(
             colors = listOf(
                 activeColor.copy(alpha = 0.35f),
                 activeColor.copy(alpha = 0.15f)
             )
         )
-    } else {
-        Brush.verticalGradient(
+        customBackground != null -> Brush.verticalGradient(
+            colors = listOf(
+                customBackground.copy(alpha = 0.28f),
+                customBackground.copy(alpha = 0.12f)
+            )
+        )
+        else -> Brush.verticalGradient(
             colors = listOf(
                 SurfaceElevated,
                 SurfaceElevated.copy(alpha = 0.8f)
@@ -247,7 +252,7 @@ private fun KeyCapButton(
 
     val borderColor = when {
         isActive -> activeColor
-        accentColor != null -> accentColor.copy(alpha = 0.6f)
+        accentColor != null -> accentColor.copy(alpha = 0.65f)
         else -> BorderObsidian
     }
 
@@ -270,7 +275,7 @@ private fun KeyCapButton(
             text = label,
             style = KeyCapTextStyle,
             color = if (isActive) activeColor else textColor,
-            fontWeight = if (isActive) FontWeight.Bold else FontWeight.Medium
+            fontWeight = if (isActive || customBackground != null) FontWeight.Bold else FontWeight.Medium
         )
     }
 }

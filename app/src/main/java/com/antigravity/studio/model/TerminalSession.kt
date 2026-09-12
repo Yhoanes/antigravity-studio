@@ -28,7 +28,7 @@ class TerminalSession(
 ) {
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    private val _outputFlow = MutableSharedFlow<ByteArray>(extraBufferCapacity = 512)
+    private val _outputFlow = MutableSharedFlow<ByteArray>(replay = 50, extraBufferCapacity = 512)
     val outputFlow: SharedFlow<ByteArray> = _outputFlow.asSharedFlow()
 
     private val _cols = MutableStateFlow(80)

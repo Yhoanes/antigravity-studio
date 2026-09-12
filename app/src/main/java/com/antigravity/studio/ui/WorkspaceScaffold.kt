@@ -28,8 +28,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -219,7 +221,7 @@ fun WorkspaceScaffold(
     val updateStatus by UpdateManager.updateStatus.collectAsState()
     var showUpdateDialog by remember { mutableStateOf(false) }
 
-    var isExplorerVisible by remember { mutableStateOf(true) }
+    var isExplorerVisible by remember { mutableStateOf(false) }
     var splitFraction by remember { mutableFloatStateOf(0.72f) }
     var isCtrlActive by remember { mutableStateOf(false) }
     var isAltActive by remember { mutableStateOf(false) }
@@ -300,6 +302,8 @@ fun WorkspaceScaffold(
         modifier = modifier
             .fillMaxSize()
             .background(SurfaceObsidian)
+            .statusBarsPadding()
+            .navigationBarsPadding()
     ) {
         // --- 1. TOPBAR ---
         TopBarSection(

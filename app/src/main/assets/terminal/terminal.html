@@ -175,10 +175,8 @@
                 this.input = hiddenInput;
                 this.scrollIndicator = scrollIndicator;
 
-                // Try WebGL2 for hardware glyph blitting, fallback to Canvas2D
-                this.gl = canvas.getContext('webgl2', { alpha: false, depth: false, antialias: false });
-                this.ctx = this.gl ? null : canvas.getContext('2d', { alpha: false });
-                this.isWebGL = !!this.gl;
+                // Hardware Accelerated 2D Canvas on Android GPU (144Hz)
+                this.ctx = canvas.getContext('2d', { alpha: false });
 
                 // Font & Metric State
                 this.fontSize = 13;
@@ -250,13 +248,12 @@
                 const newCols = Math.max(10, Math.floor(this.canvas.width / this.charWidth));
                 const newRows = Math.max(4, Math.floor(this.canvas.height / this.charHeight));
 
-                if (newCols !== this.cols || newRows !== this.rows) {
-                    this.cols = newCols;
-                    this.rows = newRows;
-                    this.ensureScreenCapacity();
-                    NativeBridge.onResize(this.cols, this.rows);
-                }
+                this.cols = newCols;
+                this.rows = newRows;
+                this.ensureScreenCapacity();
+                NativeBridge.onResize(this.cols, this.rows);
 
+                this.render();
                 this.requestRedraw();
             }
 

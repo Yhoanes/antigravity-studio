@@ -110,7 +110,7 @@ fun TerminalViewBridge(
         val wv = webViewInstance ?: return@LaunchedEffect
         if (!isRendererReady) return@LaunchedEffect
 
-        outputStream.collectLatest { chunk ->
+        outputStream.collect { chunk ->
             if (chunk.isNotEmpty()) {
                 val base64Chunk = Base64.encodeToString(chunk, Base64.NO_WRAP)
                 val js = "window.TerminalBridge && window.TerminalBridge.writeBinary('$base64Chunk');"

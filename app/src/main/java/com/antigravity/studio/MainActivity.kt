@@ -111,6 +111,7 @@ class MainActivity : ComponentActivity() {
         try {
             val session = com.antigravity.studio.pty.TerminalSession(
                 executable = "/system/bin/sh",
+                args = arrayOf("-i"),
                 cwd = applicationContext.filesDir.absolutePath,
                 initialRows = 24,
                 initialCols = 80
@@ -152,8 +153,11 @@ class MainActivity : ComponentActivity() {
 
         // Emit futuristic welcome banner on terminal startup
         lifecycleScope.launch {
-            delay(150)
+            delay(100)
             uiSession.emitOutput(WELCOME_BANNER)
+            if (finalPty != null && finalPty.isRunning) {
+                finalPty.tryWrite("\r".toByteArray(Charsets.UTF_8))
+            }
         }
 
         return uiSession
