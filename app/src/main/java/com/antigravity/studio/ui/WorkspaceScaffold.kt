@@ -346,7 +346,7 @@ fun WorkspaceScaffold(
                     files = workspaceFiles,
                     onFileSelected = { file ->
                         if (!file.isDirectory) {
-                            activeSession.writeCommand("cat ${file.name}\r")
+                            activeSession.writeCommand("!cat ${file.name}\r")
                         }
                     }
                 )

@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
+import com.antigravity.studio.agent.AgentStreamEvent
 import com.antigravity.studio.agent.RealAgentEngine
 import com.antigravity.studio.model.AgentSessionState
 import com.antigravity.studio.model.AgentStatus
@@ -29,21 +30,36 @@ import com.antigravity.studio.theme.AntigravityTheme
 import com.antigravity.studio.theme.AppThemePreset
 import com.antigravity.studio.theme.CyberObsidian
 import com.antigravity.studio.ui.WorkspaceScaffold
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
 
 private const val TAG = "MainActivity"
 
-private val WELCOME_BANNER = (
-    "\u001b[1;36m       ___          __  _                         _  __           \r\n" +
-    "\u001b[1;36m      /   |  ____  / /_(_)___ __________ __   __ (_)/ /___  __    \r\n" +
-    "\u001b[1;35m     / /| | / __ \\/ __/ / __ `/ ___/ __ `/ | / // // __/ / / /    \r\n" +
-    "\u001b[1;35m    / ___ |/ / / / /_/ / /_/ / /  / /_/ /| |/ // // /_/ /_/ /     \r\n" +
-    "\u001b[1;36m   /_/  |_/_/ /_/\\__/_/\\__, /_/   \\__,_/ |___//_/ \\__/\\__, /      \r\n" +
-    "\u001b[1;36m                      /____/                         /____/       \r\n" +
-    "\u001b[38;2;139;92;246m   [Antigravity 2.0 (Gemini 2.5) | Xiaomi Pad 6 2.8K 144Hz WebGL]\u001b[0m\r\n" +
-    "\u001b[38;2;34;197;94m   ● Local Agent Session Ready | PTY Engine Connected\u001b[0m\r\n" +
-    "\u001b[90m   Type 'agy --help' or use the Productivity Bar below.\u001b[0m\r\n\r\n" +
+private fun buildWelcomeBanner(activeUserEmail: String?): ByteArray {
+    val emailDisplay = activeUserEmail ?: "Conectado"
+    return (
+        "\u001b[1;36m   ___         __  _                         _  __           \u001b[0m\r\n" +
+        "\u001b[1;36m  /   |  ____  / /_(_)___ __________ __   __ (_)/ /___  __    \u001b[0m\r\n" +
+        "\u001b[1;35m / /| | / __ \\/ __/ / __ `/ ___/ __ `/ | / // // __/ / / /    \u001b[0m\r\n" +
+        "\u001b[1;35m/ ___ |/ / / / /_/ / /_/ / /  / /_/ /| |/ // // /_/ /_/ /     \u001b[0m\r\n" +
+        "\u001b[1;36m/_/  |_/_/ /_/\\__/_/\\__, /_/   \\__,_/ |___//_/ \\__/\\__, /      \u001b[0m\r\n" +
+        "\u001b[1;36m                  /____/                         /____/       \u001b[0m\r\n" +
+        "\u001b[38;2;139;92;246m [Antigravity Studio v1.0.0 | Xiaomi Pad 6 Edition]\u001b[0m\r\n" +
+        "\u001b[38;2;34;197;94m ● Sesión activa de Google: $emailDisplay\u001b[0m\r\n" +
+        "\u001b[38;2;34;197;94m ● Motor Agéntico Listo (Gemini 2.0 Flash / Pro)\u001b[0m\r\n\r\n" +
+        "\u001b[1;36magy:agent> \u001b[0m"
+    ).toByteArray(Charsets.UTF_8)
+}
+
+private val HELP_MENU = (
+    "\r\n\u001b[1mAntigravity Studio v1.0.0 (Xiaomi Pad 6 Edition)\u001b[0m\r\n" +
+    "Escribe directamente cualquier instrucción o pregunta en lenguaje natural.\r\n" +
+    "Comandos del sistema:\r\n" +
+    "  ! <comando>   Ejecuta comandos de shell en el espacio de trabajo (ej: !ls, !pwd)\r\n" +
+    "  clear         Limpia la pantalla de la terminal\r\n\r\n" +
     "\u001b[1;36magy:agent> \u001b[0m"
 ).toByteArray(Charsets.UTF_8)
 
@@ -67,10 +83,42 @@ class MainActivity : ComponentActivity() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.antigravity.studio.RUN_AGENT") {
                 val prompt = intent.getStringExtra("prompt")
+                if (prompt.isNullOrBlank()) return
+
                 val pty = activeNativePty
-                if (!prompt.isNullOrBlank() && pty != null && pty.isRunning) {
+                if (pty != null && pty.isRunning) {
                     lifecycleScope.launch {
                         RealAgentEngine.attachToPtyStream(pty.fd, prompt)
+                    }
+                } else {
+                    activeSessionState.value?.let { uiSession ->
+                        lifecycleScope.launch {
+                            uiSession.emitOutput("\r\n\u001b[1;36m⟳ [Antigravity Agent] Conectando con Gemini 2.0 Flash...\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
+                            try {
+                                RealAgentEngine.executeAgentTask(prompt).collect { event ->
+                                    when (event) {
+                                        is AgentStreamEvent.TextDelta -> {
+                                            val formatted = event.text.replace("\r\n", "\n").replace("\n", "\r\n")
+                                            uiSession.emitOutput(formatted.toByteArray(Charsets.UTF_8))
+                                        }
+                                        is AgentStreamEvent.Completed -> {
+                                            uiSession.emitOutput("\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                                        }
+                                        is AgentStreamEvent.Error -> {
+                                            uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${event.error.message}\u001b[0m\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                                        }
+                                        is AgentStreamEvent.ToolCallStarted -> {
+                                            uiSession.emitOutput("\r\n\u001b[38;2;245;158;11m⚙ [Antigravity Agent] Ejecutando herramienta: ${event.toolName}...\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
+                                        }
+                                        is AgentStreamEvent.ToolCallFinished -> {
+                                            uiSession.emitOutput("\u001b[38;2;34;197;94m✔ [Antigravity Agent] ${event.toolName} finalizada: ${event.resultSummary}\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
+                                        }
+                                    }
+                                }
+                            } catch (t: Throwable) {
+                                uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${t.message}\u001b[0m\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                            }
+                        }
                     }
                 }
             }
@@ -179,7 +227,7 @@ class MainActivity : ComponentActivity() {
                         onSignOutClick = {
                             lifecycleScope.launch {
                                 com.antigravity.studio.auth.GoogleOAuthManager.signOut()
-                                currentSession.writeCommand("echo 'Google Account Signed Out.'\r")
+                                currentSession.emitOutput("\r\n\u001b[33m● Sesión de Google cerrada.\u001b[0m\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
                             }
                         }
                     )
@@ -189,69 +237,177 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun createSession(title: String): TerminalSession {
-        var ptySession: com.antigravity.studio.pty.TerminalSession? = null
+        val workspacePath = File(applicationContext.filesDir, "workspace").absolutePath
         val filesDirPath = applicationContext.filesDir.absolutePath
-        val workspacePath = java.io.File(applicationContext.filesDir, "workspace").absolutePath
+        val inputLineBuffer = StringBuilder()
+        var lastWasCr = false
+        var currentJob: Job? = null
+        var inEscapeSequence = false
 
-        try {
-            val session = com.antigravity.studio.pty.TerminalSession(
-                executable = "/system/bin/sh",
-                args = arrayOf("-i"),
-                cwd = workspacePath,
-                filesDir = filesDirPath,
-                envp = com.antigravity.studio.pty.TerminalSession.defaultEnvironment(filesDirPath),
-                initialRows = 24,
-                initialCols = 80
-            )
-            session.start()
-            if (session.isRunning) {
-                ptySession = session
-                Log.i(TAG, "Native PTY session started successfully for $title (PID: ${session.pid})")
+        lateinit var uiSession: TerminalSession
+
+        fun handleEnter() {
+            uiSession.emitOutput("\r\n".toByteArray(Charsets.UTF_8))
+            val prompt = inputLineBuffer.toString().trim()
+            inputLineBuffer.clear()
+
+            if (prompt.isEmpty()) {
+                uiSession.emitOutput("\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                return
             }
-        } catch (t: Throwable) {
-            Log.w(TAG, "Native PTY unavailable for $title, using fallback engine: ${t.message}")
+
+            if (prompt == "clear") {
+                uiSession.emitOutput("\u001b[2J\u001b[H\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                return
+            }
+
+            if (prompt == "help" || prompt == "--help" || prompt == "agy" || prompt == "agy --help" || prompt == "agy help") {
+                uiSession.emitOutput(HELP_MENU)
+                return
+            }
+
+            if (prompt.startsWith("!")) {
+                val cmd = prompt.removePrefix("!").trim()
+                currentJob?.cancel()
+                currentJob = lifecycleScope.launch(Dispatchers.IO) {
+                    try {
+                        val workspaceDir = File(workspacePath).apply { if (!exists()) mkdirs() }
+                        val pb = ProcessBuilder("sh", "-c", cmd)
+                            .directory(workspaceDir)
+                            .redirectErrorStream(true)
+
+                        val env = pb.environment()
+                        env["HOME"] = filesDirPath
+                        env["WORKSPACE"] = workspacePath
+                        env["PATH"] = "$filesDirPath/bin:" + (System.getenv("PATH") ?: "/system/bin")
+                        env["TERM"] = "xterm-256color"
+
+                        val process = pb.start()
+                        val reader = process.inputStream.bufferedReader()
+                        val buffer = CharArray(1024)
+                        var read: Int
+                        while (reader.read(buffer).also { read = it } != -1) {
+                            val outText = String(buffer, 0, read).replace("\r\n", "\n").replace("\n", "\r\n")
+                            uiSession.emitOutput(outText.toByteArray(Charsets.UTF_8))
+                        }
+                        process.waitFor()
+                    } catch (t: Throwable) {
+                        uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error shell]: ${t.message}\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
+                    } finally {
+                        uiSession.emitOutput("\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                    }
+                }
+                return
+            }
+
+            // Natural language -> RealAgentEngine
+            currentJob?.cancel()
+            currentJob = lifecycleScope.launch {
+                uiSession.emitOutput("\r\n\u001b[1;36m⟳ [Antigravity Agent] Conectando con Gemini 2.0 Flash...\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
+                try {
+                    RealAgentEngine.executeAgentTask(prompt).collect { event ->
+                        when (event) {
+                            is AgentStreamEvent.TextDelta -> {
+                                val formatted = event.text.replace("\r\n", "\n").replace("\n", "\r\n")
+                                uiSession.emitOutput(formatted.toByteArray(Charsets.UTF_8))
+                            }
+                            is AgentStreamEvent.Completed -> {
+                                uiSession.emitOutput("\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                            }
+                            is AgentStreamEvent.Error -> {
+                                uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${event.error.message}\u001b[0m\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                            }
+                            is AgentStreamEvent.ToolCallStarted -> {
+                                uiSession.emitOutput("\r\n\u001b[38;2;245;158;11m⚙ [Antigravity Agent] Ejecutando herramienta: ${event.toolName}...\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
+                            }
+                            is AgentStreamEvent.ToolCallFinished -> {
+                                uiSession.emitOutput("\u001b[38;2;34;197;94m✔ [Antigravity Agent] ${event.toolName} finalizada: ${event.resultSummary}\u001b[0m\r\n".toByteArray(Charsets.UTF_8))
+                            }
+                        }
+                    }
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    // Prompt was cancelled by user
+                } catch (t: Throwable) {
+                    uiSession.emitOutput("\r\n\u001b[1;31m✖ [Error]: ${t.message}\u001b[0m\r\n\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                }
+            }
         }
 
-        val finalPty = ptySession
-        val uiSession = TerminalSession(
+        uiSession = TerminalSession(
             title = title,
             initialCwd = workspacePath,
             onWriteNative = { bytes ->
-                if (finalPty != null && finalPty.isRunning) {
-                    finalPty.tryWrite(bytes)
+                synchronized(inputLineBuffer) {
+                    val inputString = String(bytes, Charsets.UTF_8)
+                    var i = 0
+                    while (i < inputString.length) {
+                        val ch = inputString[i]
+
+                        if (inEscapeSequence) {
+                            if ((ch in 'A'..'Z') || (ch in 'a'..'z') || ch == '~') {
+                                inEscapeSequence = false
+                            }
+                            i++
+                            continue
+                        }
+
+                        if (ch == '\u001b') {
+                            if (i + 1 < inputString.length) {
+                                inEscapeSequence = true
+                            }
+                            i++
+                            continue
+                        }
+
+                        when {
+                            ch == '\r' -> {
+                                lastWasCr = true
+                                handleEnter()
+                            }
+                            ch == '\n' -> {
+                                if (lastWasCr) {
+                                    lastWasCr = false
+                                } else {
+                                    handleEnter()
+                                }
+                            }
+                            ch == '\u007F' || ch == '\b' || ch.code == 0x7F || ch.code == 0x08 -> {
+                                lastWasCr = false
+                                if (inputLineBuffer.isNotEmpty()) {
+                                    inputLineBuffer.deleteCharAt(inputLineBuffer.length - 1)
+                                    uiSession.emitOutput("\b \b".toByteArray(Charsets.UTF_8))
+                                }
+                            }
+                            ch == '\u0003' || ch.code == 0x03 -> {
+                                lastWasCr = false
+                                currentJob?.cancel()
+                                currentJob = null
+                                inputLineBuffer.clear()
+                                uiSession.emitOutput("^C\r\n\u001b[1;36magy:agent> \u001b[0m".toByteArray(Charsets.UTF_8))
+                            }
+                            ch >= ' ' || ch == '\t' -> {
+                                lastWasCr = false
+                                inputLineBuffer.append(ch)
+                                uiSession.emitOutput(ch.toString().toByteArray(Charsets.UTF_8))
+                            }
+                            else -> {
+                                lastWasCr = false
+                            }
+                        }
+                        i++
+                    }
                 }
             },
-            onResizeNative = { cols, rows ->
-                finalPty?.resize(rows, cols)
-            },
+            onResizeNative = { _, _ -> },
             onCloseNative = {
-                finalPty?.close()
+                currentJob?.cancel()
+                currentJob = null
             }
         )
 
-        if (finalPty != null) {
-            nativePtyMap[uiSession.id] = finalPty
-            activeNativePty = finalPty
-        }
-
-        // Stream native PTY bytes into UI session
-        if (finalPty != null) {
-            lifecycleScope.launch {
-                finalPty.output.collect { chunk ->
-                    uiSession.emitOutput(chunk)
-                }
-            }
-        }
-
-        // Start terminal in the interactive Antigravity agent session
-        lifecycleScope.launch {
-            delay(100)
-            if (finalPty != null && finalPty.isRunning) {
-                finalPty.tryWrite(". \"$filesDirPath/.mkshrc\" 2>/dev/null; clear; agy\r".toByteArray(Charsets.UTF_8))
-            } else {
-                uiSession.emitOutput(WELCOME_BANNER)
-            }
-        }
+        val activeUserEmail = com.antigravity.studio.auth.GoogleOAuthManager.activeAccountEmail.value
+            ?: com.antigravity.studio.auth.GoogleOAuthManager.getActiveAccount()
+        uiSession.emitOutput(buildWelcomeBanner(activeUserEmail))
 
         return uiSession
     }
