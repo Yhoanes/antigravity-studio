@@ -54,5 +54,5 @@ data class AgentSessionState(
     val activeTool: String? = null,
     val iterationCount: Int = 0,
     val memoryNodesActive: Int = 12,
-    val activeModel: String = "Gemini 2.5 Flash"
+    val activeModel: String = "Gemini 3.8 Flash"
 )

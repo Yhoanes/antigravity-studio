@@ -17,12 +17,12 @@
 ## 1. Visión General y Objetivos
 
 ### 1.1 Propósito y Filosofía *Zero-Cloud-Intermediary*
-Antigravity Studio está concebido como una estación de desarrollo agéntica autónoma, privada y de alto rendimiento. Para interactuar con los modelos de frontera de Google (Gemini 2.5 Flash y Gemini 1.5 Pro a través del backend oficial de Cloud Code) sin requerir servidores proxy ni intermediarios en la nube, la aplicación ejecuta el flujo estándar **OAuth 2.0 con PKCE (Proof Key for Code Exchange, RFC 7636 y RFC 8252)** directamente desde el cliente móvil.
+Antigravity Studio está concebido como una estación de desarrollo agéntica autónoma, privada y de alto rendimiento. Para interactuar con los modelos de frontera y el catálogo oficial de Antigravity (`gemini-3.8-flash` por defecto, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.1-pro`, `claude-sonnet-4.6`, `claude-opus-4.6` y `gpt-oss-120b` a través del backend oficial de Cloud Code con soporte de suscripción Ultra / Google One AI de $200) sin requerir servidores proxy ni intermediarios en la nube, la aplicación ejecuta el flujo estándar **OAuth 2.0 con PKCE (Proof Key for Code Exchange, RFC 7636 y RFC 8252)** directamente desde el cliente móvil.
 
 Esta arquitectura garantiza:
 1. **Soberanía y Seguridad Absoluta:** Los tokens de acceso (`access_token`) y refresco (`refresh_token`) residen únicamente en el almacenamiento local seguro de la tablet del usuario (`$filesDir/.gemini/`).
-2. **Soporte Multi-Usuario Universal:** Cualquier usuario o desarrollador puede instalar el archivo APK en su propia Xiaomi Pad 6 e iniciar sesión con su cuenta personal o corporativa de Google, consumiendo sus propias cuotas y proyectos en Google Cloud Platform sin configuraciones de backend externas.
-3. **Motor Agéntico Real Integrado (`RealAgentEngine`):** Comunicación de baja latencia con los endpoints oficiales de Cloud Code mediante Server-Sent Events (SSE), canalizando el streaming de texto y la ejecución de herramientas directamente a los buffers de la terminal PTY a 144Hz.
+2. **Soporte Multi-Usuario Universal y Compatibilidad Ultra / Google One AI ($200):** Cualquier usuario o desarrollador puede instalar el archivo APK en su propia Xiaomi Pad 6 e iniciar sesión con su cuenta personal o corporativa de Google, consumiendo sus propias cuotas y proyectos en Google Cloud Platform sin configuraciones de backend externas, resolviendo dinámicamente el proyecto companion provisionado para planes Google One AI / Ultra.
+3. **Motor Agéntico Real Integrado (`RealAgentEngine`):** Comunicación de baja latencia con los endpoints oficiales de Cloud Code mediante Server-Sent Events (SSE), canalizando el streaming de texto, bloques de pensamiento (`• Thought`) y la ejecución de herramientas directamente a los buffers de la terminal PTY a 144Hz.
 
 ---
 
@@ -333,7 +333,7 @@ Los archivos de credenciales se almacenan en el almacenamiento interno privado d
 ## 3. Arquitectura del Backend de Inferencia de Antigravity y Motor Agéntico Real (`RealAgentEngine`)
 
 ### 3.1 Flujo de Ejecución e Integración con el Servicio Oficial de Cloud Code
-Antigravity Studio prescinde de dependencias no autorizadas y proxies de terceros, integrándose de forma directa y nativa con el servicio oficial **Google Cloud Code API (`cloudcode-pa.googleapis.com`)**. Esta infraestructura corporativa y de desarrollo proporciona la pasarela oficial para el consumo de modelos de vanguardia (**Gemini 2.5 Flash** por defecto y Gemini 1.5 Pro) en Google Cloud Platform.
+Antigravity Studio prescinde de dependencias no autorizadas y proxies de terceros, integrándose de forma directa y nativa con el servicio oficial **Google Cloud Code API (`cloudcode-pa.googleapis.com`)**. Esta infraestructura corporativa y de desarrollo proporciona la pasarela oficial para el consumo del catálogo de modelos de vanguardia (**Gemini 3.8 Flash** por defecto, junto a Gemini 3.7/3.6 Flash, Gemini 3.1 Pro, Claude Sonnet/Opus 4.6 y GPT-OSS 120B) en Google Cloud Platform.
 
 La interacción se autentica estrictamente mediante el encabezado HTTP `Authorization: Bearer <access_token>` emitido bajo el alcance autorizado `https://www.googleapis.com/auth/cloud-platform`, garantizando total compatibilidad, eliminación del error 403 `restricted_client` y administración directa de cuotas por proyecto GCP.
 
@@ -342,22 +342,28 @@ graph TD
     subgraph UI & PTY Subsystem
         A1[User Prompt: > prompt or UI Chat] --> A2[RealAgentEngine Core]
         A3[PTY Master / xterm.js WebGL] <-->|Bidirectional I/O| A2
+        A4[Model Selection Badge or /model CLI] -->|Switch Model| A2
     end
 
     subgraph Agent Loop & Cloud Code Inference Engine
         A2 --> B0[loadCodeAssist Discovery & Project Context]
-        B0 --> B1[GoogleOAuthManager Inject Bearer Token: cloud-platform]
-        B1 --> B2[OkHttp SSE Client streamGenerateContent]
-        B2 -->|Raw SSE Stream cloudcode-pa.googleapis.com| B3[Streaming JSON Parser]
-        B3 -->|ModelHeader Gemini 2.5 Flash| A3
-        B3 -->|Thought Chunks: • Thought| A3
-        B3 -->|Text Delta Stream| A3
-        B3 -->|FunctionCall Event: • ToolName| B4[Local Tool Dispatcher]
-        B4 -->|Read/Write Files| B5[Workspace Directory filesDir/workspace]
-        B4 -->|Run Local Command| B6[POSIX PTY Sandbox]
-        B5 --> B7[FunctionResponse Result]
-        B6 --> B7
-        B7 -->|Submit Tool Result| B2
+        B0 -->|Verify cloudaicompanionProject & paidTier: GOOGLE_ONE_AI| B1{Companion Project?}
+        B1 -->|Found| B3[Cache cloudaicompanionProject]
+        B1 -->|Missing / Error #3501| B2[Fallback: onboardUser tierId: free-tier]
+        B2 -->|Provisioned| B3
+        B3 --> B4[Inject Project & Model into streamGenerateContent]
+        B4 --> B5[GoogleOAuthManager Inject Bearer Token: cloud-platform]
+        B5 --> B6[OkHttp SSE Client streamGenerateContent]
+        B6 -->|Raw SSE Stream cloudcode-pa.googleapis.com| B7[Streaming JSON Parser]
+        B7 -->|ModelHeader Gemini 3.8 Flash or active model| A3
+        B7 -->|Thought Chunks: • Thought| A3
+        B7 -->|Text Delta Stream| A3
+        B7 -->|FunctionCall Event: • ToolName| B8[Local Tool Dispatcher]
+        B8 -->|Read/Write Files| B9[Workspace Directory filesDir/workspace]
+        B8 -->|Run Local Command| B10[POSIX PTY Sandbox]
+        B9 --> B11[FunctionResponse Result]
+        B10 --> B11
+        B11 -->|Submit Tool Result| B6
     end
 ```
 
@@ -365,7 +371,7 @@ graph TD
 
 ### 3.2 Especificación de Endpoints y Protocolo de Inferencia de Cloud Code
 
-El motor agéntico opera mediante dos endpoints REST/SSE sobre la infraestructura oficial de Cloud Code:
+El motor agéntico opera mediante tres endpoints REST/SSE sobre la infraestructura oficial de Cloud Code:
 
 #### 3.2.1 Endpoint de Inicio y Descubrimiento (`loadCodeAssist`)
 - **URL Canónica:** `https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist`
@@ -374,29 +380,94 @@ El motor agéntico opera mediante dos endpoints REST/SSE sobre la infraestructur
   - `Authorization: Bearer <valid_access_token>` (Scope requerido: `https://www.googleapis.com/auth/cloud-platform`)
   - `Content-Type: application/json`
 - **Propósito:** Se ejecuta al inicializar el runtime agéntico o tras renovar credenciales. Resuelve el identificador del proyecto Google Cloud asociado al usuario, determina el nivel de suscripción y cuota (*tier*), y descubre los modelos autorizados.
-- **Payload de Solicitud:**
+- **Payload de Solicitud Estándar:**
   ```json
   {
     "metadata": {
-      "ideType": "ANTIGRAVITY_STUDIO",
-      "ideVersion": "2.0.0",
+      "ideType": "ANTIGRAVITY",
+      "ideVersion": "1.0.0",
       "pluginVersion": "1.0.0"
     }
   }
   ```
-- **Esquema de Respuesta:**
+- **Esquema de Respuesta Esperada (Suscripción Ultra / Google One AI $200):**
   ```json
   {
-    "cloudaicompanionProject": "projects/1071006060591",
-    "currentTier": "TIER_DEVELOPER",
+    "cloudaicompanionProject": "projects/cloudaicompanion-corp-dev",
+    "paidTier": {
+      "tierId": "google-one-ai-200",
+      "creditType": "GOOGLE_ONE_AI",
+      "state": "ACTIVE"
+    },
     "allowedModels": [
-      "gemini-2.5-flash",
-      "gemini-1.5-pro"
+      "gemini-3.8-flash",
+      "gemini-3.7-flash",
+      "gemini-3.6-flash",
+      "gemini-3.1-pro",
+      "claude-sonnet-4.6",
+      "claude-opus-4.6",
+      "gpt-oss-120b"
     ]
   }
   ```
 
-#### 3.2.2 Endpoint de Streaming Agéntico (`streamGenerateContent`)
+#### 3.2.2 Handshake de Suscripción Ultra / Google One AI ($200) y Resolución del Error #3501
+En entornos donde el usuario cuenta con una suscripción Ultra / Google One AI ($200) o cuentas recién autenticadas, las peticiones directas de generación de contenido pueden fallar inmediatamente con el código de error:
+`#3501 (SUBSCRIPTION_REQUIRED): Cloud AI Companion project is required or user is not onboarded`.
+
+Para erradicar este error, `RealAgentEngine` ejecuta obligatoriamente el siguiente protocolo de handshake y aprovisionamiento:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant UI as Terminal / UI Compose
+    participant Engine as RealAgentEngine
+    participant Auth as GoogleOAuthManager
+    participant CloudCode as Cloud Code API (cloudcode-pa)
+
+    UI->>Engine: executeAgentTask(userPrompt)
+    Engine->>Auth: getValidAccessToken()
+    Auth-->>Engine: Bearer access_token (cloud-platform)
+    alt companionProjectId no inicializado
+        Engine->>CloudCode: POST /v1internal:loadCodeAssist {"metadata": {"ideType": "ANTIGRAVITY", "ideVersion": "1.0.0", "pluginVersion": "1.0.0"}}
+        alt 200 OK con cloudaicompanionProject y paidTier (creditType: GOOGLE_ONE_AI)
+            CloudCode-->>Engine: { cloudaicompanionProject: "projects/cloudaicompanion-...", paidTier: { creditType: "GOOGLE_ONE_AI" } }
+            Engine->>Engine: Cache companionProjectId
+        else cloudaicompanionProject ausente / Error #3501 (SUBSCRIPTION_REQUIRED)
+            Note over Engine,CloudCode: Disparo automático de fallback de onboarding
+            Engine->>CloudCode: POST /v1internal:onboardUser {"tierId": "free-tier"}
+            CloudCode-->>Engine: 200 OK: { cloudaicompanionProject: "projects/cloudaicompanion-..." }
+            Engine->>Engine: Cache companionProjectId provisionado
+        end
+    end
+    Engine->>CloudCode: POST /v1internal:streamGenerateContent {"project": companionProjectId, "model": "gemini-3.8-flash", ...}
+    CloudCode-->>Engine: SSE Stream (thought, text delta, functionCall)
+    Engine->>UI: Renderizado continuo en PTY a 144Hz
+```
+
+1. **Flujo de Fallback de Onboarding (`onboardUser`):**
+   Si `cloudaicompanionProject` no está inicializado en la respuesta de `loadCodeAssist`, es una cadena vacía/nula, o si la llamada a inferencia retorna el error `#3501 (SUBSCRIPTION_REQUIRED)`, el motor dispara de manera transparente:
+   - **URL Canónica:** `https://cloudcode-pa.googleapis.com/v1internal:onboardUser`
+   - **Método HTTP:** `POST`
+   - **Encabezados:**
+     - `Authorization: Bearer <valid_access_token>`
+     - `Content-Type: application/json`
+   - **Payload:**
+     ```json
+     {
+       "tierId": "free-tier",
+       "metadata": {
+         "ideType": "ANTIGRAVITY",
+         "ideVersion": "1.0.0",
+         "pluginVersion": "1.0.0"
+       }
+     }
+     ```
+   - **Comportamiento:** La llamada provisiona el proyecto complementario del usuario en el clúster de Google Cloud y retorna la referencia `cloudaicompanionProject` válida.
+2. **Inyección Obligatoria del Campo `project`:**
+   `RealAgentEngine` almacena en cache en memoria el valor de `cloudaicompanionProject` (ej. `projects/cloudaicompanion-corp-dev`) y lo **inyecta de forma obligatoria** en el atributo `project` en la raíz del payload de cada petición enviada a `streamGenerateContent`. Las peticiones sin el parámetro `project` inyectado son rechazadas de inmediato por Google Cloud Code.
+
+#### 3.2.3 Endpoint de Streaming Agéntico (`streamGenerateContent`)
 - **URL Canónica:** `https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent`
 - **Método HTTP:** `POST`
 - **Encabezados Obligatorios:**
@@ -404,11 +475,11 @@ El motor agéntico opera mediante dos endpoints REST/SSE sobre la infraestructur
   - `Content-Type: application/json`
   - `Accept: text/event-stream`
 - **Propósito:** Canal de inferencia generativa interactiva bidireccional. Emite fragmentos SSE con razonamiento de pensamiento nativo (`thought`), texto generado y definiciones estructuradas de invocación de herramientas (`functionCall`).
-- **Payload de Solicitud Estructurado:**
+- **Payload de Solicitud Estructurado con Inyección de Proyecto:**
   ```json
   {
-    "model": "gemini-2.5-flash",
-    "project": "projects/1071006060591",
+    "project": "projects/cloudaicompanion-corp-dev",
+    "model": "gemini-3.8-flash",
     "contents": [
       {
         "role": "user",
@@ -476,7 +547,7 @@ El motor agéntico opera mediante dos endpoints REST/SSE sobre la infraestructur
   }
   ```
 
-#### 3.2.3 Decodificación SSE y Volcado a la Terminal a 144Hz
+#### 3.2.4 Decodificación SSE y Volcado a la Terminal a 144Hz
 1. El cliente OkHttp procesa el flujo en un despachador `Dispatchers.IO` a medida que arriban los eventos SSE (`data: { ... }`).
 2. Cada bloque de razonamiento (`parts[].thought`) y fragmento de texto (`parts[].text`) se codifica como secuencia UTF-8 y se vuelca de manera inmediata en el descriptor maestro de la PTY mediante `PtyNativeBridge.nativeWrite()`.
 3. La pantalla a 144Hz de la Xiaomi Pad 6 renderiza el flujo con una latencia entre cuadros $\le 16\,\text{ms}$, logrando una experiencia de terminal interactiva de ultra-alta velocidad sin saltos visuales ni buffering bloqueante.
@@ -513,14 +584,14 @@ La experiencia de interacción del agente en Antigravity Studio hereda el están
    - **Propósito:** Iniciar cada turno agéntico con separación visual clara respecto a las emisiones posteriores del modelo.
    - **Ejemplo:** `> Configura la integración con Cloud Code y valida los scopes autorizados`
 
-2. **Etiqueta Identificadora del Modelo (`Gemini 2.5 Flash`):**
-   - **Badge Distintivo:** `[Gemini 2.5 Flash]` o `Gemini 2.5 Flash ⚡`.
+2. **Etiqueta Identificadora del Modelo (`Gemini 3.8 Flash`):**
+   - **Badge Distintivo:** `[Gemini 3.8 Flash]` o `Gemini 3.8 Flash ⚡`.
    - **Estilo y Paleta:** Caja Obsidian Slate (`#1E293B`) con texto en Violeta Neón / Cyan (`#A855F7` / `#06B6D4`).
-   - **Propósito:** Informar de manera explícita el modelo de lenguaje en ejecución. Gemini 2.5 Flash opera como el modelo insignia predeterminado gracias a su velocidad de streaming de ultra-baja latencia y soporte de razonamiento nativo multimodal.
+   - **Propósito:** Informar de manera explícita el modelo de lenguaje en ejecución. `Gemini 3.8 Flash` opera como el modelo insignia predeterminado gracias a su velocidad de streaming de ultra-baja latencia y soporte de razonamiento nativo multimodal.
 
 3. **Bloque de Pensamiento y Razonamiento (`• Thought`):**
    - **Prefijo Visual:** Viñeta bullet `• Thought` (`\u2022 Thought` / ANSI `\u001B[38;2;148;163;184m`).
-   - **Canal de Datos:** Captura directamente los fragmentos de razonamiento (*thinking chunks* / *thought tokens*) transmitidos por Gemini 2.5 Flash en los campos de pensamiento del streaming SSE previos a la emisión del texto final o la invocación de herramientas.
+   - **Canal de Datos:** Captura directamente los fragmentos de razonamiento (*thinking chunks* / *thought tokens*) transmitidos por el modelo activo (`gemini-3.8-flash`, `claude-sonnet-4.6`, `claude-opus-4.6`, etc.) en los campos de pensamiento del streaming SSE previos a la emisión del texto final o la invocación de herramientas.
    - **Estilo de Renderizado:** Tipografía atenuada en gris Obsidian Slate (`#94A3B8`), con sangría estructurada de 2 espacios o barra de delimitación vertical (`│`).
    - **Dinámica de Estados:**
      - *Razonamiento activo:* Muestra indicador pulsante `⟳ Pensando...`.
@@ -540,23 +611,91 @@ La experiencia de interacción del agente en Antigravity Studio hereda el están
 ```text
 > Configura la integración con Cloud Code y valida los scopes autorizados
 
-[Gemini 2.5 Flash] ⚡
+[Gemini 3.8 Flash] ⚡
 • Thought
   El usuario requiere verificar la integración con el servicio oficial de Cloud Code (cloudcode-pa.googleapis.com) y confirmar que los scopes vigentes correspondan a openid, email, profile y cloud-platform.
   Inspeccionaré la especificación SPEC-002 y los contratos de OAuthConstants.kt.
   Procederé a auditar los archivos afectados mediante read_file.
 
 • read_file path="specs/02-google-oauth-agent.md"
-  ✓ Archivo leído con éxito (860 líneas)
+  ✓ Archivo leído con éxito (1040 líneas)
 
 • Thought
-  Confirmado: los endpoints oficiales son loadCodeAssist y streamGenerateContent bajo cloudcode-pa.googleapis.com con el scope cloud-platform.
+  Confirmado: los endpoints oficiales son loadCodeAssist, onboardUser y streamGenerateContent bajo cloudcode-pa.googleapis.com con el scope cloud-platform y el modelo predeterminado gemini-3.8-flash.
   Verificaré la ejecución del arnés de pruebas SDD.
 
 • run_command command="python harness/spec_validator.py"
   ✓ Ejecución completada: 100% CUMPLIMIENTO SDD [PASS]
 
-Se ha consolidado la arquitectura de inferencia con Cloud Code y los alcances oficiales autorizados de Antigravity.
+Se ha consolidado la arquitectura de inferencia con Cloud Code, el handshake de suscripción Ultra y el catálogo oficial de modelos de Antigravity.
+```
+
+---
+
+### 3.6 Catálogo Oficial de Modelos y Contrato del Selector (`ModelSelectionSheet`)
+
+Antigravity Studio estandariza un catálogo unificado de modelos de lenguaje de última generación para satisfacer diversas demandas de ingeniería: desde inferencias ultra-rápidas para edición de buffers en vivo hasta razonamiento profundo multietapa y pensamiento algorítmico extendido.
+
+#### 3.6.1 Catálogo Oficial de Modelos de Antigravity
+
+| Identificador (`id`) | Nombre Mostrado | Etiquetas de Rendimiento (*Tags*) | Rol y Características Principales | Por Defecto |
+| :--- | :--- | :--- | :--- | :---: |
+| `gemini-3.8-flash` | "Gemini 3.8 Flash" | `High`, `Fast` | Modelo insignia de Google para Antigravity. Inferencia multimodal de ultra-baja latencia sub-16ms a 144Hz con alto razonamiento agéntico. | **SÍ** |
+| `gemini-3.7-flash` | "Gemini 3.7 Flash" | `Medium`, `Fast` | Balance óptimo entre velocidad de respuesta y precisión analítica en tareas complejas de refactorización. | No |
+| `gemini-3.6-flash` | "Gemini 3.6 Flash" | `Medium`, `Fast` | Streaming ágil de respuesta inmediata, ideal para autocompletado semántico y linting en tiempo real. | No |
+| `gemini-3.1-pro` | "Gemini 3.1 Pro" | `Low` | Razonamiento formal intensivo para arquitectura de sistemas, diseño de contratos y síntesis matemática. | No |
+| `claude-sonnet-4.6` | "Claude Sonnet 4.6 (Thinking)" | `Thinking`, `Pro` | Modelo de frontera con cadena de pensamiento extendido nativa, altamente eficaz en resolución de bugs oscuros. | No |
+| `claude-opus-4.6` | "Claude Opus 4.6 (Thinking)" | `Thinking`, `Ultra` | Máxima capacidad cognitiva y pensamiento analítico profundo para planificación macro-agéntica. | No |
+| `gpt-oss-120b` | "GPT-OSS 120B (Medium)" | `Medium`, `OpenWeights` | Inferencia de pesos abiertos para máxima transparencia, reproducibilidad y compatibilidad con herramientas libres. | No |
+
+#### 3.6.2 Contrato de Interfaz del Selector (`ModelSelectionSheet`)
+
+El selector de modelos adopta un enfoque de diseño dual accesible tanto mediante interacción gestual/táctil en la UI como mediante la interfaz de línea de comandos en la terminal emulada:
+
+1. **Invocación Táctil:**
+   - Ubicado en la barra de estado inferior de la interfaz (`BottomStatusBar`), el componente `ModelStatusBarBadge` muestra el modelo activo y sus etiquetas (ej. `⚡ Gemini 3.8 Flash [High, Fast]`).
+   - Al pulsar el badge táctilmente, se despliega el componente **Modal Bottom Sheet (`ModelSelectionSheet`)**.
+
+2. **Invocación desde la Terminal (Comando `/model`):**
+   - El usuario puede escribir en cualquier momento `/model` en la línea de órdenes del CLI y presionar `ENTER`.
+   - Si se invoca como `/model` (sin argumentos), se despliega de inmediato el componente `ModelSelectionSheet` sobre la pantalla.
+   - Si se invoca con el identificador del modelo (ej. `/model claude-sonnet-4.6` o `/model gemini-3.8-flash`), el runtime conmuta inmediatamente el modelo activo sin desplegar el sheet, imprimiendo una confirmación ANSI en la terminal:
+     ```text
+     ✓ Modelo activo conmutado a: Claude Sonnet 4.6 (Thinking) [Thinking, Pro]
+     ```
+
+3. **Flujo de Interacción y Estados del Selector:**
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Dev as Desarrollador
+    participant Bar as BottomStatusBar (ModelStatusBarBadge)
+    participant Term as Terminal PTY / CLI Prompt
+    participant Sheet as ModelSelectionSheet (ModalBottomSheet)
+    participant Engine as RealAgentEngine
+    participant Store as Encrypted / Local Preferences
+
+    alt Acceso Táctil
+        Dev->>Bar: Pulsa ModelStatusBarBadge
+        Bar->>Sheet: Abre Modal Bottom Sheet
+    else Acceso por Comando de Terminal
+        Dev->>Term: Ingresa "/model"
+        Term->>Sheet: Abre Modal Bottom Sheet
+    else Conmutación Rápida CLI
+        Dev->>Term: Ingresa "/model gemini-3.7-flash"
+        Term->>Engine: selectModel("gemini-3.7-flash")
+        Engine->>Store: Guarda modelo en "selected_model_id"
+        Engine-->>Term: ✓ Modelo conmutado a Gemini 3.7 Flash
+    end
+
+    Sheet-->>Dev: Muestra lista de 7 modelos con tags [High, Fast, Thinking...]
+    Dev->>Sheet: Toca un modelo del catálogo (ej. claude-sonnet-4.6)
+    Sheet->>Engine: selectModel("claude-sonnet-4.6")
+    Engine->>Store: Persiste modelo en "selected_model_id"
+    Engine->>Engine: Emite nuevo estado StateFlow<AntigravityModel>
+    Sheet-->>Dev: Cierra Modal Bottom Sheet suavemente
+    Bar-->>Bar: Actualiza etiqueta a "Claude Sonnet 4.6 (Thinking)"
 ```
 
 ---
@@ -604,6 +743,7 @@ data class OAuthConstants(
     val tokenEndpoint: String = "https://oauth2.googleapis.com/token",
     val userinfoEndpoint: String = "https://www.googleapis.com/oauth2/v3/userinfo",
     val cloudCodeLoadEndpoint: String = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist",
+    val cloudCodeOnboardEndpoint: String = "https://cloudcode-pa.googleapis.com/v1internal:onboardUser",
     val cloudCodeStreamEndpoint: String = "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent",
     val scopes: String = "openid email profile https://www.googleapis.com/auth/cloud-platform"
 )
@@ -679,11 +819,13 @@ interface GoogleOAuthManager {
 ```kotlin
 package com.antigravity.studio.core.agent
 
+import com.antigravity.studio.core.model.AntigravityModel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 sealed interface AgentStreamEvent {
-    /** Emite la cabecera con el nombre del modelo generativo activo (ej. "Gemini 2.5 Flash") */
-    data class ModelHeader(val modelName: String = "Gemini 2.5 Flash") : AgentStreamEvent
+    /** Emite la cabecera con el nombre del modelo generativo activo (ej. "Gemini 3.8 Flash") */
+    data class ModelHeader(val modelName: String = "Gemini 3.8 Flash") : AgentStreamEvent
 
     /** Fragmento incremental del bloque de pensamiento (`• Thought`) */
     data class ThoughtDelta(val thoughtText: String) : AgentStreamEvent
@@ -717,18 +859,41 @@ sealed interface AgentStreamEvent {
 
 interface RealAgentEngine {
     /**
-     * Modelo generativo por defecto del motor agéntico.
+     * Identificador del modelo generativo por defecto del motor agéntico ("gemini-3.8-flash").
      */
-    val defaultModel: String get() = "Gemini 2.5 Flash"
+    val defaultModel: String get() = "gemini-3.8-flash"
+
+    /**
+     * Modelo actualmente activo para la sesión agéntica.
+     */
+    val currentModel: StateFlow<AntigravityModel>
+
+    /**
+     * Identificador de proyecto companion descubierto (projects/cloudaicompanion-...) en cache.
+     */
+    val companionProjectId: StateFlow<String?>
 
     /**
      * Inicializa el descubrimiento de proyecto y modelos con el servicio oficial de Cloud Code
      * (POST https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist).
+     * Resuelve cloudaicompanionProject y valida el creditType (ej: GOOGLE_ONE_AI).
      */
     suspend fun initializeCodeAssist(): Result<String>
 
     /**
+     * Fallback de onboarding ante error #3501 (SUBSCRIPTION_REQUIRED) o proyecto no inicializado.
+     * Invoca POST https://cloudcode-pa.googleapis.com/v1internal:onboardUser con tierId: "free-tier".
+     */
+    suspend fun onboardUser(tierId: String = "free-tier"): Result<String>
+
+    /**
+     * Conmuta el modelo activo a partir del catálogo oficial de Antigravity.
+     */
+    fun selectModel(modelId: String): Result<AntigravityModel>
+
+    /**
      * Ejecuta una consulta agéntica con streaming SSE contra streamGenerateContent de Cloud Code,
+     * inyectando obligatoriamente el companionProjectId en el campo "project",
      * soporte de pensamiento (`• Thought`) y ejecución automática de herramientas (`• ToolName`).
      */
     fun executeAgentTask(
@@ -751,7 +916,97 @@ interface RealAgentEngine {
 
 ---
 
-### 4.3 Contratos de Presentación e Interfaz Visual Antigravity 2.0
+### 4.3 Contratos del Catálogo Oficial de Modelos y Comando CLI `/model`
+
+```kotlin
+package com.antigravity.studio.core.model
+
+/**
+ * Entidad de dominio que modela un motor generativo admitido en Antigravity Studio.
+ */
+data class AntigravityModel(
+    val id: String,
+    val displayName: String,
+    val tags: List<String>,
+    val description: String,
+    val isDefault: Boolean = false
+)
+
+object AntigravityModelCatalog {
+    val GEMINI_3_8_FLASH = AntigravityModel(
+        id = "gemini-3.8-flash",
+        displayName = "Gemini 3.8 Flash",
+        tags = listOf("High", "Fast"),
+        description = "Modelo insignia predeterminado. Máxima velocidad de streaming sub-16ms a 144Hz y razonamiento agéntico.",
+        isDefault = true
+    )
+    val GEMINI_3_7_FLASH = AntigravityModel(
+        id = "gemini-3.7-flash",
+        displayName = "Gemini 3.7 Flash",
+        tags = listOf("Medium", "Fast"),
+        description = "Equilibrio óptimo entre velocidad de ejecución y capacidad analítica para refactorización."
+    )
+    val GEMINI_3_6_FLASH = AntigravityModel(
+        id = "gemini-3.6-flash",
+        displayName = "Gemini 3.6 Flash",
+        tags = listOf("Medium", "Fast"),
+        description = "Inferencia ultrarrápida para autocompletado inteligente y linting sintáctico."
+    )
+    val GEMINI_3_1_PRO = AntigravityModel(
+        id = "gemini-3.1-pro",
+        displayName = "Gemini 3.1 Pro",
+        tags = listOf("Low"),
+        description = "Razonamiento profundo para análisis de arquitectura, invariantes y verificación formal."
+    )
+    val CLAUDE_SONNET_4_6 = AntigravityModel(
+        id = "claude-sonnet-4.6",
+        displayName = "Claude Sonnet 4.6 (Thinking)",
+        tags = listOf("Thinking", "Pro"),
+        description = "Modelo Claude Sonnet 4.6 con pensamiento extendido nativo para debugging complejo."
+    )
+    val CLAUDE_OPUS_4_6 = AntigravityModel(
+        id = "claude-opus-4.6",
+        displayName = "Claude Opus 4.6 (Thinking)",
+        tags = listOf("Thinking", "Ultra"),
+        description = "Modelo Claude Opus 4.6 con máxima potencia analítica y síntesis de sistemas a gran escala."
+    )
+    val GPT_OSS_120B = AntigravityModel(
+        id = "gpt-oss-120b",
+        displayName = "GPT-OSS 120B (Medium)",
+        tags = listOf("Medium", "OpenWeights"),
+        description = "Modelo de 120B pesos abiertos para interoperabilidad y preservación de soberanía de código."
+    )
+
+    val ALL_MODELS: List<AntigravityModel> = listOf(
+        GEMINI_3_8_FLASH,
+        GEMINI_3_7_FLASH,
+        GEMINI_3_6_FLASH,
+        GEMINI_3_1_PRO,
+        CLAUDE_SONNET_4_6,
+        CLAUDE_OPUS_4_6,
+        GPT_OSS_120B
+    )
+
+    fun findById(modelId: String): AntigravityModel? =
+        ALL_MODELS.firstOrNull { it.id.equals(modelId.trim(), ignoreCase = true) }
+}
+
+/**
+ * Gestor del comando CLI '/model' para conmutar modelos desde la terminal o disparar el ModelSelectionSheet.
+ */
+interface TerminalModelCommandHandler {
+    /**
+     * Intercepta entradas de la terminal emulada PTY.
+     * - Si input == "/model", abre reactivamente el ModelSelectionSheet en la UI.
+     * - Si input == "/model <id>", conmuta el modelo activo a <id> y emite respuesta ANSI.
+     */
+    suspend fun handleModelCommand(input: String): Boolean
+}
+```
+
+---
+
+### 4.4 Contratos de Presentación e Interfaz Visual Antigravity 2.0
 
 ```kotlin
 package com.antigravity.studio.core.agent.presentation
@@ -781,7 +1036,7 @@ data class ToolCallPresentation(
  */
 data class AgentTurnPresentation(
     val userPrompt: String,
-    val modelTag: String = "Gemini 2.5 Flash",
+    val modelTag: String = "Gemini 3.8 Flash",
     val thoughtChunks: List<String> = emptyList(),
     val isThinking: Boolean = false,
     val toolCalls: List<ToolCallPresentation> = emptyList(),
@@ -801,9 +1056,9 @@ interface AntigravityVisualPresenter {
     fun formatUserPrompt(prompt: String): String
 
     /**
-     * Formatea la etiqueta identificadora del modelo generativo (ej. `[Gemini 2.5 Flash]`).
+     * Formatea la etiqueta identificadora del modelo generativo (ej. `[Gemini 3.8 Flash]`).
      */
-    fun formatModelBadge(model: String = "Gemini 2.5 Flash"): String
+    fun formatModelBadge(model: String = "Gemini 3.8 Flash"): String
 
     /**
      * Formatea el encabezado del bloque de pensamiento (`• Thought`).
@@ -875,7 +1130,59 @@ fun GoogleAuthTopBarAction(
 
 ---
 
-### 5.2 Componentes Jetpack Compose de la Interfaz Visual Antigravity 2.0
+### 5.2 Componente `ModelStatusBarBadge` en la Barra de Estado Inferior
+En la barra de estado inferior (`BottomStatusBar`), se aloja un badge interactivo que expone permanentemente el modelo generativo en uso:
+
+```kotlin
+package com.antigravity.studio.ui.model
+
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.antigravity.studio.core.model.AntigravityModel
+
+/**
+ * Badge clickeable situado en la barra de estado inferior que exhibe el modelo activo
+ * y sus etiquetas principales. Al pulsar, despliega el componente ModelSelectionSheet.
+ */
+@Composable
+fun ModelStatusBarBadge(
+    modifier: Modifier = Modifier,
+    currentModel: AntigravityModel,
+    onClick: () -> Unit
+)
+```
+
+---
+
+### 5.3 Componente Modal Bottom Sheet del Selector de Modelos (`ModelSelectionSheet`)
+Componente modal deslizable desde el borde inferior de la pantalla que visualiza los 7 modelos admitidos de Antigravity con sus tags de velocidad y razonamiento:
+
+```kotlin
+package com.antigravity.studio.ui.model
+
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
+import com.antigravity.studio.core.model.AntigravityModel
+
+/**
+ * Componente Modal Bottom Sheet para la inspección y selección interactiva de modelos de Antigravity.
+ * Accesible tanto al pulsar ModelStatusBarBadge en la barra de estado inferior como vía "/model" en terminal.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun ModelSelectionSheet(
+    modifier: Modifier = Modifier,
+    models: List<AntigravityModel>,
+    selectedModel: AntigravityModel,
+    onModelSelected: (AntigravityModel) -> Unit,
+    onDismissRequest: () -> Unit
+)
+```
+
+---
+
+### 5.4 Componentes Jetpack Compose de la Interfaz Visual Antigravity 2.0
 
 Para el panel agéntico y visualizador de chat interactivo en Jetpack Compose, se especifican los siguientes componentes desacoplados siguiendo la estética Cyber-Obsidian:
 
@@ -897,12 +1204,12 @@ fun AntigravityPromptItem(
 )
 
 /**
- * Badge visual distintivo que exhibe la etiqueta del modelo activo (`Gemini 2.5 Flash`).
+ * Badge visual distintivo que exhibe la etiqueta del modelo activo (`Gemini 3.8 Flash`).
  */
 @Composable
 fun AntigravityModelBadge(
     modifier: Modifier = Modifier,
-    modelName: String = "Gemini 2.5 Flash"
+    modelName: String = "Gemini 3.8 Flash"
 )
 
 /**
@@ -948,10 +1255,11 @@ La siguiente tabla estipula los criterios de verificación obligatorios para el 
 | **`AC-AUTH-003`** | Token Exchange & Secure Storage | El intercambio POST contra `https://oauth2.googleapis.com/token` envía `code_verifier` y `client_secret`, persistiendo las credenciales con scope `https://www.googleapis.com/auth/cloud-platform` en `$filesDir/.gemini/oauth_creds.json` y `google_accounts.json` con permisos POSIX `0600`. | Test de integración con mock server de Google OAuth verificando la creación de archivos con máscara de permisos `0600` y almacenamiento de scopes autorizados. |
 | **`AC-AUTH-004`** | Token Auto-Refresh | `getValidAccessToken` detecta tokens con vigencia remanente $\le 300\,\text{s}$ o errores 401, ejecutando silenciosamente el refresco mediante `grant_type=refresh_token` y `client_secret` oficial sin interrumpir al usuario. | Test unitario inyectando un token expirado y comprobando la renovación atómica y transparente del `access_token`. |
 | **`AC-AUTH-005`** | Multi-Usuario y Persistencia | El registro `google_accounts.json` almacena múltiples cuentas de desarrollador y conmuta la cuenta activa sin degradar ni eliminar credenciales previas. | Test unitario registrando dos perfiles distintos y alternando el valor de `active_account_email`. |
-| **`AC-AUTH-006`** | Cloud Code Backend & SSE Streaming to PTY a 144Hz | `RealAgentEngine` conecta con el backend oficial de Cloud Code (`loadCodeAssist` y `streamGenerateContent` bajo `https://cloudcode-pa.googleapis.com/v1internal`) inyectando `Authorization: Bearer <access_token>` con scope `https://www.googleapis.com/auth/cloud-platform`, transmitiendo respuestas SSE al descriptor maestro de la PTY con latencia de cuadro $\le 16\,\text{ms}$ a 144Hz. | Test instrumentado validando handshake con Cloud Code y la tasa de transferencia continua hacia el descriptor POSIX de la PTY. |
+| **`AC-AUTH-006`** | Cloud Code Handshake, Suscripción Ultra / Google One AI ($200) y Fallback `onboardUser` | `RealAgentEngine` ejecuta el handshake con `POST loadCodeAssist` enviando `{"metadata": {"ideType": "ANTIGRAVITY", "ideVersion": "1.0.0", "pluginVersion": "1.0.0"}}`, resuelve `cloudaicompanionProject` y detecta `paidTier` con `creditType: GOOGLE_ONE_AI`. Si `cloudaicompanionProject` no está inicializado o surge el error `#3501 (SUBSCRIPTION_REQUIRED)`, dispara el fallback `POST onboardUser` con `tierId: "free-tier"` e inyecta obligatoriamente el `project` en el payload de `streamGenerateContent` con streaming SSE a 144Hz. | Test de integración con mock server de Cloud Code validando detección de `paidTier`, ejecución de fallback ante error 3501, e inyección estricta del campo `project` en inferencia. |
 | **`AC-AUTH-007`** | Workspace Tool Sandboxing | Las herramientas de ejecución (`write_file`, `read_file`, `list_directory`) operan exclusivamente en `$filesDir/workspace`, bloqueando cualquier intento de escape o traversal (`../`). | Test de seguridad ejecutando peticiones con rutas prohibidas como `/system/` o `/data/data/com.antigravity.studio/databases`. |
 | **`AC-AUTH-008`** | UI Auth Integration & State Flow | El componente `GoogleAuthTopBarAction` reacciona a los cambios en `AuthState`, mostrando botón de login en estado desconectado y el badge `shadrick1212@gmail.com 🟢 ONLINE` al autenticarse. | Test de interfaz con `ComposeTestRule` inyectando secuencias de estados de autenticación y verificando nodos semánticos. |
-| **`AC-AUTH-009`** | Antigravity 2.0 Visual Presentation Contract | `RealAgentEngine` y `AntigravityVisualPresenter` estructuran el turno agéntico con prompt de usuario `>`, badge de modelo `Gemini 2.5 Flash`, bloque colapsable `• Thought` y llamadas a herramientas trazables `• ToolName`. | Test unitario verificando la emisión de eventos estructurados (`ModelHeader`, `ThoughtDelta`, `ToolCallStarted`) y el formateo ANSI y Compose de prompt `>`, `• Thought` y `• ToolName`. |
+| **`AC-AUTH-009`** | Antigravity 2.0 Visual Presentation Contract | `RealAgentEngine` y `AntigravityVisualPresenter` estructuran el turno agéntico con prompt de usuario `>`, badge de modelo predeterminado `Gemini 3.8 Flash`, bloque colapsable `• Thought` y llamadas a herramientas trazables `• ToolName`. | Test unitario verificando la emisión de eventos estructurados (`ModelHeader`, `ThoughtDelta`, `ToolCallStarted`) y el formateo ANSI y Compose de prompt `>`, `• Thought` y `• ToolName`. |
+| **`AC-AUTH-010`** | Catálogo Oficial de Modelos y Contrato del Selector (`ModelSelectionSheet`) | El selector de modelos expone el catálogo oficial (`gemini-3.8-flash` [Por defecto], `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.1-pro`, `claude-sonnet-4.6`, `claude-opus-4.6`, `gpt-oss-120b`) accesible mediante `ModelSelectionSheet` (Modal Bottom Sheet) al pulsar `ModelStatusBarBadge` en la barra de estado inferior o al invocar `/model` en la terminal, conmutando reactivamente el modelo en `RealAgentEngine`. | Test unitario y de UI con `ComposeTestRule` verificando la apertura del Modal Bottom Sheet, la ejecución de `/model` en la PTY y la conmutación efectiva del modelo en las solicitudes a Cloud Code. |
 
 ---
 
@@ -960,17 +1268,23 @@ La siguiente tabla estipula los criterios de verificación obligatorios para el 
 1. **`android-core`:**
    - Implementar `LocalhostLoopbackReceiverImpl` con `ServerSocket(54123)` interceptando `/callback` y `/oauth-callback` y sirviendo HTML Cyber-Obsidian.
    - Actualizar `GoogleOAuthManagerImpl` con las credenciales oficiales de Antigravity (`1071006060591-antigravity.apps.googleusercontent.com` con fallback a `884354919052-...`) y la lista oficial de scopes (`openid email profile https://www.googleapis.com/auth/cloud-platform`), purgando los scopes restringidos causantes del error 403 `restricted_client`.
-   - Implementar la integración con el backend de Cloud Code (`loadCodeAssist` y `streamGenerateContent` en `cloudcode-pa.googleapis.com`) autenticando mediante el token con scope `cloud-platform`.
-   - Implementar el retorno al primer plano de la aplicación mediante `Intent` flags.
+   - Implementar el handshake de `loadCodeAssist` con metadata (`ideType: ANTIGRAVITY`, `ideVersion: 1.0.0`, `pluginVersion: 1.0.0`), captura de `cloudaicompanionProject` y detección de `paidTier` con `creditType: GOOGLE_ONE_AI`.
+   - Implementar el fallback de `onboardUser` con `tierId: "free-tier"` para erradicar el error `#3501 (SUBSCRIPTION_REQUIRED)` y cachear el proyecto complementario en `RealAgentEngine`.
+   - Inyectar obligatoriamente el parámetro `project` en la raíz de cada payload enviado a `streamGenerateContent`.
+   - Implementar el catálogo `AntigravityModelCatalog` con los 7 modelos admitidos (`gemini-3.8-flash` por defecto, `gemini-3.7-flash`, `gemini-3.6-flash`, `gemini-3.1-pro`, `claude-sonnet-4.6`, `claude-opus-4.6`, `gpt-oss-120b`).
+   - Implementar `TerminalModelCommandHandler` para interceptar `/model` y `/model <id>` conmutando modelos en caliente desde la terminal PTY.
    - Reforzar el interceptor OkHttp para inyección y auto-refresco transparente del Bearer token.
-   - Conectar el streaming SSE de `Gemini 2.5 Flash` con el parser de pensamientos (`thought chunks`) y el sandbox de herramientas en `RealAgentEngineImpl`.
-   - Implementar `AntigravityVisualPresenter` para el renderizado estructurado con secuencias ANSI en el descriptor maestro de la PTY.
+   - Conectar el streaming SSE con el parser de pensamientos (`thought chunks`) y el sandbox de herramientas en `RealAgentEngineImpl`.
+   - Implementar `AntigravityVisualPresenter` para el renderizado estructurado con secuencias ANSI en el descriptor maestro de la PTY a 144Hz.
 2. **`ui-designer`:**
    - Implementar `GoogleAuthTopBarAction` en Jetpack Compose respetando la paleta Cyber-Obsidian.
-   - Integrar la acción de inicio de sesión con el `LocalhostLoopbackReceiver`.
+   - Implementar `ModelStatusBarBadge` en la barra de estado inferior para exhibir el modelo activo.
+   - Implementar el componente `ModelSelectionSheet` (Modal Bottom Sheet) en Jetpack Compose con los 7 modelos y etiquetas (`High`, `Fast`, `Medium`, `Low`, `Thinking`, `Ultra`).
+   - Conectar el evento del badge inferior y la señal de terminal `/model` con el despliegue reactivo de `ModelSelectionSheet`.
    - Implementar los componentes visuales de Antigravity 2.0 (`AntigravityPromptItem`, `AntigravityModelBadge`, `AntigravityThoughtCard`, `AntigravityToolCallItem`, `AntigravityAgentTurnView`).
    - Diseñar el menú contextual para cambiar de cuenta y visualizar detalles de la cuota.
 3. **`qa-harness`:**
    - Desarrollar pruebas unitarias para `LocalhostLoopbackReceiver` y `GoogleOAuthManager`.
    - Probar el comportamiento del socket ante desconexiones o timeouts (120 s).
-   - Validar exhaustivamente los criterios `AC-AUTH-001` hasta `AC-AUTH-009`.
+   - Validar exhaustivamente los criterios `AC-AUTH-001` hasta `AC-AUTH-010`.
+   - Ejecutar la suite de validación SDD con `python harness/spec_validator.py`.

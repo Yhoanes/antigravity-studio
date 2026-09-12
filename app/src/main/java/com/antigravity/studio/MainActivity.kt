@@ -25,6 +25,7 @@ import com.antigravity.studio.agent.AgentStreamEvent
 import com.antigravity.studio.agent.RealAgentEngine
 import com.antigravity.studio.model.AgentSessionState
 import com.antigravity.studio.model.AgentStatus
+import com.antigravity.studio.model.AntigravityModelCatalog
 import com.antigravity.studio.model.TerminalSession
 import com.antigravity.studio.theme.AntigravityTheme
 import com.antigravity.studio.theme.AppThemePreset
@@ -42,6 +43,7 @@ private const val PROMPT = "\u001b[1;36m> \u001b[0m"
 
 private fun buildWelcomeBanner(activeUserEmail: String?): ByteArray {
     val emailDisplay = activeUserEmail ?: "Sin sesión activa"
+    val modelDisplay = AntigravityModelCatalog.selectedModel.value.displayName
     return (
         "\r\n" +
         "\u001b[1;36m    ___         __  _                         _  __\u001b[0m\r\n" +
@@ -52,7 +54,7 @@ private fun buildWelcomeBanner(activeUserEmail: String?): ByteArray {
         "\u001b[1;36m                   /____/                         /____/\u001b[0m\r\n\r\n" +
         "\u001b[38;2;139;92;246mAntigravity Studio\u001b[0m \u001b[38;2;139;148;158m• Autonomous Agent Development Station\u001b[0m\r\n" +
         "\u001b[38;2;34;197;94m● Google Cloud:\u001b[0m \u001b[38;2;248;250;252m$emailDisplay\u001b[0m\r\n" +
-        "\u001b[38;2;34;197;94m● Agent Engine:\u001b[0m \u001b[38;2;248;250;252mGemini 2.5 Flash\u001b[0m\r\n\r\n" +
+        "\u001b[38;2;34;197;94m● Agent Engine:\u001b[0m \u001b[38;2;248;250;252m$modelDisplay\u001b[0m\r\n\r\n" +
         PROMPT
     ).toByteArray(Charsets.UTF_8)
 }
@@ -62,9 +64,36 @@ private val HELP_MENU = (
     "Escribe directamente cualquier instrucción o pregunta en lenguaje natural.\r\n" +
     "Comandos del sistema:\r\n" +
     "  ! <comando>   Ejecuta comandos de shell en el espacio de trabajo (ej: !ls, !pwd)\r\n" +
+    "  /model        Muestra y permite cambiar el modelo de IA activo\r\n" +
     "  clear         Limpia la pantalla de la terminal\r\n\r\n" +
     PROMPT
 ).toByteArray(Charsets.UTF_8)
+
+internal fun formatModelListMessage(): String {
+    val currentSelected = AntigravityModelCatalog.selectedModel.value
+    val sb = StringBuilder()
+    sb.append("\r\n\u001b[1;36mModelos disponibles en Antigravity Studio:\u001b[0m\r\n\r\n")
+    for (model in AntigravityModelCatalog.models) {
+        val isActive = model.id == currentSelected.id
+        val tagsStr = if (model.tags.isNotEmpty()) " \u001b[38;2;139;92;246m[${model.tags.joinToString(", ")}]\u001b[0m" else ""
+        if (isActive) {
+            sb.append("  \u001b[1;32m● ${model.displayName}\u001b[0m \u001b[38;2;139;148;158m(${model.id})\u001b[0m$tagsStr \u001b[1;32m* ACTIVO\u001b[0m\r\n")
+        } else {
+            sb.append("    \u001b[38;2;248;250;252m${model.displayName}\u001b[0m \u001b[38;2;139;148;158m(${model.id})\u001b[0m$tagsStr\r\n")
+        }
+    }
+    sb.append("\r\n\u001b[38;2;139;148;158mUsa /model <nombre> para cambiar o toca el badge inferior.\u001b[0m\r\n\r\n$PROMPT")
+    return sb.toString()
+}
+
+internal fun handleModelSelectionCommand(query: String): String {
+    val changed = AntigravityModelCatalog.selectModelById(query)
+    return if (changed) {
+        "\r\n\u001b[1;32m✓ Modelo cambiado a: ${AntigravityModelCatalog.selectedModel.value.displayName}\u001b[0m\r\n\r\n$PROMPT"
+    } else {
+        "\r\n\u001b[1;31m✖ Modelo no encontrado: '$query'. Escribe /model para ver la lista.\u001b[0m\r\n\r\n$PROMPT"
+    }
+}
 
 /**
  * MainActivity - Primary entry point for Antigravity Studio on Android.
@@ -164,7 +193,7 @@ class MainActivity : ComponentActivity() {
                     val msg = (
                         "\r\n\u001b[1;32m✔ [Google OAuth 2.0 PKCE] Sesión iniciada con éxito.\u001b[0m\r\n" +
                         "\u001b[38;2;139;92;246m● Cuenta activa: ${state.email}\u001b[0m\r\n" +
-                        "\u001b[1;36m● Modelo Gemini 2.5 Flash conectado directamente.\u001b[0m\r\n\r\n" +
+                        "\u001b[1;36m● Modelo ${AntigravityModelCatalog.selectedModel.value.displayName} conectado directamente.\u001b[0m\r\n\r\n" +
                         PROMPT
                     ).toByteArray(Charsets.UTF_8)
                     activeSessionState.value?.emitOutput(msg)
@@ -275,6 +304,17 @@ class MainActivity : ComponentActivity() {
 
             if (prompt == "help" || prompt == "--help" || prompt == "agy" || prompt == "agy --help" || prompt == "agy help") {
                 uiSession.emitOutput(HELP_MENU)
+                return
+            }
+
+            if (prompt == "/model" || prompt == "model") {
+                uiSession.emitOutput(formatModelListMessage().toByteArray(Charsets.UTF_8))
+                return
+            }
+
+            if (prompt.startsWith("/model ")) {
+                val query = prompt.removePrefix("/model ").trim()
+                uiSession.emitOutput(handleModelSelectionCommand(query).toByteArray(Charsets.UTF_8))
                 return
             }
 

@@ -76,6 +76,8 @@ import com.antigravity.studio.core.auth.AuthState
 import com.antigravity.studio.ui.auth.GoogleAuthTopBarAction
 import com.antigravity.studio.model.AgentSessionState
 import com.antigravity.studio.model.AgentStatus
+import com.antigravity.studio.model.AntigravityModel
+import com.antigravity.studio.model.AntigravityModelCatalog
 import com.antigravity.studio.model.GitFileStatus
 import com.antigravity.studio.model.ProjectFile
 import com.antigravity.studio.model.TerminalSession
@@ -229,6 +231,8 @@ fun WorkspaceScaffold(
     val updateStatus by UpdateManager.updateStatus.collectAsState()
     var showUpdateDialog by remember { mutableStateOf(false) }
 
+    val currentModel by AntigravityModelCatalog.selectedModel.collectAsState()
+    var showModelSheet by remember { mutableStateOf(false) }
     var isExplorerVisible by remember { mutableStateOf(false) }
     var splitFraction by remember { mutableFloatStateOf(0.72f) }
     var isCtrlActive by remember { mutableStateOf(false) }
@@ -407,7 +411,8 @@ fun WorkspaceScaffold(
                         rows = rows,
                         pid = pid,
                         cwd = cwd,
-                        activeModel = agentState.activeModel
+                        activeModel = currentModel.displayName,
+                        onModelClick = { showModelSheet = true }
                     )
                 }
             }
@@ -424,6 +429,20 @@ fun WorkspaceScaffold(
             },
             onRetry = {
                 UpdateManager.checkForUpdates(coroutineScope)
+            }
+        )
+    }
+
+    // Generative Model Selection Sheet
+    if (showModelSheet) {
+        ModelSelectionSheet(
+            selectedModel = currentModel,
+            onSelectModel = { model ->
+                AntigravityModelCatalog.selectModel(model)
+                showModelSheet = false
+            },
+            onDismissRequest = {
+                showModelSheet = false
             }
         )
     }
@@ -810,7 +829,8 @@ private fun TerminalStatusBar(
     rows: Int,
     pid: Int,
     cwd: String,
-    activeModel: String = "Gemini 2.5 Flash"
+    activeModel: String = "Gemini 3.8 Flash",
+    onModelClick: () -> Unit = {}
 ) {
     Row(
         modifier = Modifier
@@ -831,13 +851,6 @@ private fun TerminalStatusBar(
                 color = StatusSuccess,
                 fontSize = 10.sp,
                 fontFamily = FontFamily.Monospace
-            )
-            Text(
-                text = "Gemini 2.5 Flash",
-                color = NeonCyan,
-                fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.Bold
             )
             Text(
                 text = "LATENCY: ≤ 6.9ms",
@@ -872,7 +885,10 @@ private fun TerminalStatusBar(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.widthIn(max = 160.dp)
             )
-            ActiveModelBadge(modelName = activeModel)
+            ActiveModelBadge(
+                modelName = activeModel,
+                onClick = onModelClick
+            )
         }
     }
 }
@@ -883,8 +899,9 @@ private fun TerminalStatusBar(
  */
 @Composable
 private fun ActiveModelBadge(
-    modelName: String = "Gemini 2.5 Flash",
+    modelName: String = "Gemini 3.8 Flash",
     dotColor: Color = NeonCyan,
+    onClick: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "modelDotPulse")
@@ -907,6 +924,7 @@ private fun ActiveModelBadge(
                 color = dotColor.copy(alpha = 0.35f),
                 shape = RoundedCornerShape(4.dp)
             )
+            .clickable(onClick = onClick)
             .padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(5.dp)

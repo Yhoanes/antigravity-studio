@@ -3,6 +3,7 @@ package com.antigravity.studio.agent
 import android.content.Context
 import android.util.Log
 import com.antigravity.studio.auth.GoogleOAuthManager
+import com.antigravity.studio.model.AntigravityModelCatalog
 import com.antigravity.studio.pty.NativePty
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -52,15 +53,19 @@ object RealAgentEngine : IRealAgentEngine {
     private const val GEMINI_MODEL = "gemini-2.0-flash"
     private const val CLOUD_CODE_STREAM_URL = "https://cloudcode-pa.googleapis.com/v1internal:streamGenerateContent"
     private const val CLOUD_CODE_LOAD_URL = "https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist"
+    private const val CLOUD_CODE_ONBOARD_URL = "https://cloudcode-pa.googleapis.com/v1internal:onboardUser"
     private const val FALLBACK_GEMINI_STREAM_URL = "https://generativelanguage.googleapis.com/v1beta/models/$GEMINI_MODEL:streamGenerateContent"
 
-    private val httpClient = OkHttpClient.Builder()
+    internal var httpClient = OkHttpClient.Builder()
         .connectTimeout(30, TimeUnit.SECONDS)
         .readTimeout(60, TimeUnit.SECONDS)
         .build()
 
     var workspaceDir: File? = null
     private var companionProjectId: String? = null
+
+    internal fun getCompanionProjectId(): String? = companionProjectId
+    internal fun setCompanionProjectId(id: String?) { companionProjectId = id }
 
     /**
      * Executes an agent task with real-time SSE streaming from Google Cloud Code.
@@ -95,54 +100,57 @@ object RealAgentEngine : IRealAgentEngine {
                 Responde de forma concisa, precisa y profesional con formato compatible con terminal ANSI.
             """.trimIndent()
 
-            // 1. Discover companion project if not resolved yet
-            if (companionProjectId.isNullOrEmpty()) {
-                discoverCompanionProject(accessToken)
+            val activeModel = AntigravityModelCatalog.selectedModel.value
+            val modelId = activeModel.id
+
+            // 1. Resolve companion project if not resolved yet
+            var projId = companionProjectId
+            if (projId.isNullOrEmpty()) {
+                projId = resolveCompanionProject(accessToken)
             }
 
             // 2. Build Cloud Code v1internal:streamGenerateContent request payload
-            val requestJson = JSONObject().apply {
-                put("project", companionProjectId ?: "")
-                put("model", GEMINI_MODEL)
-                put("request", JSONObject().apply {
-                    val contents = JSONArray().apply {
-                        put(JSONObject().apply {
-                            put("role", "user")
+            fun buildStreamRequest(projectId: String): Request {
+                val requestJson = JSONObject().apply {
+                    put("project", projectId)
+                    put("model", modelId)
+                    put("request", JSONObject().apply {
+                        val contents = JSONArray().apply {
+                            put(JSONObject().apply {
+                                put("role", "user")
+                                put("parts", JSONArray().apply {
+                                    put(JSONObject().put("text", userPrompt))
+                                })
+                            })
+                        }
+                        put("contents", contents)
+
+                        put("systemInstruction", JSONObject().apply {
                             put("parts", JSONArray().apply {
-                                put(JSONObject().put("text", userPrompt))
+                                put(JSONObject().put("text", defaultSystem))
                             })
                         })
-                    }
-                    put("contents", contents)
 
-                    put("systemInstruction", JSONObject().apply {
-                        put("parts", JSONArray().apply {
-                            put(JSONObject().put("text", defaultSystem))
+                        put("generationConfig", JSONObject().apply {
+                            put("temperature", 0.7)
+                            put("maxOutputTokens", 4096)
                         })
                     })
+                }
 
-                    put("generationConfig", JSONObject().apply {
-                        put("temperature", 0.7)
-                        put("maxOutputTokens", 4096)
-                    })
-                })
+                val requestBody = requestJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+                return Request.Builder()
+                    .url(CLOUD_CODE_STREAM_URL)
+                    .header("Authorization", "Bearer $accessToken")
+                    .header("Content-Type", "application/json")
+                    .header("Accept", "text/event-stream")
+                    .header("User-Agent", "antigravity/1.0.0")
+                    .post(requestBody)
+                    .build()
             }
 
-            val requestBody = requestJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
-            val request = Request.Builder()
-                .url(CLOUD_CODE_STREAM_URL)
-                .header("Authorization", "Bearer $accessToken")
-                .header("Content-Type", "application/json")
-                .header("Accept", "text/event-stream")
-                .header("User-Agent", "antigravity/1.0.0")
-                .post(requestBody)
-                .build()
-
-            val response = httpClient.newCall(request).execute()
-
-            if (!response.isSuccessful) {
-                val errorBody = response.body?.string().orEmpty()
-                Log.w(TAG, "Cloud Code streaming failed HTTP ${response.code}: $errorBody")
+            suspend fun FlowCollector<AgentStreamEvent>.handleError(code: Int, errorBody: String) {
+                Log.w(TAG, "Cloud Code streaming failed HTTP $code: $errorBody")
 
                 // Try direct Gemini API key fallback if available
                 val apiKey = getApiKeyFallback()
@@ -150,17 +158,17 @@ object RealAgentEngine : IRealAgentEngine {
                     Log.i(TAG, "Attempting direct fallback to Generative Language API with saved key...")
                     val fallbackHandled = streamDirectGeminiFallback(apiKey, userPrompt, defaultSystem)
                     if (fallbackHandled) {
-                        return@flow
+                        return
                     }
                 }
 
                 // Legible diagnostic message in terminal
                 val diagMsg = buildString {
-                    append("\r\n\u001b[1;31m[Antigravity Agent Error Google Cloud Code ${response.code}]\u001b[0m\r\n")
+                    append("\r\n\u001b[1;31m[Antigravity Agent Error Google Cloud Code $code]\u001b[0m\r\n")
                     append("\u001b[38;2;139;148;158mEndpoint:\u001b[0m $CLOUD_CODE_STREAM_URL\r\n")
                     append("\u001b[38;2;139;148;158mDetalle:\u001b[0m $errorBody\r\n\r\n")
                     append("\u001b[1;33m[Diagnóstico]:\u001b[0m\r\n")
-                    when (response.code) {
+                    when (code) {
                         403 -> {
                             append("• Acceso restringido en Cloud Code para la cuenta actual o falta de permisos en el proyecto.\r\n")
                             append("• Verifica que Cloud AI Companion API esté habilitada en tu proyecto de Google Cloud.\r\n")
@@ -172,14 +180,35 @@ object RealAgentEngine : IRealAgentEngine {
                             append("• Puedes suministrar una clave Gemini en \u001b[1;36m~/.gemini/api_key\u001b[0m como fallback.\r\n")
                         }
                         else -> {
-                            append("• La solicitud al backend de Cloud Code falló con código ${response.code}.\r\n")
+                            append("• La solicitud al backend de Cloud Code falló con código $code.\r\n")
                             append("• Puedes suministrar una clave Gemini en \u001b[1;36m~/.gemini/api_key\u001b[0m como fallback.\r\n")
                         }
                     }
                     append("\r\n")
                 }
                 emit(AgentStreamEvent.TextDelta(diagMsg))
-                emit(AgentStreamEvent.Error(IllegalStateException("HTTP ${response.code}: $errorBody")))
+                emit(AgentStreamEvent.Error(IllegalStateException("HTTP $code: $errorBody")))
+            }
+
+            var request = buildStreamRequest(projId)
+            var response = httpClient.newCall(request).execute()
+
+            if (!response.isSuccessful && response.code == 403) {
+                val errorPeek = response.body?.string().orEmpty()
+                if (errorPeek.contains("3501")) {
+                    Log.w(TAG, "Encountered 403 #3501, attempting re-handshake via resolveCompanionProject...")
+                    projId = resolveCompanionProject(accessToken)
+                    request = buildStreamRequest(projId)
+                    response = httpClient.newCall(request).execute()
+                } else {
+                    handleError(response.code, errorPeek)
+                    return@flow
+                }
+            }
+
+            if (!response.isSuccessful) {
+                val errorBody = response.body?.string().orEmpty()
+                handleError(response.code, errorBody)
                 return@flow
             }
 
@@ -229,10 +258,30 @@ object RealAgentEngine : IRealAgentEngine {
         }
     }.flowOn(Dispatchers.IO)
 
+    internal fun extractProjectId(json: JSONObject): String? {
+        if (json.has("cloudaicompanionProject")) {
+            val proj = json.get("cloudaicompanionProject")
+            val projId = if (proj is JSONObject) {
+                val id = proj.optString("id")
+                if (id.isNotEmpty()) id else proj.optString("name", "")
+            } else {
+                proj.toString()
+            }
+            if (projId.isNotEmpty() && projId != "null") {
+                return projId
+            }
+        }
+        return null
+    }
+
     /**
-     * Discovers companion project id by calling loadCodeAssist endpoint.
+     * Resolves companion project id for Ultra / Google One AI subscriptions.
+     * 1. Attempts loadCodeAssist.
+     * 2. Fallbacks to onboardUser with free-tier if not found.
+     * 3. Returns companionProjectId ?: ""
      */
-    private fun discoverCompanionProject(accessToken: String): String? {
+    private suspend fun resolveCompanionProject(accessToken: String): String = withContext(Dispatchers.IO) {
+        // 1. Intentar llamar a POST https://cloudcode-pa.googleapis.com/v1internal:loadCodeAssist
         try {
             val reqJson = JSONObject().apply {
                 put("metadata", JSONObject().apply {
@@ -255,19 +304,11 @@ object RealAgentEngine : IRealAgentEngine {
                 val bodyStr = response.body?.string().orEmpty()
                 if (bodyStr.isNotEmpty()) {
                     val json = JSONObject(bodyStr)
-                    var project = ""
-                    if (json.has("cloudaicompanionProject")) {
-                        val projVal = json.get("cloudaicompanionProject")
-                        project = if (projVal is JSONObject) {
-                            projVal.optString("id", projVal.optString("name", ""))
-                        } else {
-                            projVal.toString()
-                        }
-                    }
-                    if (project.isNotEmpty() && project != "null") {
-                        companionProjectId = project
-                        Log.i(TAG, "Discovered companion project: $project")
-                        return project
+                    val projId = extractProjectId(json)
+                    if (!projId.isNullOrEmpty()) {
+                        companionProjectId = projId
+                        Log.i(TAG, "Resolved companion project via loadCodeAssist: $projId")
+                        return@withContext projId
                     }
                 }
             } else {
@@ -276,8 +317,51 @@ object RealAgentEngine : IRealAgentEngine {
         } catch (e: Exception) {
             Log.w(TAG, "Failed discovering companion project via loadCodeAssist", e)
         }
-        return null
+
+        // 2. Si no se obtiene o la respuesta no tiene proyecto, llamar como fallback a:
+        // POST https://cloudcode-pa.googleapis.com/v1internal:onboardUser
+        try {
+            val onboardReqJson = JSONObject().apply {
+                put("tierId", "free-tier")
+                put("metadata", JSONObject().apply {
+                    put("ideType", "ANTIGRAVITY")
+                    put("ideVersion", "1.0.0")
+                    put("pluginVersion", "1.0.0")
+                })
+            }
+            val onboardBody = onboardReqJson.toString().toRequestBody("application/json; charset=utf-8".toMediaType())
+            val onboardRequest = Request.Builder()
+                .url(CLOUD_CODE_ONBOARD_URL)
+                .header("Authorization", "Bearer $accessToken")
+                .header("Content-Type", "application/json")
+                .header("User-Agent", "antigravity/1.0.0")
+                .post(onboardBody)
+                .build()
+
+            val onboardResponse = httpClient.newCall(onboardRequest).execute()
+            if (onboardResponse.isSuccessful) {
+                val bodyStr = onboardResponse.body?.string().orEmpty()
+                if (bodyStr.isNotEmpty()) {
+                    val json = JSONObject(bodyStr)
+                    val projId = extractProjectId(json)
+                    if (!projId.isNullOrEmpty()) {
+                        companionProjectId = projId
+                        Log.i(TAG, "Resolved companion project via onboardUser: $projId")
+                        return@withContext projId
+                    }
+                }
+            } else {
+                Log.w(TAG, "onboardUser returned HTTP ${onboardResponse.code}: ${onboardResponse.body?.string()}")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed resolving companion project via onboardUser", e)
+        }
+
+        // 3. Retornar companionProjectId ?: ""
+        return@withContext companionProjectId ?: ""
     }
+
+    internal suspend fun resolveCompanionProjectForTest(accessToken: String): String = resolveCompanionProject(accessToken)
 
     /**
      * Resolves fallback Gemini API key from environment variable or filesDir/.gemini/api_key.
