@@ -6,7 +6,7 @@ import androidx.compose.ui.graphics.Color
 // ============================================================================
 // Cyber-Obsidian Core Palette (Primary Design System)
 // ============================================================================
-val CyberObsidian = Color(0xFF0B0E14)       // Main window & terminal viewport background
+val CyberObsidian = Color(0xFF0B0F19)       // Main window & terminal viewport background
 val SurfaceObsidian = Color(0xFF111622)     // Side panels, toolbars, topbar, bottom sheets
 val SurfaceElevated = Color(0xFF182030)     // Cards, hover states, secondary buttons
 val BorderObsidian = Color(0xFF1E2638)      // Panel dividers, separators, stroke borders

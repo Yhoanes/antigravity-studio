@@ -1,6 +1,6 @@
 <resources>
     <!-- Cyber-Obsidian Palette Tokens -->
-    <color name="cyber_obsidian">#0B0E14</color>
+    <color name="cyber_obsidian">#0B0F19</color>
     <color name="surface_obsidian">#111622</color>
     <color name="surface_elevated">#182030</color>
     <color name="border_obsidian">#1E2638</color>
@@ -21,7 +21,7 @@
     <color name="status_info">#00F0FF</color>
     
     <!-- Terminal ANSI Palette -->
-    <color name="terminal_black">#0B0E14</color>
+    <color name="terminal_black">#0B0F19</color>
     <color name="terminal_red">#EF4444</color>
     <color name="terminal_green">#22C55E</color>
     <color name="terminal_yellow">#F59E0B</color>

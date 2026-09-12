@@ -169,7 +169,7 @@ private fun createConfiguredTerminalWebView(
 
         // 1. Hardware Acceleration for Snapdragon 870 Adreno GPU (144Hz)
         setLayerType(View.LAYER_TYPE_HARDWARE, null)
-        setBackgroundColor(Color.parseColor("#0B0E14"))
+        setBackgroundColor(Color.parseColor("#0B0F19"))
         overScrollMode = View.OVER_SCROLL_NEVER
         isVerticalScrollBarEnabled = false
         isHorizontalScrollBarEnabled = false

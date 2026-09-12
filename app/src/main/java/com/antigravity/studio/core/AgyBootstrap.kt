@@ -52,6 +52,7 @@ object AgyBootstrap {
             export TERM="xterm-256color"
             export COLORTERM="truecolor"
             export LANG="en_US.UTF-8"
+            export PS1="\033[1;36magy:workspace$ \033[0m"
 
             agy() {
                 sh "§BIN_DIR/agy" "§@"
@@ -63,7 +64,7 @@ object AgyBootstrap {
             .replace("§WORKSPACE_DIR", workspaceDir.absolutePath)
             .replace("§", "$") + "\n"
 
-        listOf(".profile", ".mkshrc", ".shrc").forEach { rcFileName ->
+        listOf(".profile", ".mkshrc", ".shrc", ".bashrc").forEach { rcFileName ->
             try {
                 val rcFile = File(filesDir, rcFileName)
                 rcFile.writeText(rcTemplate, Charsets.UTF_8)
@@ -229,11 +230,11 @@ setup_linux() {
 list_models() {
     printf "§{BANNER}\n"
     printf "§{BOLD}MODELOS DE IA DISPONIBLES EN ANTIGRAVITY STUDIO:§{NC}\n\n"
-    printf "  §{CYAN}gemini-2.0-flash§{NC}         (Cloud / Ultra - Conexión directa nativa con SSE streaming)\n"
-    printf "  §{CYAN}gemini-1.5-pro§{NC}           (Cloud / Ultra - Razonamiento de contexto masivo)\n"
+    printf "  §{CYAN}gemini-2.5-flash§{NC}         (Cloud / Ultra - Conexión directa nativa con SSE streaming)\n"
+    printf "  §{CYAN}gemini-2.5-pro§{NC}           (Cloud / Ultra - Razonamiento de contexto masivo)\n"
     printf "  §{VIOLET}antigravity-local-q8§{NC}     (Local On-Device - Acelerado por NPU Hexagon)\n"
     printf "  §{VIOLET}antigravity-coder-7b§{NC}     (Local On-Device - Especializado en Rust, Kotlin, C++)\n\n"
-    printf "§{MUTED}Configurado actualmente: gemini-2.0-flash§{NC}\n"
+    printf "§{MUTED}Configurado actualmente: gemini-2.5-flash§{NC}\n"
 }
 
 CMD="§1"
@@ -252,8 +253,12 @@ case "§CMD" in
     setup-linux)
         setup_linux "§@"
         ;;
-    models)
+    model|models)
         list_models "§@"
+        ;;
+    projects)
+        mkdir -p "§{HOME}/projects"
+        cd "§{HOME}/projects" && ls -la
         ;;
     help|--help|-h)
         show_help

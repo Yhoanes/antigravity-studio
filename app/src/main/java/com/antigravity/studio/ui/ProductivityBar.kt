@@ -137,7 +137,7 @@ fun ProductivityBar(
         // ====================================================================
         // 2. ACCESOS RÁPIDOS DE CONTROL AGÉNTICO
         // ====================================================================
-        // [⚡ Modelo]
+        // [⚡ Modelo] (Emite agy model\n)
         KeyCapButton(
             label = "⚡ Modelo",
             accentColor = CosmicViolet,
@@ -145,23 +145,11 @@ fun ProductivityBar(
             customBackground = CosmicViolet,
             onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onOpenModelSelector?.invoke() ?: triggerAction(KeyAction.OpenModelSelector)
+                triggerAction(KeyAction.ShortcutCommand("agy model\n"))
             }
         )
 
-        // [📁 Archivos]
-        KeyCapButton(
-            label = "📁 Archivos",
-            accentColor = NeonCyan,
-            textColor = NeonCyan,
-            customBackground = NeonCyan,
-            onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                onToggleSidebarFiles?.invoke() ?: triggerAction(KeyAction.ToggleSidebarFiles)
-            }
-        )
-
-        // [⏹ Detener] (SIGINT 0x03)
+        // [⏹ Detener] (Emite \u0003 Ctrl+C / SIGINT)
         KeyCapButton(
             label = "⏹ Detener",
             accentColor = StatusError,
@@ -175,6 +163,18 @@ fun ProductivityBar(
                     triggerAction(KeyAction.StopExecution)
                     triggerAction(KeyAction.RawBytes(byteArrayOf(0x03)))
                 }
+            }
+        )
+
+        // [📁 Proyectos] (Emite cd ~/projects && ls -la\n)
+        KeyCapButton(
+            label = "📁 Proyectos",
+            accentColor = NeonCyan,
+            textColor = NeonCyan,
+            customBackground = NeonCyan,
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                triggerAction(KeyAction.ShortcutCommand("cd ~/projects && ls -la\n"))
             }
         )
 
@@ -330,7 +330,7 @@ private fun ApprovalButton(
                 fontWeight = FontWeight.Black
             )
             Text(
-                text = "Aprobar (Ctrl+K)",
+                text = "Aprobar",
                 color = NeonCyan,
                 style = KeyCapTextStyle,
                 fontSize = 12.5.sp,

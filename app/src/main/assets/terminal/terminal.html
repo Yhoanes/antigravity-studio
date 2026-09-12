@@ -17,7 +17,7 @@
         html, body {
             width: 100%;
             height: 100%;
-            background-color: #0B0E14;
+            background-color: #0B0F19;
             color: #E6EDF3;
             font-family: 'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
             overflow: hidden;
@@ -28,7 +28,7 @@
             width: 100%;
             height: 100%;
             position: relative;
-            background-color: #0B0E14;
+            background-color: #0B0F19;
             display: flex;
             flex-direction: column;
         }
@@ -87,14 +87,14 @@
         // Cyber-Obsidian Theme Tokens
         // ====================================================================
         const THEME = {
-            bg: '#0B0E14',
+            bg: '#0B0F19',
             fg: '#E6EDF3',
             cursor: '#00F0FF',
             cursorDim: 'rgba(0, 240, 255, 0.4)',
             selection: '#182030',
             border: '#1E2638',
             ansi: [
-                '#0B0E14', // 0: Black
+                '#0B0F19', // 0: Black
                 '#EF4444', // 1: Red
                 '#22C55E', // 2: Green
                 '#F59E0B', // 3: Yellow
@@ -223,7 +223,6 @@
 
                 this.initCanvas();
                 this.initListeners();
-                this.welcomeBanner();
             }
 
             initCanvas() {
@@ -303,19 +302,7 @@
             }
 
             welcomeBanner() {
-                const banner = [
-                    "\x1b[1;36m       ___          __  _                         _  __           \x1b[0m",
-                    "\x1b[1;36m      /   |  ____  / /_(_)___ __________ __   __ (_)/ /___  __    \x1b[0m",
-                    "\x1b[1;35m     / /| | / __ \\/ __/ / __ `/ ___/ __ `/ | / // // __/ / / /    \x1b[0m",
-                    "\x1b[1;35m    / ___ |/ / / / /_/ / /_/ / /  / /_/ /| |/ // // /_/ /_/ /     \x1b[0m",
-                    "\x1b[1;36m   /_/  |_/_/ /_/\\__/_/\\__, /_/   \\__,_/ |___//_/ \\__/\\__, /      \x1b[0m",
-                    "\x1b[1;36m                      /____/                         /____/       \x1b[0m",
-                    "\x1b[38;2;139;92;246m   [Antigravity Studio v1.0.0 | Xiaomi Pad 6 2.8K 144Hz WebGL]\x1b[0m",
-                    "\x1b[38;2;34;197;94m   ● Local Agent Session Ready | PTY Engine Connected\x1b[0m",
-                    "\x1b[90m   Type 'agy --help' or use the Productivity Bar below.\x1b[0m",
-                    "\r\n\x1b[1;36magy:workspace$ \x1b[0m"
-                ].join("\r\n");
-                this.write(banner);
+                // Initial welcome banner is cleanly provided by the native PTY / Kotlin session
             }
 
             initListeners() {

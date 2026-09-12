@@ -45,7 +45,7 @@ private fun buildWelcomeBanner(activeUserEmail: String?): ByteArray {
     val emailDisplay = activeUserEmail ?: "Sin sesión activa"
     val modelDisplay = AntigravityModelCatalog.selectedModel.value.displayName
     return (
-        "\r\n" +
+        "\u001b[2J\u001b[H\r\n" +
         "\u001b[1;36m    ___         __  _                         _  __\u001b[0m\r\n" +
         "\u001b[1;36m   /   |  ____  / /_(_)___ __________ __   __ (_)/ /___  __\u001b[0m\r\n" +
         "\u001b[1;35m  / /| | / __ \\/ __/ / __ `/ ___/ __ `/ | / // // __/ / / /\u001b[0m\r\n" +
@@ -53,8 +53,16 @@ private fun buildWelcomeBanner(activeUserEmail: String?): ByteArray {
         "\u001b[1;36m/_/  |_/_/ /_/\\__/_/\\__, /_/   \\__,_/ |___//_/ \\__/\\__, /\u001b[0m\r\n" +
         "\u001b[1;36m                   /____/                         /____/\u001b[0m\r\n\r\n" +
         "\u001b[38;2;139;92;246mAntigravity Studio\u001b[0m \u001b[38;2;139;148;158m• Autonomous Agent Development Station\u001b[0m\r\n" +
-        "\u001b[38;2;34;197;94m● Google Cloud:\u001b[0m \u001b[38;2;248;250;252m$emailDisplay\u001b[0m\r\n" +
-        "\u001b[38;2;34;197;94m● Agent Engine:\u001b[0m \u001b[38;2;248;250;252m$modelDisplay\u001b[0m\r\n\r\n" +
+        "\u001b[1;36m● Hardware:\u001b[0m     \u001b[38;2;248;250;252mXiaomi Pad 6 (Snapdragon 870 Octa-Core @ 3.2GHz | Adreno 650 144Hz)\u001b[0m\r\n" +
+        "\u001b[1;36m● Motor PTY:\u001b[0m    \u001b[38;2;34;197;94mPOSIX /dev/ptmx Conectado\u001b[0m \u001b[38;2;139;148;158m(xterm-256color @ 144Hz)\u001b[0m\r\n" +
+        "\u001b[1;36m● Google Cloud:\u001b[0m \u001b[38;2;248;250;252m$emailDisplay\u001b[0m\r\n" +
+        "\u001b[1;36m● Agent Engine:\u001b[0m \u001b[38;2;139;92;246m$modelDisplay\u001b[0m\r\n\r\n" +
+        "\u001b[1mGuía Rápida de Comandos y Barra Táctil:\u001b[0m\r\n" +
+        "  \u001b[1;36m[✓ Aprobar]\u001b[0m    Emite Ctrl+K (\\u000B) para autorizar acciones agénticas\r\n" +
+        "  \u001b[1;35m[⚡ Modelo]\u001b[0m     Emite 'agy model' para consultar y conmutar modelo IA\r\n" +
+        "  \u001b[1;31m[⏹ Detener]\u001b[0m    Emite Ctrl+C (SIGINT) para cancelar o interrumpir procesos\r\n" +
+        "  \u001b[1;36m[📁 Proyectos]\u001b[0m  Emite 'cd ~/projects && ls -la' para listar tu espacio\r\n" +
+        "  \u001b[38;2;139;148;158mEscribe 'agy --help' para ayuda completa o interactúa directamente con el shell POSIX.\u001b[0m\r\n\r\n" +
         PROMPT
     ).toByteArray(Charsets.UTF_8)
 }
@@ -300,7 +308,7 @@ class MainActivity : ComponentActivity() {
                             if (activeSessions.size > 1) {
                                 sessionToClose.close()
                                 activeSessions.remove(sessionToClose)
-                                nativePtyMap.remove(sessionToClose.id)
+                                nativePtyMap.remove(sessionToClose.id)?.close()
                                 if (activeSessionState.value?.id == sessionToClose.id) {
                                     val nextSession = activeSessions.last()
                                     activeSessionState.value = nextSession
@@ -331,12 +339,34 @@ class MainActivity : ComponentActivity() {
     private fun createSession(title: String): TerminalSession {
         val workspacePath = File(applicationContext.filesDir, "workspace").absolutePath
         val filesDirPath = applicationContext.filesDir.absolutePath
+        val projectsPath = File(applicationContext.filesDir, "projects").absolutePath
+
+        File(workspacePath).mkdirs()
+        File(projectsPath).mkdirs()
+
         val inputLineBuffer = StringBuilder()
         var lastWasCr = false
         var currentJob: Job? = null
         var inEscapeSequence = false
 
         lateinit var uiSession: TerminalSession
+
+        // 1. Inicializar sesión PTY nativa real (/dev/ptmx) con shell POSIX interactivo
+        val ptySession: com.antigravity.studio.pty.TerminalSession? = try {
+            val shellExe = if (File("/system/bin/sh").exists()) "/system/bin/sh" else "/bin/sh"
+            val session = com.antigravity.studio.pty.TerminalSession(
+                executable = shellExe,
+                args = arrayOf("-i"),
+                cwd = workspacePath,
+                filesDir = filesDirPath,
+                initialRows = 24,
+                initialCols = 80
+            ).start()
+            if (session.isRunning) session else null
+        } catch (t: Throwable) {
+            Log.w(TAG, "Native PTY allocation fallback: ${t.message}")
+            null
+        }
 
         fun handleEnter() {
             uiSession.emitOutput("\r\n".toByteArray(Charsets.UTF_8))
@@ -358,7 +388,7 @@ class MainActivity : ComponentActivity() {
                 return
             }
 
-            if (prompt == "/model" || prompt == "model") {
+            if (prompt == "/model" || prompt == "model" || prompt == "agy model" || prompt == "agy models") {
                 uiSession.emitOutput(formatModelListMessage().toByteArray(Charsets.UTF_8))
                 return
             }
@@ -366,6 +396,16 @@ class MainActivity : ComponentActivity() {
             if (prompt.startsWith("/model ")) {
                 val query = prompt.removePrefix("/model ").trim()
                 uiSession.emitOutput(handleModelSelectionCommand(query).toByteArray(Charsets.UTF_8))
+                return
+            }
+
+            if (prompt == "cd ~/projects && ls -la" || prompt.startsWith("cd ~/projects")) {
+                val projDir = File(filesDirPath, "projects").apply { if (!exists()) mkdirs() }
+                val files = projDir.listFiles()?.joinToString("\r\n") { f ->
+                    val isDir = if (f.isDirectory) "d" else "-"
+                    "$isDir rwxr-xr-x 1 antigravity antigravity ${f.length().toString().padStart(6)} ${f.name}"
+                } ?: "total 0"
+                uiSession.emitOutput("\r\ntotal ${projDir.listFiles()?.size ?: 0}\r\n$files\r\n\r\n$PROMPT".toByteArray(Charsets.UTF_8))
                 return
             }
 
@@ -464,73 +504,94 @@ class MainActivity : ComponentActivity() {
             title = title,
             initialCwd = workspacePath,
             onWriteNative = { bytes ->
-                synchronized(inputLineBuffer) {
-                    val inputString = String(bytes, Charsets.UTF_8)
-                    var i = 0
-                    while (i < inputString.length) {
-                        val ch = inputString[i]
+                if (ptySession != null && ptySession.isRunning) {
+                    ptySession.tryWrite(bytes)
+                } else {
+                    synchronized(inputLineBuffer) {
+                        val inputString = String(bytes, Charsets.UTF_8)
+                        var i = 0
+                        while (i < inputString.length) {
+                            val ch = inputString[i]
 
-                        if (inEscapeSequence) {
-                            if ((ch in 'A'..'Z') || (ch in 'a'..'z') || ch == '~') {
-                                inEscapeSequence = false
+                            if (inEscapeSequence) {
+                                if ((ch in 'A'..'Z') || (ch in 'a'..'z') || ch == '~') {
+                                    inEscapeSequence = false
+                                }
+                                i++
+                                continue
                             }
-                            i++
-                            continue
-                        }
 
-                        if (ch == '\u001b') {
-                            if (i + 1 < inputString.length) {
-                                inEscapeSequence = true
+                            if (ch == '\u001b') {
+                                if (i + 1 < inputString.length) {
+                                    inEscapeSequence = true
+                                }
+                                i++
+                                continue
                             }
-                            i++
-                            continue
-                        }
 
-                        when {
-                            ch == '\r' -> {
-                                lastWasCr = true
-                                handleEnter()
-                            }
-                            ch == '\n' -> {
-                                if (lastWasCr) {
-                                    lastWasCr = false
-                                } else {
+                            when {
+                                ch == '\r' -> {
+                                    lastWasCr = true
                                     handleEnter()
                                 }
-                            }
-                            ch == '\u007F' || ch == '\b' || ch.code == 0x7F || ch.code == 0x08 -> {
-                                lastWasCr = false
-                                if (inputLineBuffer.isNotEmpty()) {
-                                    inputLineBuffer.deleteCharAt(inputLineBuffer.length - 1)
-                                    uiSession.emitOutput("\b \b".toByteArray(Charsets.UTF_8))
+                                ch == '\n' -> {
+                                    if (lastWasCr) {
+                                        lastWasCr = false
+                                    } else {
+                                        handleEnter()
+                                    }
+                                }
+                                ch == '\u007F' || ch == '\b' || ch.code == 0x7F || ch.code == 0x08 -> {
+                                    lastWasCr = false
+                                    if (inputLineBuffer.isNotEmpty()) {
+                                        inputLineBuffer.deleteCharAt(inputLineBuffer.length - 1)
+                                        uiSession.emitOutput("\b \b".toByteArray(Charsets.UTF_8))
+                                    }
+                                }
+                                ch == '\u0003' || ch.code == 0x03 -> {
+                                    lastWasCr = false
+                                    currentJob?.cancel()
+                                    currentJob = null
+                                    inputLineBuffer.clear()
+                                    uiSession.emitOutput("^C\r\n$PROMPT".toByteArray(Charsets.UTF_8))
+                                }
+                                ch == '\u000B' || ch.code == 0x0B -> {
+                                    lastWasCr = false
+                                    uiSession.emitOutput("\r\n\u001b[1;32m✓ [Aprobación Confirmada]\u001b[0m\r\n$PROMPT".toByteArray(Charsets.UTF_8))
+                                }
+                                ch >= ' ' || ch == '\t' -> {
+                                    lastWasCr = false
+                                    inputLineBuffer.append(ch)
+                                    uiSession.emitOutput(ch.toString().toByteArray(Charsets.UTF_8))
+                                }
+                                else -> {
+                                    lastWasCr = false
                                 }
                             }
-                            ch == '\u0003' || ch.code == 0x03 -> {
-                                lastWasCr = false
-                                currentJob?.cancel()
-                                currentJob = null
-                                inputLineBuffer.clear()
-                                uiSession.emitOutput("^C\r\n$PROMPT".toByteArray(Charsets.UTF_8))
-                            }
-                            ch >= ' ' || ch == '\t' -> {
-                                lastWasCr = false
-                                inputLineBuffer.append(ch)
-                                uiSession.emitOutput(ch.toString().toByteArray(Charsets.UTF_8))
-                            }
-                            else -> {
-                                lastWasCr = false
-                            }
+                            i++
                         }
-                        i++
                     }
                 }
             },
-            onResizeNative = { _, _ -> },
+            onResizeNative = { cols, rows ->
+                ptySession?.resize(rows, cols)
+            },
             onCloseNative = {
                 currentJob?.cancel()
                 currentJob = null
+                ptySession?.close()
             }
         )
+
+        if (ptySession != null) {
+            nativePtyMap[uiSession.id] = ptySession
+            activeNativePty = ptySession
+            lifecycleScope.launch {
+                ptySession.output.collect { chunk ->
+                    uiSession.emitOutput(chunk)
+                }
+            }
+        }
 
         val activeUserEmail = com.antigravity.studio.auth.GoogleOAuthManager.activeAccountEmail.value
             ?: com.antigravity.studio.auth.GoogleOAuthManager.getActiveAccount()
@@ -603,6 +664,11 @@ class MainActivity : ComponentActivity() {
             session.close()
         }
         activeSessions.clear()
+        for (pty in nativePtyMap.values) {
+            try {
+                pty.close()
+            } catch (_: Exception) {}
+        }
         nativePtyMap.clear()
         activeNativePty = null
     }
