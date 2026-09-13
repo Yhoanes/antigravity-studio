@@ -911,6 +911,45 @@ Se formaliza la evolución arquitectónica hacia **Nova IDE** bajo la especifica
 
 ---
 
+### ADR-018: Reparación de Rootfs Ubuntu 24.04 (Noble), Arquitectura Dual-Terminal y Onboarding Agéntico en Nova IDE
+
+- **Identificador:** `ADR-018`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.56 Contexto
+Durante las pruebas de despliegue y validación en la tablet física Xiaomi Pad 6 (Android 14 / Xiaomi HyperOS), se manifestaron tres impedimentos de usabilidad y aprovisionamiento:
+1. **Fallo Crítico HTTP 404 en Descarga de Rootfs Ubuntu:** El aprovisionamiento bajo demanda intentaba descargar `ubuntu-aarch64-pd-v4.18.0.tar.xz`, el cual devolvía un error HTTP 404 debido a que `proot-distro` v4.18.0 renombró la imagen oficial para aarch64 incorporando el nombre de la versión LTS (`ubuntu-noble-aarch64-pd-v4.18.0.tar.xz` - Ubuntu 24.04 LTS).
+2. **Conflicto y Falta de Aislamiento entre Terminal de Usuario y Nova Agent:** El botón de Nova Agent requería unificar la terminal agéntica en el panel lateral interactivo autoejecutando `agy`, pero manteniendo simultáneamente disponibles las terminales interactivas de bash (`new-terminal`) en pestañas del editor para que el desarrollador pueda compilar, probar y ejecutar scripts sin interferir con la sesión del agente.
+3. **Inconsistencias de Marca en la Pantalla de Bienvenida:** La pantalla de bienvenida mostraba elementos heredados y no ofrecía acceso directo táctil al asistente Nova Agent.
+
+#### 4.57 Decisión
+Se formaliza e implementa la solución en `Terminal.js`, `terminalManager.js`, `agentPanel/`, `welcome.js` y `main.js` bajo el contrato formal [`SPEC-018`](specs/18-nova-agent-split-and-terminal-repair.md):
+1. **Actualización de URL Canónica de Rootfs Ubuntu Noble ARM64:**
+   - Corrección inmediata de la URL en `Terminal.js` hacia `https://github.com/termux/proot-distro/releases/download/v4.18.0/ubuntu-noble-aarch64-pd-v4.18.0.tar.xz` garantizando código de respuesta HTTP 200 OK y extracción atómica en `/data/data/io.nova.ide/files/distro`.
+2. **Patrón Dual-Terminal con Procesos PTY Independientes:**
+   - **Sesión Nova Agent:** El panel `#agent-terminal-container` se conecta a una sesión PTY dedicada en el demonio AXS y ejecuta de forma autónoma `agy\r` al montar la terminal.
+   - **Sesiones de Editor Libre:** Las terminales abiertas con `new-terminal` crean pestañas independientes de bash gestionadas por `TerminalManager`, permitiendo al desarrollador realizar pruebas paralelas sin pausar ni alterar el contexto agéntico.
+3. **Flujo de Onboarding Agéntico Integrado con Streaming de Logs:**
+   - Si el subsistema aún no ha sido instalado, `NovaAgentPanel` detecta el estado mediante `Terminal.isInstalled()` y presenta una tarjeta de bienvenida con el botón `[Inicializar Nova Agent]` y un contenedor de logs en vivo `#agent-install-log` con indicador de progreso.
+4. **Marca Soberana y Desacoplamiento de Upstream:**
+   - Actualización de `welcome.js` con el encabezado "Welcome to Nova IDE" y fila de acción rápida "Nova Agent (Google Antigravity)".
+   - Redirección del verificador de actualizaciones en `main.js` hacia `Yhoanes/antigravity-studio`.
+5. **Compilación y Publicación de Nova IDE v1.0.1:**
+   - Generación del paquete instalador `NovaIDE-v1.0.1-ARM64.apk` (~36.7 MB) y publicación del release oficial bajo el tag `nova-v1.0.1`.
+
+#### 4.58 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Aprovisionamiento Inmaculado:** Descarga exitosa garantizada del rootfs Ubuntu 24.04 Noble LTS ARM64.
+  - **Experiencia de Flujo Dual Óptima:** Coexistencia no obstructiva de soporte agéntico y terminales de usuario.
+  - **Onboarding Silencioso y Asistido:** Transparencia diagnóstica mediante streaming de logs en el propio panel lateral.
+  - **Identidad Soberana Completa:** Eliminación de notificaciones o branding externos.
+- **Compromisos Operativos:**
+  - Requiere mantener alineadas las versiones LTS de Ubuntu soportadas por `proot-distro`.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -933,6 +972,7 @@ Se formaliza la evolución arquitectónica hacia **Nova IDE** bajo la especifica
 | **SPEC-015** | Experiencia de Usuario de Próxima Generación: Tarjeta Flotante OAuth Inteligente, Onboarding Silencioso Zero-Click y Explorador de Archivos de Proyecto Activo | `specs/15-oauth-smart-card-silent-onboarding-and-project-file-tree.md` | `APPROVED` | 9 ACs |
 | **SPEC-016** | Resiliencia de Arranque en Frío, Persistencia de Autenticación, Enlace de Proyectos en Sesiones y Publicación de Versión 1.5.0 | `specs/16-cold-boot-resilience-and-auth-persistence.md` | `APPROVED` | 10 ACs |
 | **SPEC-017** | Arquitectura de Nova IDE: Entorno de Desarrollo Táctil y Panel de Agente Inteligente Unificado | `specs/17-nova-ide-architecture-and-ui.md` | `APPROVED` | 10 ACs |
+| **SPEC-018** | Arquitectura Dual-Terminal, Recuperación del Rootfs Ubuntu Noble y Onboarding Agéntico en Nova IDE | `specs/18-nova-agent-split-and-terminal-repair.md` | `APPROVED` | 8 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

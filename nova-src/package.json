@@ -1,7 +1,7 @@
 {
   "name": "io.nova.ide",
   "displayName": "Nova IDE",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Nova IDE - Agentic Touch-First IDE for Android with Embedded Linux & PRoot",
   "scripts": {
     "lang": "node ./utils/lang.js",

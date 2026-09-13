@@ -1,6 +1,6 @@
 const Executor = require("./Executor");
 
-const UBUNTU_ARM64_ROOTFS_URL = "https://github.com/termux/proot-distro/releases/download/v4.18.0/ubuntu-aarch64-pd-v4.18.0.tar.xz";
+const UBUNTU_ARM64_ROOTFS_URL = "https://github.com/termux/proot-distro/releases/download/v4.18.0/ubuntu-noble-aarch64-pd-v4.18.0.tar.xz";
 const GOOGLE_ANTIGRAVITY_CLI_URL = "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-arm/cli_linux_arm64.tar.gz";
 
 const Terminal = {

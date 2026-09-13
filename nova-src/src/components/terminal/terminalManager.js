@@ -427,7 +427,7 @@ class TerminalManager {
 	 * Check if terminal is installed and install if needed
 	 * @returns {Promise<{success: boolean, error?: string}>}
 	 */
-	async checkAndInstallTerminal() {
+	async checkAndInstallTerminal(onLog, onError) {
 		try {
 			// Check if terminal is already installed
 			const isInstalled = await Terminal.isInstalled();
@@ -453,6 +453,11 @@ class TerminalManager {
 					// Remove stdout/stderr prefix for
 					const cleanMessage = this.formatInstallLog(message);
 					installTerminal.component.write(`${cleanMessage}\r\n`);
+					if (typeof onLog === "function") {
+						try {
+							onLog(cleanMessage);
+						} catch {}
+					}
 				},
 				(...errorParts) => {
 					// Remove stdout/stderr prefix
@@ -460,6 +465,11 @@ class TerminalManager {
 					installTerminal.component.write(
 						`\x1b[31mError: ${cleanError}\x1b[0m\r\n`,
 					);
+					if (typeof onError === "function") {
+						try {
+							onError(cleanError);
+						} catch {}
+					}
 				},
 			);
 

@@ -166,6 +166,101 @@
         }
       }
     }
+
+    .agent-onboarding-container {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      box-sizing: border-box;
+      overflow-y: auto;
+
+      .agent-onboarding-card {
+        width: 100%;
+        max-width: 340px;
+        background: rgba(15, 23, 42, 0.7);
+        border: 1px solid rgba(0, 240, 255, 0.25);
+        border-radius: 12px;
+        padding: 24px;
+        box-sizing: border-box;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+
+        .agent-brand {
+          font-size: 1.3em;
+          font-weight: 700;
+          color: #00f0ff;
+          margin-bottom: 8px;
+          letter-spacing: 1px;
+        }
+
+        .agent-subtext {
+          font-size: 0.85em;
+          color: #94a3b8;
+          margin-bottom: 14px;
+          line-height: 1.4;
+        }
+
+        .agent-onboarding-desc {
+          font-size: 0.8em;
+          color: #cbd5e1;
+          margin-bottom: 20px;
+          line-height: 1.5;
+        }
+
+        .agent-init-btn {
+          background: linear-gradient(135deg, #00f0ff 0%, #7000ff 100%);
+          color: #ffffff;
+          border: none;
+          padding: 12px 20px;
+          border-radius: 8px;
+          font-weight: 600;
+          font-size: 0.95em;
+          cursor: pointer;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 8px;
+          width: 100%;
+          box-shadow: 0 4px 15px rgba(0, 240, 255, 0.25);
+          transition: transform 150ms, box-shadow 150ms, opacity 150ms;
+
+          &:active {
+            transform: scale(0.98);
+          }
+
+          &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+          }
+        }
+
+        .agent-install-log {
+          margin-top: 16px;
+          background: #020617;
+          border: 1px solid rgba(30, 41, 59, 0.8);
+          border-radius: 6px;
+          padding: 10px;
+          max-height: 180px;
+          overflow-y: auto;
+          text-align: left;
+          font-family: monospace;
+          font-size: 0.72em;
+          color: #00f0ff;
+          white-space: pre-wrap;
+          word-break: break-all;
+          line-height: 1.4;
+
+          &.hidden {
+            display: none;
+          }
+        }
+      }
+    }
   }
 }
 

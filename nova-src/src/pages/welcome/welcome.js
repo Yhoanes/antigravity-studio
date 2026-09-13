@@ -46,8 +46,8 @@ function createWelcomeContent() {
 			<header className="welcome-header">
 				<img className="logo" src={logoSrc} width="48" height="48" alt="" />
 				<div className="welcome-header-text">
-					<h1>Welcome to Acode</h1>
-					<p className="tagline">Powerful code editor for Android</p>
+					<h1>Welcome to Nova IDE</h1>
+					<p className="tagline">Agentic AI IDE for Android Tablet & Mobile</p>
 				</div>
 			</header>
 
@@ -55,6 +55,11 @@ function createWelcomeContent() {
 			<section className="welcome-section">
 				<h2 className="section-label">GET STARTED</h2>
 				<div className="action-list">
+					<ActionRow
+						icon="wand-sparkles"
+						label="Nova Agent (Google Antigravity)"
+						onClick={() => acode.exec("toggle-agent")}
+					/>
 					<ActionRow
 						icon="add"
 						label={strings["new file"]}

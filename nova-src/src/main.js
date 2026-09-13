@@ -411,7 +411,7 @@ async function onDeviceReady() {
 		navigator.onLine
 	) {
 		cordova.plugin.http.sendRequest(
-			"https://api.github.com/repos/Acode-Foundation/Acode/releases/latest",
+			"https://api.github.com/repos/Yhoanes/antigravity-studio/releases/latest",
 			{
 				method: "GET",
 				responseType: "json",
