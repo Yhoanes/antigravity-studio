@@ -446,6 +446,53 @@ Se formaliza e implementa el Panel Lateral Nativo de Gestión de Proyectos (Proj
 
 ---
 
+### ADR-008: Automatización de Configuración Inicial de Antigravity CLI y Transición Limpia de Proyectos
+
+- **Identificador:** `ADR-008`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.22 Contexto
+Tras la adopción del panel lateral nativo de proyectos ([`ADR-007`](file:///c:/Projects/antigravity/agent.md#adr-007-panel-lateral-nativo-de-gesti%C3%B3n-de-proyectos-projects-drawer-y-mapeo-t%C3%A1ctil)) y el aprovisionamiento del binario oficial de Antigravity CLI ([`ADR-003`](file:///c:/Projects/antigravity/agent.md#adr-003-integraci%C3%B3n-del-binario-oficial-google-antigravity-cli-linux-arm64-y-desacoplamiento-de-hardware-espec%C3%ADfico)), las pruebas de usuario en arranques limpios y conmutación de espacios de trabajo revelaron dos fricciones críticas:
+1. **Contaminación Visual y Eco Crudo en la PTY:** Al pulsar un proyecto en el drawer, la conmutación se realizaba inyectando texto crudo (`cd /home/studio/workspace/... && exec agy\n`) directamente en la terminal. Por el eco de línea TTY (`termios ECHO`), el comando se imprimía textualmente en el canvas visual, generando una apariencia de script rudimentario en lugar de una transición limpia de IDE, además de colisionar con prompts activos si había texto residual en el shell.
+2. **Cuello de Botella por Onboarding Interactivo Bloqueante:** En el primer arranque de Google Antigravity CLI (`agy`), el usuario se enfrentaba a cinco pantallas/diálogos interactivos bloqueantes:
+   - *OAuth Manual:* Falta de soporte para invocar el navegador gráfico del sistema (`xdg-open`), forzando al usuario a copiar manualmente URLs kilométricas desde la terminal táctil y pegar tokens de vuelta.
+   - *Términos de Servicio (Terms of Service / ToS):* Solicitud interactiva de aceptación de términos.
+   - *Selector de Paleta de Color:* Bloqueo solicitando seleccionar el tema visual antes de emitir cualquier comando.
+   - *Diálogo de Confianza de Carpeta (Workspace Trust):* Prompt bloqueante (`Do you trust the authors of the files in this folder? [y/N]`) cada vez que se abría un nuevo proyecto.
+   - *Confirmaciones de Perfil Consumidor vs Enterprise.*
+
+#### 4.23 Decisión
+Se implementa una solución integral en la capa nativa Android (`TermuxActivity.java`) y en el bootloader del contenedor (`TermuxInstaller.java` / `antigravity-boot`) conforme a la especificación formal [`SPEC-008`](file:///c:/Projects/antigravity/specs/08-automated-cli-provisioning-and-clean-navigation.md):
+1. **Protocolo de Transición Limpia de Proyectos (Clean Navigation):**
+   - En `switchToProject(projectName)` de `TermuxActivity.java`, la conmutación se realiza mediante una secuencia de control coordinada:
+     - Inyección de `\u0003` (`SIGINT` / byte `0x03`) para interrumpir cualquier proceso o prompt previo.
+     - Inyección de `clear\n` para resetear el viewport visible.
+     - Despacho de navegación entrecomillada segura: `cd "/home/studio/workspace/<nombre>"` con operador `&&`.
+     - Inyección de `clear` para suprimir el eco de navegación antes del relevo de proceso.
+     - Sustitución atómica de proceso con `exec agy\n`, garantizando la aparición instantánea del banner de Antigravity CLI a 144Hz.
+2. **Pre-aprovisionamiento Autónomo de Onboarding:**
+   - Creación desatendida e idempotente de `/root/.gemini/antigravity-cli/cache/onboarding.json` con:
+     `{"consumerOnboardingComplete": true, "enterpriseOnboardingComplete": false, "onboardingComplete": true}`
+     neutralizando por completo los diálogos de bienvenida, Términos de Servicio y selector de color.
+3. **Pre-aprobación Declarativa de Espacios de Trabajo (`trustedWorkspaces`):**
+   - En `settings.json`, se pre-registran de fábrica las rutas base del entorno de trabajo (`/home/studio/workspace`, `/storage/emulated/0/Projects`, `/sdcard/Projects`).
+   - Al crear o conmutar dinámicamente a nuevos proyectos desde la interfaz nativa, `ensureWorkspaceTrusted(path)` actualiza reactivamente el array `trustedWorkspaces` sin alterar configuraciones existentes, evitando el prompt interactivo de seguridad de carpetas.
+4. **Puente Nativo de Navegación OAuth (`xdg-open` / `x-www-browser` Bridge):**
+   - Creación del ejecutable `/usr/local/bin/xdg-open` (con permisos `0755` y symlink `x-www-browser`) que redirige cualquier solicitud de apertura de URL desde el entorno Linux PRoot hacia el navegador del sistema Android (Google Chrome) mediante llamadas directas a `termux-open-url` o `/system/bin/am start -a android.intent.action.VIEW -d "$1"`.
+   - Esto permite que el comando `agy login` abra inmediatamente la pantalla de inicio de sesión de Google en el navegador predeterminado y reciba el callback de localhost en el servidor de loopback, desbloqueando el flujo OAuth completamente desatendido.
+
+#### 4.24 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia Cero Fricción (Zero-Friction):** El desarrollador ingresa a un entorno listo para codificar inmediatamente sin pantallas de bienvenida, selecciones de tema ni advertencias de seguridad repetitivas.
+  - **Transición Visual de Grado Profesional:** Navegación instantánea entre proyectos sin comandos visibles en la PTY ni distorsión visual a 144Hz.
+  - **Autenticación Sincronizada con el Sistema:** Integración de Google OAuth transparente con Google Chrome en la tablet.
+- **Compromisos Operativos:**
+  - Las carpetas ubicadas fuera de los directorios pre-autorizados requerirán registrarse en `settings.json` o ser creadas a través del panel nativo para beneficiarse de la confianza automática.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -458,6 +505,7 @@ Se formaliza e implementa el Panel Lateral Nativo de Gestión de Proyectos (Proj
 | **SPEC-005** | Antigravity Studio: Native Termux Core Fork & Customized Agentic Station | `specs/05-termux-fork-antigravity-studio.md` | `APPROVED` | 10 ACs |
 | **SPEC-006** | Puente de Almacenamiento Compartido (/sdcard/Projects) y Cadena de Herramientas Git/Ripgrep | `specs/06-storage-bridge-and-git-toolchain.md` | `APPROVED` | 8 ACs |
 | **SPEC-007** | Panel Lateral Nativo de Gestión de Proyectos (Projects Drawer) y Mapeo Táctil | `specs/07-projects-drawer-ui.md` | `APPROVED` | 9 ACs |
+| **SPEC-008** | Aprovisionamiento Autónomo de Google Antigravity CLI y Transición Limpia de Proyectos | `specs/08-automated-cli-provisioning-and-clean-navigation.md` | `APPROVED` | 7 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
