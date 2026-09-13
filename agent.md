@@ -748,6 +748,47 @@ Se formaliza e implementa la solución arquitectónica integral en `TermuxInstal
 
 ---
 
+### ADR-015: Tarjeta Flotante Inteligente OAuth, Onboarding Silencioso Zero-Click y Árbol de Archivos de Proyecto Activo
+
+- **Identificador:** `ADR-015`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.43 Contexto
+Tras asegurar la cadena de confianza TLS y el despacho de URLs en [`ADR-014`](#adr-014-cadena-de-confianza-tlsca-y-puente-automatizado-de-despacho-de-urls-para-autenticación-oauth), las pruebas de usabilidad y ergonomía en la estación de trabajo física Xiaomi Pad 6 identificaron tres áreas críticas de fricción que degradaban la experiencia frente a una IDE moderna:
+1. **Fricción Táctil en el Pegado de Tokens de Autorización OAuth:** Cuando el flujo OAuth requiere copiar manualmente el código de autorización desde el navegador para pegarlo en la terminal, la interacción táctil en una pantalla de 11 pulgadas sin ratón físico resultaba engorrosa. El usuario debía mantener presionado con precisión milimétrica, esperar el menú contextual de Android, seleccionar "Pegar" y luego pulsar la tecla virtual "Enter". Errores de pulsación o caracteres truncados producían el error `invalid_grant` de Google OAuth.
+2. **Sobrecarga Cognitiva por Wizards Interactivos en `agy`:** En arranques limpios o proyectos nuevos, Google Antigravity CLI detenía la ejecución desplegando tres pantallas y prompts interactivos repetitivos: selección de paleta cromática (`colorSchemeIndex`), aceptación de términos de servicio y seguridad (`securityAgreed`), y confirmación de confianza de carpetas (`Do you trust the authors of the files in this folder? [y/N]`).
+3. **Drawer Desalineado con la Sesión de Trabajo Activa:** El panel lateral (*Projects Drawer*) listaba las carpetas globales de `/storage/emulated/0/Projects` de forma estática en lugar de reflejar los archivos y subdirectorios del proyecto correspondiente a la sesión de terminal en primer plano.
+
+#### 4.44 Decisión
+Se formaliza e implementa la solución arquitectónica y ergonómica integral en `TermuxActivity.java`, `TermuxInstaller.java`, `TermuxProjectsListViewController.java` y `activity_termux.xml` bajo el contrato formal [`SPEC-015`](specs/15-oauth-smart-card-silent-onboarding-and-project-file-tree.md):
+1. **Tarjeta Flotante Inteligente OAuth (`OAuthSmartCardContract`):**
+   - Integración de `@+id/oauth_smart_card` como componente Material 3 superpuesto sobre la terminal con diseño Cyber-Obsidian `#161B22`.
+   - Máquina de estados interactiva:
+     - Estado 1 (`AUTH_REQUESTED`): Despliega botón prioritario `[ 🌐 Abrir en Google Chrome ]` y botón secundario `[ 📋 Copiar Enlace ]`.
+     - Estado 2 (`TOKEN_PENDING_PASTE`): Al volver a la app tras autorizar en Chrome, la tarjeta conmuta reactivamente a botón de confirmación verde `#10B981` `[ 🚀 Pegar Código y Confirmar ]`.
+     - Al pulsar el botón, inyecta atómicamente el contenido del portapapeles con retorno de carro `\n` en la sesión PTY activa (`session.write(token + "\n")`) y desvanece la tarjeta de inmediato, completando el inicio de sesión en dos toques.
+2. **Onboarding Silencioso Zero-Click (`SilentOnboardingContract`):**
+   - Pre-aprovisionamiento exhaustivo e incondicional en Java y en `antigravity-boot` de:
+     - `onboarding.json`: `{"consumerOnboardingComplete": true, "enterpriseOnboardingComplete": false, "onboardingComplete": true, "securityAgreed": true, "colorSchemeIndex": 0}`
+     - `settings.json`: `{"theme": "terminal", "colorScheme": "terminal", "securityAgreed": true, "workspaceTrust": true, "trustedWorkspaces": ["*", "/home/studio/workspace", "/storage/emulated/0/Projects", "/sdcard/Projects"]}`
+   - Supresión del 100% de diálogos interactivos de bienvenida, paleta de colores y confirmaciones de confianza de carpeta, iniciando directamente en el prompt interactivo de `agy` en $\le 500\,\text{ms}$.
+3. **Explorador de Archivos de Proyecto Activo (`ProjectFileTreeContract`):**
+   - Transformación de `TermuxProjectsListViewController.java` en un explorador jerárquico de archivos centrado en el proyecto de la sesión en primer plano (`/storage/emulated/0/Projects/<active>`).
+   - Soporte de subdirectorios, navegación hacia atrás (`📁 .. (carpeta anterior)`), diferenciación iconográfica entre carpetas `#00F0FF` y archivos `#8B949E`, y botón superior para alternar de proyecto.
+   - Sincronización automática con el ciclo de vida de sesiones en `TermuxActivity.java`.
+
+#### 4.45 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia de Login Zero-Friction:** Autenticación fluida sin tecleo manual ni comandos truncados en pantalla táctil.
+  - **Inicio Inmediato al Código:** El desarrollador accede directamente al agente de IA sin wizards ni preguntas bloqueantes.
+  - **Inspección Contextual del Código:** Visualización clara de la estructura de archivos del proyecto desde el drawer sin salir de la sesión activa.
+- **Compromisos Operativos:**
+  - La tarjeta flotante consume un área visual temporal en la parte superior de la terminal, pudiendo descartarse manualmente en cualquier momento mediante el botón `[✕]`.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -767,7 +808,9 @@ Se formaliza e implementa la solución arquitectónica integral en `TermuxInstal
 | **SPEC-012** | Corrección Crítica del Entorno de Virtualización PRoot: Aislamiento de Preload Bionic, Configuración de TMPDIR y Fallback Resiliente | `specs/12-fix-proot-bionic-preload-and-tmpdir.md` | `APPROVED` | 4 ACs |
 | **SPEC-013** | Sanitización de Entorno y Resolución de Red Local en PRoot: Aislamiento de PATH de Invitado y Configuración Incondicional de Loopback DNS | `specs/13-fix-dns-loopback-and-guest-path.md` | `APPROVED` | 5 ACs |
 | **SPEC-014** | Cadena de Confianza TLS/CA y Puente Automatizado de Despacho de URLs para Autenticación OAuth | `specs/14-tls-certificates-and-url-dispatcher-bridge.md` | `APPROVED` | 7 ACs |
+| **SPEC-015** | Experiencia de Usuario de Próxima Generación: Tarjeta Flotante OAuth Inteligente, Onboarding Silencioso Zero-Click y Explorador de Archivos de Proyecto Activo | `specs/15-oauth-smart-card-silent-onboarding-and-project-file-tree.md` | `APPROVED` | 9 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
+
 
