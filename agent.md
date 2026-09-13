@@ -357,6 +357,50 @@ Se formaliza y consolida la solución de desacoplamiento e idempotencia en `term
 
 ---
 
+### ADR-006: Puente de Almacenamiento Compartido (/sdcard/Projects) y Cadena de Herramientas Git/Ripgrep
+
+- **Identificador:** `ADR-006`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.16 Contexto
+En la arquitectura inicial de Antigravity Studio sobre Termux Core Fork, el contenedor virtualizado PRoot Ubuntu montaba el espacio de trabajo directamente en el almacenamiento interno privado de la aplicación (`/data/data/com.antigravity.studio/files/home`). Esto ocasionaba tres fricciones críticas:
+1. **Aislamiento Inaccesible de Proyectos:** Los proyectos, prototipos web, artefactos Markdown y código fuente quedaban atrapados en el sandbox privado de Android. Ni Google Chrome móvil ni los exploradores de archivos del sistema podían acceder a ellos para previsualización o respaldo.
+2. **Carencia de Herramientas Esenciales de Control de Versiones y Búsqueda:** El contenedor guest no integraba `git` ni `ripgrep` de forma predeterminada, impidiendo operaciones agénticas de clonado, branching, diffs e indexación de alta velocidad.
+3. **Anomalía de Propiedad FUSE (*Dubious Ownership*):** Al proyectarse sobre el sistema de archivos emulado de Android, Git bloqueaba la ejecución por diferencias de UID/GID sintéticos con el error fatal `fatal: detected dubious ownership in repository`.
+4. **Ergonomía Táctil No Adaptada:** La barra táctil carecía de macros específicas para el flujo supervisado del CLI oficial de Google Antigravity (`agy`), como la aprobación rápida de diffs o la selección interactiva de modelos.
+
+#### 4.17 Decisión
+Se implementa formalmente el Puente de Almacenamiento Compartido y la Cadena de Herramientas de Desarrollo en `TermuxActivity.java`, `TermuxInstaller.java` y `specs/06-storage-bridge-and-git-toolchain.md`:
+1. **Detección Proactiva de `MANAGE_EXTERNAL_STORAGE`:**
+   - Detección y solicitud anticipada en `onCreate` de `TermuxActivity.java` del permiso `MANAGE_EXTERNAL_STORAGE` (All Files Access en Android 11+ / Xiaomi HyperOS).
+2. **Puente Dinámico de Almacenamiento con Fallback Seguro:**
+   - Vinculación de `/storage/emulated/0/Projects` (accesible como `/sdcard/Projects`) a `/home/studio/workspace` dentro del entorno PRoot Ubuntu ARM64.
+   - Vinculación de `/storage/emulated/0` a `/sdcard` en el contenedor para acceso amplio a recursos del dispositivo.
+   - Mecanismo de fallback resiliente a `$HOME/projects` si el almacenamiento compartido no se encuentra disponible o no tiene permisos concedidos.
+3. **Provisión Automatizada de `git` y `ripgrep`:**
+   - Instalación desatendida de `git` y `ripgrep` dentro de Ubuntu glibc mediante `apt-get install -y --no-install-recommends git ripgrep`.
+4. **Mitigación Global de Anomalía FUSE en Git:**
+   - Inyección automática e idempotente de `git config --global --add safe.directory "*"` y `git config --system --add safe.directory "*"` en el script de arranque `antigravity-boot`.
+5. **Macros Táctiles Ergonómicas para Antigravity CLI:**
+   - Configuración pre-sembrada en `termux.properties` con accesos rápidos:
+     - `✓ Aprobar`: macro `y\n` (confirmación ágil de planes y parches).
+     - `⚡ Modelo`: macro `/model\n` (selector interactivo de modelos de IA).
+     - `⏹ Detener`: macro `CTRL c` (`SIGINT` para abortar ejecuciones no deseadas).
+     - `📁 Proyectos`: macro `ls -la\n` (listado rápido del workspace).
+
+#### 4.18 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Interoperabilidad Total:** Edición transparente desde Antigravity CLI y visualización instantánea en Google Chrome (`file:///sdcard/Projects/...` o `http://localhost:3000`) y exploradores de archivos Android.
+  - **Preservación de Proyectos:** Los repositorios y archivos creados sobreviven a la desinstalación o reinstalación de la aplicación.
+  - **Toolchain de Desarrollo Completo:** Soporte integral para clonado Git, control de versiones e indexación ultra-rápida de código con ripgrep.
+  - **Flujo Táctil Fluido:** Operación ergonómica optimizada en la pantalla de 11 pulgadas de la Xiaomi Pad 6 sin teclado físico obligatorio.
+- **Compromisos Operativos:**
+  - Requiere que el usuario conceda el permiso "Acceso a todos los archivos" cuando la app lo solicite en su primer lanzamiento.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -367,6 +411,7 @@ Se formaliza y consolida la solución de desacoplamiento e idempotencia en `term
 | **SPEC-003** | Antigravity Studio IDE: Multi-Project Workspace, Dual Canvas & HyperOS Persistence | `specs/03-antigravity-studio-ide.md` | `APPROVED` | 10 ACs |
 | **SPEC-004** | Antigravity Studio: Termux Platform Adaptation, Cyber-Obsidian UI & Official CLI | `specs/04-termux-antigravity-adapter.md` | `APPROVED` | 9 ACs |
 | **SPEC-005** | Antigravity Studio: Native Termux Core Fork & Customized Agentic Station | `specs/05-termux-fork-antigravity-studio.md` | `APPROVED` | 10 ACs |
+| **SPEC-006** | Puente de Almacenamiento Compartido (/sdcard/Projects) y Cadena de Herramientas Git/Ripgrep | `specs/06-storage-bridge-and-git-toolchain.md` | `APPROVED` | 8 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
