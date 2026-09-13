@@ -242,6 +242,44 @@ Se actualizó el flujo de arranque e inicialización nativa en `termux-src/app/s
 
 ---
 
+### ADR-003: Integración del Binario Oficial Google Antigravity CLI (Linux ARM64) y Desacoplamiento de Hardware Específico
+
+- **Identificador:** `ADR-003`
+- **Fecha:** 2026-09-12
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@android-core` (Implementación), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.7 Contexto
+El usuario y los requerimientos arquitectónicos de Antigravity Studio demandan prescindir de scripts simulados o ataduras a dispositivos particulares (tales como Xiaomi Pad 6, Qualcomm Snapdragon 870, etc.) con el propósito de garantizar que la aplicación sea universal, limpia, reproducible y ejecute directamente el binario oficial compilado de Google Antigravity CLI (`agy` / `antigravity`).
+
+En versiones tempranas, el bootloader inyectaba un script emulado en shell con variables locales de hardware (`export ANTIGRAVITY_DEVICE="xiaomi-pad-6"`, `export ANTIGRAVITY_SOC="snapdragon-870"`). Aunque funcional para validaciones iniciales, esto introducía deuda técnica por emulación y restringía conceptualmente el sistema a un hardware puntual, distorsionando la experiencia de desarrollo nativa del entorno Google AI Ultra.
+
+#### 4.8 Decisión
+Se formaliza e implementa la adopción definitiva del binario oficial y el desacoplamiento de plataforma:
+1. **Eliminación Total de Scripts Emulados (Mocks):** Se suprimen por completo los scripts simulados embebidos en el bootloader `antigravity-boot` en `TermuxInstaller.java` y en la especificación formal `SPEC-005`.
+2. **Descarga e Instalación Automatizada del Binario Oficial Google Antigravity CLI (v1.2.2 Linux ARM64):**
+   Durante la fase de aprovisionamiento del contenedor PRoot Ubuntu ARM64, el bootloader comprueba la existencia de `/usr/local/bin/antigravity` o `/usr/local/bin/agy`. En caso de no existir:
+   - Asegura la presencia de herramientas mínimas de descompresión (`curl`, `tar`, `ca-certificates`).
+   - Descarga de manera desatendida el paquete oficial desde la infraestructura de Google:
+     `https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-arm/cli_linux_arm64.tar.gz`
+   - Descomprime el ejecutable en `/usr/local/bin/antigravity` con permisos `0755`.
+   - Crea el enlace simbólico canónico `ln -sf /usr/local/bin/antigravity /usr/local/bin/agy`.
+3. **Desacoplamiento Absoluto de Hardware Específico:**
+   Se eliminan todas las variables de entorno acopladas a SoC o dispositivos particulares. El entorno exporta configuraciones estándar POSIX (`TERM=xterm-256color`, `COLORTERM=truecolor`, `PATH="/usr/local/bin:$PATH"`), permitiendo universalidad absoluta sobre cualquier dispositivo o entorno Android compatible con la arquitectura ARM64-v8a.
+4. **Ejecución Directa y Fallback de Contingencia:**
+   El bootloader invoca directamente `exec agy "$@"` o `exec antigravity "$@"` dentro de `/home/studio/workspace`, con fallback transparente a `exec bash -i` en caso de eventualidad no recuperable.
+
+#### 4.9 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Fidelidad y Autenticidad Absoluta:** Ejecución del binario real de Google Antigravity CLI con pleno soporte de capacidades agénticas y modelos de frontera.
+  - **Universalidad de Plataforma:** Eliminación de acoplamiento rígido con hardware específico sin perder la optimización nativa ARM64.
+  - **Operación Zero-Configuración:** La descarga, extracción, symlink y arranque se producen de manera transparente en el primer inicio.
+- **Compromisos Operativos:**
+  - Requiere descarga puntual del paquete comprimido de Google (~30 MB) durante la inicialización primaria.
+  - Los arranques subsecuentes ejecutan el binario preinstalado con latencia cero.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |

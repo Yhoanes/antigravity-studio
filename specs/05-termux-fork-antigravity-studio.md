@@ -382,33 +382,58 @@ PREFIX="/data/data/com.antigravity.studio/files/usr"
 HOME="/data/data/com.antigravity.studio/files/home"
 ROOTFS_DIR="$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu"
 
-# Exportar variables de entorno críticas del dispositivo
+# Exportar variables de entorno estándar
 export TERM="xterm-256color"
 export COLORTERM="truecolor"
-export ANTIGRAVITY_DEVICE="xiaomi-pad-6"
-export ANTIGRAVITY_SOC="snapdragon-870"
-export ANTIGRAVITY_SCREEN="144hz-2.8k"
 
 # Adquirir wake-lock nativo para prevenir suspensión por HyperOS
 if [ -x "$PREFIX/bin/termux-wake-lock" ]; then
-    "$PREFIX/bin/termux-wake-lock"
+    "$PREFIX/bin/termux-wake-lock" 2>/dev/null || true
 fi
+
+mkdir -p "$HOME"
 
 # Diagnóstico de primer arranque: comprobar rootfs de PRoot Ubuntu
 if [ ! -d "$ROOTFS_DIR" ]; then
-    echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Inicializando contenedor PRoot Linux Ubuntu ARM64..."
+    if [ ! -x "$PREFIX/bin/proot-distro" ]; then
+        echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Instalando proot-distro y dependencias del sistema..."
+        pkg update -y || true
+        pkg install -y proot-distro curl tar jq git
+    fi
+    echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Descargando e inicializando contenedor PRoot Linux Ubuntu ARM64..."
     "$PREFIX/bin/proot-distro" install ubuntu
-    echo -e "\033[38;2;0;255;159m[Antigravity Studio]\033[0m Contenedor aprovisionado con éxito."
+    echo -e "\033[38;2;0;255;159m[Antigravity Studio]\033[0m Contenedor Ubuntu ARM64 aprovisionado con exito."
+fi
+
+# Provisión automática del binario oficial de Google Antigravity CLI para Linux ARM64
+if [ ! -f "$ROOTFS_DIR/usr/local/bin/antigravity" ] && [ ! -f "$ROOTFS_DIR/usr/local/bin/agy" ]; then
+    echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Instalando Google Antigravity CLI oficial (Linux ARM64)..."
+    "$PREFIX/bin/proot-distro" login ubuntu --shared-tmp -- bash -c '
+        mkdir -p /usr/local/bin /home/studio/workspace /root
+        if [ ! -f /usr/local/bin/antigravity ]; then
+            if ! command -v curl >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; then
+                apt-get update -y && apt-get install -y --no-install-recommends curl ca-certificates tar || true
+            fi
+            curl -fsSL "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-arm/cli_linux_arm64.tar.gz" -o /tmp/cli.tar.gz && \
+            tar -xzf /tmp/cli.tar.gz -C /usr/local/bin/ && \
+            ln -sf /usr/local/bin/antigravity /usr/local/bin/agy && \
+            chmod +x /usr/local/bin/antigravity && \
+            rm -f /tmp/cli.tar.gz
+        fi
+    '
+    echo -e "\033[38;2;0;255;159m[Antigravity Studio]\033[0m Google Antigravity CLI configurado con exito."
 fi
 
 # Lanzar sesión agéntica interactiva de Google Antigravity CLI
-echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Conectando con Google AI Ultra Runtime..."
+echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Iniciando Google Antigravity CLI..."
 exec "$PREFIX/bin/proot-distro" login ubuntu --shared-tmp --bind "$HOME:/home/studio/workspace" -- bash -l -c '
+    export PATH="/usr/local/bin:$PATH"
+    cd /home/studio/workspace 2>/dev/null || cd /root
     if command -v agy >/dev/null 2>&1; then
         exec agy "$@"
+    elif command -v antigravity >/dev/null 2>&1; then
+        exec antigravity "$@"
     else
-        echo -e "\033[38;2;255;0;85m[Error]\033[0m Binario agy no encontrado en el contenedor."
-        echo "Iniciando shell interactivo de emergencia..."
         exec bash -i
     fi
 ' -- "$@"
