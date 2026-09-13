@@ -393,41 +393,57 @@ fi
 
 mkdir -p "$HOME"
 
-# Diagnóstico de primer arranque: comprobar rootfs de PRoot Ubuntu
-if [ ! -d "$ROOTFS_DIR" ]; then
-    if [ ! -x "$PREFIX/bin/proot-distro" ]; then
-        echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Instalando proot-distro y dependencias del sistema..."
-        pkg update -y || true
-        pkg install -y proot-distro curl tar jq git
-    fi
-    echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Descargando e inicializando contenedor PRoot Linux Ubuntu ARM64..."
-    "$PREFIX/bin/proot-distro" install ubuntu
-    echo -e "\033[38;2;0;255;159m[Antigravity Studio]\033[0m Contenedor Ubuntu ARM64 aprovisionado con exito."
+# Diagnóstico de primer arranque: comprobar rootfs de PRoot Ubuntu de forma idempotente
+if [ ! -x "$PREFIX/bin/proot-distro" ]; then
+    mkdir -p "$PREFIX/etc/apt"
+    cat << 'EOF_SOURCES' > "$PREFIX/etc/apt/sources.list"
+# Repositorio oficial Termux con CDN global Cloudflare / MWT
+deb https://mirror.mwt.me/termux/main/ stable main
+deb https://packages.termux.dev/apt/termux-main/ stable main
+EOF_SOURCES
+    echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Instalando motor PRoot de alta velocidad..."
+    apt-get update -y || pkg update -y || true
+    apt-get install -y --no-install-recommends proot-distro || pkg install -y proot-distro
 fi
 
-# Provisión automática del binario oficial de Google Antigravity CLI para Linux ARM64
-if [ ! -f "$ROOTFS_DIR/usr/local/bin/antigravity" ] && [ ! -f "$ROOTFS_DIR/usr/local/bin/agy" ]; then
+if ! env -u LD_PRELOAD -u LD_LIBRARY_PATH "$PREFIX/bin/proot-distro" login ubuntu -- /bin/true >/dev/null 2>&1; then
+    if "$PREFIX/bin/proot-distro" list 2>/dev/null | grep -i "ubuntu" | grep -qv "not installed"; then
+        echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Restableciendo contenedor Ubuntu ARM64..."
+        "$PREFIX/bin/proot-distro" reset ubuntu >/dev/null 2>&1 || true
+    fi
+    if ! env -u LD_PRELOAD -u LD_LIBRARY_PATH "$PREFIX/bin/proot-distro" login ubuntu -- /bin/true >/dev/null 2>&1; then
+        echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Descargando e inicializando contenedor PRoot Linux Ubuntu ARM64..."
+        "$PREFIX/bin/proot-distro" remove ubuntu >/dev/null 2>&1 || true
+        "$PREFIX/bin/proot-distro" install ubuntu
+        echo -e "\033[38;2;0;255;159m[Antigravity Studio]\033[0m Contenedor Ubuntu ARM64 aprovisionado con exito."
+    fi
+fi
+
+# Provisión automática del binario oficial de Google Antigravity CLI para Linux ARM64 con aislamiento de entorno
+if ! env -u LD_PRELOAD -u LD_LIBRARY_PATH "$PREFIX/bin/proot-distro" login ubuntu -- /bin/sh -c 'test -x /usr/local/bin/antigravity || test -x /usr/local/bin/agy' >/dev/null 2>&1; then
     echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Instalando Google Antigravity CLI oficial (Linux ARM64)..."
-    "$PREFIX/bin/proot-distro" login ubuntu --shared-tmp -- bash -c '
+    env -u LD_PRELOAD -u LD_LIBRARY_PATH "$PREFIX/bin/proot-distro" login ubuntu --shared-tmp -- bash -c '
+        set -e
+        export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
         mkdir -p /usr/local/bin /home/studio/workspace /root
-        if [ ! -f /usr/local/bin/antigravity ]; then
-            if ! command -v curl >/dev/null 2>&1 || ! command -v tar >/dev/null 2>&1; then
-                apt-get update -y && apt-get install -y --no-install-recommends curl ca-certificates tar || true
-            fi
-            curl -fsSL "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-arm/cli_linux_arm64.tar.gz" -o /tmp/cli.tar.gz && \
-            tar -xzf /tmp/cli.tar.gz -C /usr/local/bin/ && \
-            ln -sf /usr/local/bin/antigravity /usr/local/bin/agy && \
-            chmod +x /usr/local/bin/antigravity && \
-            rm -f /tmp/cli.tar.gz
+        if [ ! -x /usr/bin/curl ] || [ ! -x /bin/tar ]; then
+            apt-get update -y
+            apt-get install -y --no-install-recommends curl ca-certificates tar
         fi
+        echo "[Antigravity Studio] Descargando binario oficial Google Antigravity CLI..."
+        /usr/bin/curl -fsSL "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-arm/cli_linux_arm64.tar.gz" -o /tmp/cli.tar.gz
+        /bin/tar -xzf /tmp/cli.tar.gz -C /usr/local/bin/
+        ln -sf /usr/local/bin/antigravity /usr/local/bin/agy
+        chmod +x /usr/local/bin/antigravity /usr/local/bin/agy
+        rm -f /tmp/cli.tar.gz
     '
     echo -e "\033[38;2;0;255;159m[Antigravity Studio]\033[0m Google Antigravity CLI configurado con exito."
 fi
 
-# Lanzar sesión agéntica interactiva de Google Antigravity CLI
+# Lanzar sesión agéntica interactiva de Google Antigravity CLI con aislamiento bionic
 echo -e "\033[38;2;0;240;255m[Antigravity Studio]\033[0m Iniciando Google Antigravity CLI..."
-exec "$PREFIX/bin/proot-distro" login ubuntu --shared-tmp --bind "$HOME:/home/studio/workspace" -- bash -l -c '
-    export PATH="/usr/local/bin:$PATH"
+exec env -u LD_PRELOAD -u LD_LIBRARY_PATH "$PREFIX/bin/proot-distro" login ubuntu --shared-tmp --bind "$HOME:/home/studio/workspace" -- bash -l -c '
+    export PATH="/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin:$PATH"
     cd /home/studio/workspace 2>/dev/null || cd /root
     if command -v agy >/dev/null 2>&1; then
         exec agy "$@"

@@ -318,6 +318,45 @@ Se formaliza e implementa una política estricta de aceleración por CDN y minim
 
 ---
 
+### ADR-005: Aislamiento de Entorno Bionic e Idempotencia Dinámica en Aprovisionamiento PRoot
+
+- **Identificador:** `ADR-005`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@android-core` (Implementación), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.13 Contexto
+Durante las pruebas de validación en frío y reinicio en caliente sobre dispositivos físicos, se detectaron dos fallos críticos que bloqueaban el arranque de la estación agéntica:
+1. **Linker Mismatch en Bionic / Fuga de Librerías Anfitrionas:**
+   Al ejecutarse comandos dentro del espacio de usuario virtualizado PRoot, el runtime heredaba variables de entorno del host Android (`LD_PRELOAD` y `LD_LIBRARY_PATH`), provocando que binarios de Ubuntu glibc intentaran enlazarse contra bibliotecas Bionic compartidas de Termux (`/data/data/com.antigravity.studio/files/usr/lib/libcurl.so`), resultando en el error:
+   `CANNOT LINK EXECUTABLE "curl": cannot locate symbol "ngtcp2_crypto_get_path_challenge_data2_cb"`.
+2. **Fallo en Idempotencia de Reinicio de Contenedores:**
+   Al verificarse el estado del contenedor mediante la comprobación estática de ruta de directorio `$ROOTFS_DIR`, si el proceso de instalación previo había sido interrumpido, desincronizado o reiniciado por el sistema, `proot-distro install ubuntu` fallaba inmediatamente con:
+   `Error: container 'ubuntu' already exists`, impidiendo tanto el rescate como el arranque limpio.
+
+#### 4.14 Decisión
+Se formaliza y consolida la solución de desacoplamiento e idempotencia en `termux-src/app/src/main/java/com/termux/app/TermuxInstaller.java` y `specs/05-termux-fork-antigravity-studio.md`:
+1. **Eliminación Total de `curl` en el Host Bionic:**
+   - La máquina anfitriona Termux no instala ni ejecuta `curl`. Se reduce al mínimo hipervisor absoluto: únicamente `proot-distro`.
+2. **Aislamiento Estricto de Enlace Dinámico:**
+   - Todas las llamadas al motor de virtualización PRoot se ejecutan purgando explícitamente los preloaders anfitriones mediante `env -u LD_PRELOAD -u LD_LIBRARY_PATH "$PREFIX/bin/proot-distro" ...`.
+   - Se fija el `PATH` guest canónico (`/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin`) para garantizar que binarios nativos no colisionen con las utilidades de Termux.
+3. **Instalación y Uso de `curl` Nativo glibc Ubuntu ARM64:**
+   - La descarga del paquete oficial Google Antigravity CLI se realiza utilizando exclusivamente `/usr/bin/curl` nativo de Ubuntu compilado contra glibc, garantizando total compatibilidad de símbolos y TLS.
+4. **Verificación Dinámica e Idempotente del Contenedor:**
+   - Se reemplaza la comprobación pasiva por directorio con una sonda de login real en espacio de usuario: `proot-distro login ubuntu -- /bin/true`.
+   - En caso de fallo o estado inconsistente, se aplica recuperación en dos etapas (`reset ubuntu` y, de persistir el fallo, `remove ubuntu` preventivo seguido de `install ubuntu`), garantizando auto-reparación desatendida.
+
+#### 4.15 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Eliminación Total de Colisiones de Linker:** Aislamiento absoluto entre el espacio Bionic de Android y el espacio GNU/glibc de Ubuntu ARM64.
+  - **Tolerancia Extrema a Fallos e Interrupciones:** Capacidad de autorrecuperación automática ante cierres forzados, desconexiones o reinicios en caliente.
+  - **Máxima Ligereza en Host:** El host Bionic se mantiene libre de paquetes de red superfluos.
+- **Compromisos Operativos:**
+  - Si un usuario ya tiene una sesión antigua abierta con el contenedor inconsistente, la instrucción de recuperación en caliente consiste en ejecutar `proot-distro reset ubuntu` o reinstalar el APK v1.4.0.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
