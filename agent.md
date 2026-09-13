@@ -865,6 +865,21 @@ Se formaliza la evolución arquitectónica hacia **Nova IDE** bajo la especifica
 - **Configuración de Paquete y Marca:** Configurado el identificador de paquete oficial `io.nova.ide` y nombre "Nova IDE" en `nova-src/config.xml`, `nova-src/package.json` y `nova-src/www/index.html`.
 - **Harness de Arquitectura Activo:** Integrado el script automatizado [`harness/test_nova_ide_architecture.sh`](harness/test_nova_ide_architecture.sh), certificando al 100% las 7 compuertas de verificación estructural, estilística y de contratos para `SPEC-017`.
 
+#### 4.53 TASK-030 & TASK-031: Implementación del Tema Deep Cosmos, Cabecera Soberana y Panel Nova Agent (Ask)
+- **Tema Integrado Oficial Deep Cosmos & Supernova Cyan (`nova-src/src/theme/preInstalled.js`):**
+  - Implementación del tema visual `Nova` con paleta canónica: `primaryColor: rgb(9, 13, 22)` (`#090d16`), `darkenedPrimaryColor: rgb(3, 7, 18)` (`#030712`), `secondaryColor: rgb(17, 24, 39)` (`#111827`), `activeColor: rgb(0, 240, 255)` (`#00f0ff`), `linkTextColor: rgb(139, 92, 246)` (`#8b5cf6`) y `primaryTextColor: rgb(226, 232, 240)` (`#e2e8f0`).
+  - Configurado como el tema predeterminado del sistema (`appTheme: "nova"`) en `nova-src/src/lib/settings.js`.
+- **Cabecera Soberana y Botón de Agente (`nova-src/src/main.js`):**
+  - Titulación oficial `‹ ✦ › Nova IDE` visible en la barra superior.
+  - Integración del botón táctil de agente (`#agent-toggler`, acción `toggle-agent`, ícono `wand-sparkles` con acento Supernova Cyan `#00f0ff` y badge `Ask`).
+  - Comando registrado `toggle-agent` en `nova-src/src/lib/commands.js` conectado reactivamente a `agentPanel.toggle()`.
+- **Componente Nova Agent Panel (`nova-src/src/components/agentPanel/`):**
+  - Arquitectura desacoplada en `index.js` y `style.scss` con layout responsivo de 3 columnas para tablets en `nova-src/src/styles/wideScreen.scss` (`clamp(340px, 30vw, 420px)`).
+  - Encabezado con título `✦ Nova Agent`, insignia de estado `IDLE / READY`, botón de maximización interactivo `⛶` (`#agent-maximize-btn`) que conmuta el panel al 100% del viewport para inspección de código y botón de cierre `✕`.
+  - Contenedor dedicado `#agent-terminal-container` con tema Obsidian Terminal (`#030712`) y cursor cyan para renderizado Xterm.js a 144Hz, registrado en `terminalThemeManager.js`.
+- **Verificación Rigurosa del Arnés:**
+  - Validación automatizada en [`harness/test_nova_theme_and_panel.sh`](harness/test_nova_theme_and_panel.sh) certificando al 100% las 9 compuertas de interfaz, temas, comandos, estilos responsivos y terminal theme.
+
 ---
 
 ## 5. Catálogo de Especificaciones SDD Registradas
