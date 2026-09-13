@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-13T03:34:17.815595+00:00",
+  "timestamp": "2026-09-13T03:35:12.936491+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,14 +7,14 @@
     "passed_suites": 1,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 3450.8
+    "total_duration_ms": 3727.56
   },
   "suites": [
     {
       "name": "test_suite",
       "display_name": "Automated Unit & Regression Test Suite",
       "status": "PASS",
-      "duration_ms": 3450.79,
+      "duration_ms": 3727.54,
       "summary": "16 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
       "details": {
         "tests_run": 16,
