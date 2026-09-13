@@ -401,6 +401,51 @@ Se implementa formalmente el Puente de Almacenamiento Compartido y la Cadena de 
 
 ---
 
+### ADR-007: Panel Lateral Nativo de Gestión de Proyectos (Projects Drawer) y Mapeo Táctil
+
+- **Identificador:** `ADR-007`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.19 Contexto
+Tras la implementación del puente de almacenamiento hacia `/sdcard/Projects` ([`ADR-006`](file:///c:/Projects/antigravity/agent.md#adr-006-puente-de-almacenamiento-compartido-sdcardprojects-y-cadena-de-herramientas-gitripgrep)), la barra táctil de macros (`extra-keys` en `termux.properties`) contaba con un botón etiquetado como `📁 Proyectos` configurado con `{macro: 'ls -la\\n', display: '📁 Proyectos'}`.
+Aunque funcional en un shell bash pasivo, esta aproximación presentaba limitaciones críticas de usabilidad y arquitectura:
+1. **Incompatibilidad con la TUI de Google Antigravity CLI:** Cuando la terminal ejecuta el agente interactivo `agy`, su interfaz TUI captura `stdin`. La inyección ciega de `ls -la\n` enviaba texto inerte al cuadro de prompt o resultaba en un comando inválido, en vez de proveer una experiencia visual de exploración.
+2. **Carencia de Navegación y Creación Táctil:** El usuario requería una experiencia de gestión de proyectos análoga a la interfaz de escritorio de Antigravity, donde las carpetas creadas en `/sdcard/Projects` aparezcan en una lista navegable, se pueda conmutar de proyecto con un toque y crear nuevos proyectos con diálogo modal sin digitar comandos complejos en shell.
+3. **Subutilización del Drawer Nativo:** El contenedor deslizante existente en Android (`DrawerLayout` / `left_drawer`) estaba limitado a listar sesiones numéricas anónimas, desaprovechando la capacidad de actuar como explorador visual persistente de proyectos.
+
+#### 4.20 Decisión
+Se formaliza e implementa el Panel Lateral Nativo de Gestión de Proyectos (Projects Drawer) y el mapeo táctil reactivo bajo la especificación formal [`SPEC-007`](file:///c:/Projects/antigravity/specs/07-projects-drawer-ui.md):
+1. **Mapeo Táctil a Acción Nativa:** Se sustituye la macro de texto plano por `{key: 'DRAWER', display: '📁 Proyectos'}` en `termux.properties`. El dispatcher en `TermuxTerminalExtraKeys.java` intercepta la clave `"DRAWER"` para refrescar la lista de proyectos e invocar el deslizamiento acelerado por hardware a 144Hz en la Xiaomi Pad 6 mediante `DrawerLayout.openDrawer(GravityCompat.START)`.
+2. **Rediseño del Layout del Panel Lateral (`activity_termux.xml`):**
+   - Redimensión del contenedor `left_drawer` a `300dp` de ancho, optimizado ergonómicamente para tablets de 11 pulgadas.
+   - Cabecera con título formal "PROYECTOS ANTIGRAVITY" y botón interactivo `+ Nuevo Proyecto` (`@+id/btn_new_project`).
+   - Vista de lista `@+id/projects_list_view` dedicada a los proyectos locales, conviviendo armoniosamente sobre la lista de sesiones de terminal.
+3. **Controlador y Adaptador Dinámico (`TermuxProjectsListViewController.java`):**
+   - Escaneo asíncrono y en tiempo real del directorio `/storage/emulated/0/Projects` con fallback transparente a `$HOME/projects` en caso de ausencia de permisos.
+   - Modelo `ProjectItem.java` con detección automática de repositorios Git (comprobación de subdirectorio `.git/` para renderizar el badge visual `GIT`).
+   - Layout de elemento `item_project_list.xml` con tipografía monoespaciada, íconos temáticos Cyber-Obsidian y formateo de fecha de última modificación.
+4. **Diálogo Modal de Creación con Validación POSIX:**
+   - Diálogo modal nativo `showCreateProjectDialog()` que valida los nombres ingresados contra la expresión regular estricta `^[a-zA-Z0-9_-]+$`, rechazando espacios y caracteres prohibidos en sistemas de archivos FUSE/Android.
+   - Creación inmediata del directorio, actualización reactiva del adaptador y foco inmediato.
+5. **Conmutación Agéntica por PTY:**
+   - Al seleccionar un proyecto mediante toque táctil, se invoca `switchToProject(projectName)`, cerrando el panel, transfiriendo el foco a `TerminalView` e inyectando al flujo de entrada estándar PTY el comando canónico:
+     ```bash
+     cd /home/studio/workspace/<nombre-proyecto> && exec agy
+     ```
+     iniciando la sesión de la CLI oficial de Antigravity directamente en el contexto del proyecto seleccionado.
+
+#### 4.21 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia Móvil de Primera Clase:** Exploración, selección y creación de proyectos con soporte táctil fluido e intuitivo sin depender de teclado físico ni tecleo manual en terminal.
+  - **Conexión Directa con `agy`:** El cambio de directorio automático y relanzamiento de `agy` sitúa al agente de IA en la raíz del proyecto correspondiente sin pasos intermedios.
+  - **Detección Visual de Estado de Control de Versiones:** Identificación inmediata de qué carpetas son repositorios Git activos gracias al badge de estado.
+- **Compromisos Operativos:**
+  - Requiere que el usuario mantenga concedido el permiso `MANAGE_EXTERNAL_STORAGE` para listar `/sdcard/Projects`; de lo contrario, el sistema conmuta automáticamente al directorio local de fallback `$HOME/projects`.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -412,6 +457,7 @@ Se implementa formalmente el Puente de Almacenamiento Compartido y la Cadena de 
 | **SPEC-004** | Antigravity Studio: Termux Platform Adaptation, Cyber-Obsidian UI & Official CLI | `specs/04-termux-antigravity-adapter.md` | `APPROVED` | 9 ACs |
 | **SPEC-005** | Antigravity Studio: Native Termux Core Fork & Customized Agentic Station | `specs/05-termux-fork-antigravity-studio.md` | `APPROVED` | 10 ACs |
 | **SPEC-006** | Puente de Almacenamiento Compartido (/sdcard/Projects) y Cadena de Herramientas Git/Ripgrep | `specs/06-storage-bridge-and-git-toolchain.md` | `APPROVED` | 8 ACs |
+| **SPEC-007** | Panel Lateral Nativo de Gestión de Proyectos (Projects Drawer) y Mapeo Táctil | `specs/07-projects-drawer-ui.md` | `APPROVED` | 9 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
