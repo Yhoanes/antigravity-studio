@@ -615,6 +615,46 @@ Se formaliza e implementa la arquitectura de **Runtime 100% Autónomo Offline (Z
 
 ---
 
+### ADR-012: Aislamiento Total de Preload Bionic (LD_PRELOAD), Configuración Obligatoria de TMPDIR y Fallback Resiliente de Sesión
+
+- **Identificador:** `ADR-012`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.34 Contexto
+Durante las pruebas de validación en la tablet física Xiaomi Pad 6 (Android 14 / Xiaomi HyperOS), el arranque de la terminal PRoot Ubuntu fallaba inmediatamente al inicializarse, finalizando con el mensaje fatal `[Process completed (code 1) - press Enter]` y dejando la aplicación en un estado bloqueado e inoperable.
+El análisis forense exhaustivo identificó tres causas raíz:
+1. **Secuestro de Llamadas `execve` e Incompatibilidad de ABI por `LD_PRELOAD`:** La capa host de Termux exportaba automáticamente `LD_PRELOAD=/data/data/com.termux/files/usr/lib/libtermux-exec.so`. Al invocar el binario PRoot y transferir la ejecución al entorno guest con glibc, el cargador dinámico de glibc (`/lib/ld-linux-aarch64.so.1`) colisionaba con la biblioteca Bionic de Android. Además, `libtermux-exec.so` reescribía las rutas válidas de Ubuntu (ej. `/usr/bin/bash`) hacia rutas inexistentes de Termux, provocando un error fatal `ENOENT`.
+2. **Fallo Crítico `can't chmod` por Ausencia de `TMPDIR`:** PRoot requiere un directorio temporal local en el host para sockets UNIX y tablas de descriptores. Dado que `$PREFIX/tmp` no existía de fábrica en la Xiaomi Pad 6 y no se exportaban las variables de entorno `TMPDIR` ni `PROOT_TMP_DIR`, el motor PRoot abortaba con el error `proot error: can't chmod '.../usr/tmp/proot-XXXXXX': No such file or directory`.
+3. **Muerte Irreversible de la Sesión PTY sin Shell de Rescate:** El script culminaba en una sustitución atómica incondicional `exec "$PREFIX/bin/proot" ...` bajo `set -e`. Ante cualquier eventualidad de inicialización, el proceso de terminal moría instantáneamente sin proporcionar affordance al desarrollador para diagnosticar el problema.
+
+#### 4.35 Decisión
+Se formalizan e implementan dos contratos de arquitectura en `TermuxInstaller.java` y `antigravity-boot` bajo la especificación formal [`SPEC-012`](file:///c:/Projects/antigravity/specs/12-fix-proot-bionic-preload-and-tmpdir.md):
+1. **Contrato de Ejecución Limpia de PRoot (`CleanPRootExecutionContract`):**
+   - Inyección mandatoria de `unset LD_PRELOAD` y `unset LD_LIBRARY_PATH` en la cabecera de `antigravity-boot`.
+   - Creación determinista del directorio `$TMP_DIR="$PREFIX/tmp"` con permisos estrictos `0700` (`mkdir -p "$TMP_DIR"` y `chmod 0700 "$TMP_DIR"`).
+   - Exportación explícita de `export TMPDIR="$TMP_DIR"` y `export PROOT_TMP_DIR="$TMP_DIR"`.
+   - Invocación de PRoot precedida por purga estricta de entorno: `env -u LD_PRELOAD -u LD_LIBRARY_PATH TMPDIR="$TMP_DIR" PROOT_TMP_DIR="$TMP_DIR" "$PREFIX/bin/proot" ...`.
+   - Erradicación de advertencias sobre `/dev/shm` y montajes duplicados.
+2. **Contrato de Fallback Resiliente de Sesión (`ResilientFallbackContract`):**
+   - Se suprime la sustitución atómica incondicional mediante `set +e` previo a la invocación de PRoot y captura determinista del código de salida: `PROOT_EXIT_CODE=$?`.
+   - En caso de que `PROOT_EXIT_CODE` sea distinto de `0`, la sesión terminal no colapsa ni se cierra; despliega un banner de diagnóstico con el código de error y transfiere el control de forma inmediata a un shell de rescate interactivo:
+     ```bash
+     PS1="rescue-shell:\w$ " exec "$PREFIX/bin/bash" -i
+     ```
+     asegurando que el desarrollador siempre conserve el control de la consola.
+
+#### 4.36 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Arranque Inmaculado en Xiaomi Pad 6:** Erradicación del 100% de los bloqueos `[Process completed (code 1)]`.
+  - **Aislamiento Absoluto de Entorno Bionic / glibc:** Cero colisiones de cargadores dinámicos o reescritura indebida de rutas.
+  - **Tolerancia a Fallos y Alta Disponibilidad:** Garantía de que la terminal nunca muera abruptamente, proporcionando siempre una consola de contingencia.
+- **Compromisos Operativos:**
+  - Requiere asegurar que `$PREFIX/tmp` se mantenga limpio y no se sature durante sesiones prolongadas.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -631,6 +671,7 @@ Se formaliza e implementa la arquitectura de **Runtime 100% Autónomo Offline (Z
 | **SPEC-009** | Gestión Nativa de Sesiones por Proyecto, Depuración de Montajes PRoot y Pantalla de Carga Cyber-Obsidian | `specs/09-clean-sessions-and-splash-ui.md` | `APPROVED` | 11 ACs |
 | **SPEC-010** | Aislamiento Estricto de Proyectos por Sesión, Selector de Proyectos Nativo, Splash Cyber-Obsidian V2 y Pre-empaquetado de Runtime | `specs/10-project-isolation-and-prebundled-runtime.md` | `APPROVED` | 9 ACs |
 | **SPEC-011** | Runtime Agéntico 100% Autónomo Offline (Zero-Download) y Validación en Emulador Android Tablet | `specs/11-zero-download-offline-runtime.md` | `APPROVED` | 9 ACs |
+| **SPEC-012** | Corrección Crítica del Entorno de Virtualización PRoot: Aislamiento de Preload Bionic, Configuración de TMPDIR y Fallback Resiliente | `specs/12-fix-proot-bionic-preload-and-tmpdir.md` | `APPROVED` | 4 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
