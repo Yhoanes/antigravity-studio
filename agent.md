@@ -880,6 +880,22 @@ Se formaliza la evolución arquitectónica hacia **Nova IDE** bajo la especifica
 - **Verificación Rigurosa del Arnés:**
   - Validación automatizada en [`harness/test_nova_theme_and_panel.sh`](harness/test_nova_theme_and_panel.sh) certificando al 100% las 9 compuertas de interfaz, temas, comandos, estilos responsivos y terminal theme.
 
+#### 4.54 TASK-032 & TASK-033: Motor On-Demand Provisioner, Desacoplamiento Thin Client y Compilación de Nova IDE APK v1.0.0
+- **Arquitectura de Aprovisionamiento Asistido Bajo Demanda (`Terminal.js`):**
+  - Implementación en `nova-src/src/plugins/terminal/www/Terminal.js` de la máquina de estados de descarga progresiva en primer uso:
+    - RootFS oficial Ubuntu ARM64: `https://github.com/termux/proot-distro/releases/download/v4.18.0/ubuntu-aarch64-pd-v4.18.0.tar.xz`.
+    - Binario oficial Google Antigravity CLI: `https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-arm/cli_linux_arm64.tar.gz`.
+    - Extracción atómica, symlink `/usr/local/bin/agy` y configuración de entorno en `/home/studio/workspace`.
+  - Inyección silenciosa e incondicional de onboarding y settings: `onboarding.json` (`consumerOnboardingComplete: true`, `onboardingComplete: true`) y `settings.json` (`trustedWorkspaces: ["/home/studio/workspace", "/storage/emulated/0/Projects", "*"]`), erradicando wizards interactivos.
+  - Puente `xdg-open` desacoplado hacia el navegador predeterminado (Google Chrome) mediante `/system/bin/am start -a android.intent.action.VIEW -d "$URL"` y symlink `x-www-browser`.
+- **Scripts de Arranque y Sandbox (`init-alpine.sh` y `init-sandbox.sh`):**
+  - Configuración de espacios de trabajo aislados en `/home/studio/workspace` con invocación directa a `exec agy "$@"`.
+- **Pipeline de Compilación y Empaquetado Thin Client:**
+  - Pipeline de empaquetado híbrido frontend con Rspack y Gradle en Apache Cordova para arquitectura `arm64-v8a`.
+  - Generación exitosa del artefacto instalador **`NovaIDE-v1.0.0-ARM64.apk`** con una huella optimizada de **~36.7 MB** (reducción del 75% frente a los 142.5 MB de la arquitectura previa).
+- **Aseguramiento y Validación por Arnés:**
+  - Certificación formal al 100% de las 6 compuertas del arnés automatizado [`harness/test_nova_on_demand_provisioning.sh`](harness/test_nova_on_demand_provisioning.sh), validando URLs oficiales, symlinks, inyección silenciosa, puente xdg-open, scripts de sandbox y umbral de peso de APK ($\le 45\,\text{MB}$).
+
 ---
 
 ## 5. Catálogo de Especificaciones SDD Registradas

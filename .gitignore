@@ -20,3 +20,11 @@ __pycache__/
 termux-src/
 *.apk
 
+# Nova IDE dependencies and build artifacts
+nova-src/node_modules/
+nova-src/platforms/
+nova-src/plugins/
+nova-src/.gradle/
+nova-src/www/build/
+nova-src/build/
+

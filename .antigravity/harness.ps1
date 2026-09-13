@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Antigravity Enterprise Harness - Script de Verificacion y Compuertas de Calidad (Windows PowerShell).
 .DESCRIPTION
@@ -202,8 +202,8 @@ try {
     )
 
     $CandidateFiles = Get-ChildItem -Path $RepoRoot -Recurse -File | Where-Object {
-        $_.FullName -notmatch "(\.git|\.gradle|\.idea|build|latest_report\.json|\.antigravity|harness[\\/])" -and
-        $_.Extension -notin @(".apk", ".jar", ".png", ".jpg", ".webp", ".so", ".bin")
+        $_.FullName -notmatch "(\.git|\.gradle|\.idea|build|latest_report\.json|\.antigravity|harness[\\/]|node_modules|platforms|plugins)" -and
+        $_.Extension -notin @(".apk", ".jar", ".png", ".jpg", ".webp", ".so", ".bin", ".exe", ".dll", ".node")
     }
 
     $LeaksFound = [System.Collections.Generic.List[string]]::new()
