@@ -703,6 +703,51 @@ Se formaliza e implementa la solución definitiva en `TermuxInstaller.java` y `a
 
 ---
 
+### ADR-014: Cadena de Confianza TLS/CA y Puente Automatizado de Despacho de URLs para Autenticación OAuth
+
+- **Identificador:** `ADR-014`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.40 Contexto
+Tras resolver la resolución de red local y sanitización del `PATH` en [`ADR-013`](#adr-013-sanitización-de-path-de-huésped-y-configuración-incondicional-de-loopback-dns-en-proot-linux), la inicialización del servidor loopback de Google Antigravity CLI (`agy`) se completó con éxito. Sin embargo, al iniciar el flujo de autenticación interactivo Google OAuth 2.0 PKCE para acceder a los modelos Gemini y Claude, se manifestaron dos impedimentos críticos:
+1. **Fallo Fatal de Verificación Criptográfica TLS en Go Runtime (`crypto/x509`):** Al enviar la petición HTTPS hacia `https://oauth2.googleapis.com/token` para el intercambio de tokens, el cliente Go abortaba con:
+   ```text
+   tls: failed to verify certificate: x509: certificate signed by unknown authority
+   ```
+   El análisis forense evidenció que la imagen minimalista offline de Ubuntu (`ubuntu_arm64.tar.gz`) no contenía el paquete `ca-certificates`. Al no existir `/etc/ssl/certs/ca-certificates.crt`, la función `crypto/x509.loadSystemRoots()` retornaba un pool vacío, impidiendo validar los certificados raíz de Google Trust Services (GTS Root R1).
+2. **Fricción Extrema por Bloqueo de Despacho de URLs e Inactividad Táctil:**
+   - La utilidad `/usr/local/bin/xdg-open` previa intentaba invocar `/system/bin/am start` dentro del contenedor PRoot, lo cual fallaba silenciosamente por carecer del entorno IPC/Binder de Android, imprimiendo una URL cruda de autenticación de más de 380 caracteres en la consola.
+   - En `termux.properties` no estaba activa la propiedad `terminal-onclick-url-open = true`, impidiendo al desarrollador tocar la URL en la terminal táctil de la Xiaomi Pad 6 para abrirla en el navegador del sistema, forzando un copiado manual propenso a truncamiento.
+
+#### 4.41 Decisión
+Se formaliza e implementa la solución arquitectónica integral en `TermuxInstaller.java`, `TermuxActivity.java` y `termux.properties` bajo el contrato formal [`SPEC-014`](specs/14-tls-certificates-and-url-dispatcher-bridge.md):
+1. **Replicación Forzada del Paquete de Certificados CA de Mozilla (`GuestCertificateBundleContract`):**
+   - Copia incondicional de los certificados raíz oficiales del host (`$PREFIX/etc/tls/cert.pem` o `$PREFIX/etc/ssl/certs/ca-certificates.crt`, ~225 KB) hacia el rootfs de Ubuntu en:
+     - `/etc/ssl/certs/ca-certificates.crt`
+     - `/etc/ssl/cert.pem`
+   - Asignación obligatoria de permisos `0644` (`rw-r--r--`) y creación determinista del directorio `/etc/ssl/certs` (`0755`), garantizando que `crypto/x509` de Go valide de inmediato las autoridades emisoras de Google.
+2. **Puente Autónomo de Despacho de URLs (`UrlDispatcherBridgeContract`):**
+   - Redefinición de `/usr/local/bin/xdg-open` y symlink `/usr/local/bin/x-www-browser` en Ubuntu para escribir de forma atómica la URL solicitada en `/tmp/antigravity_open_url` (compartido bidireccionalmente con `$PREFIX/tmp` del host).
+   - Implementación de un `FileObserver` nativo en `TermuxActivity.java` que vigila `$PREFIX/tmp`:
+     - Al detectar `antigravity_open_url`, lee la URL y elimina inmediatamente el archivo físico.
+     - En el hilo de UI (`runOnUiThread`), copia de respaldo la URL al `ClipboardManager` del sistema.
+     - Lanza de forma autónoma el Intent `Intent.ACTION_VIEW` abriendo Google Chrome directamente en la pantalla de consentimiento de Google.
+     - Despliega un Toast amigable informando al usuario.
+3. **Apertura Táctil Directa en Terminal (`terminal-onclick-url-open`):**
+   - Habilitación obligatoria de `terminal-onclick-url-open = true` tanto en los assets predeterminados de la aplicación como en la configuración inyectada en tiempo de ejecución, permitiendo tocar cualquier hipervínculo en pantalla.
+
+#### 4.42 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Autenticación OAuth Cero Fricción (Zero-Friction):** Al emitir `agy login`, Google Chrome se abre automáticamente con la cuenta de Google, y tras la autorización, la redirección loopback completa el flujo sin manipulación manual.
+  - **Seguridad TLS de Grado Enterprise:** Todas las conexiones salientes HTTPS desde herramientas Go, Python o Node.js dentro de Ubuntu validan correctamente la cadena de confianza TLS contra las CA raíz de Mozilla.
+  - **Ergonomía Táctil Móvil:** Respaldo inmediato en portapapeles y apertura con un toque para cualquier URL desplegada en consola a 144Hz.
+- **Compromisos Operativos:**
+  - Si el usuario revoca o bloquea el navegador predeterminado, la URL permanece preservada en el portapapeles del sistema para su pegado manual.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -721,6 +766,8 @@ Se formaliza e implementa la solución definitiva en `TermuxInstaller.java` y `a
 | **SPEC-011** | Runtime Agéntico 100% Autónomo Offline (Zero-Download) y Validación en Emulador Android Tablet | `specs/11-zero-download-offline-runtime.md` | `APPROVED` | 9 ACs |
 | **SPEC-012** | Corrección Crítica del Entorno de Virtualización PRoot: Aislamiento de Preload Bionic, Configuración de TMPDIR y Fallback Resiliente | `specs/12-fix-proot-bionic-preload-and-tmpdir.md` | `APPROVED` | 4 ACs |
 | **SPEC-013** | Sanitización de Entorno y Resolución de Red Local en PRoot: Aislamiento de PATH de Invitado y Configuración Incondicional de Loopback DNS | `specs/13-fix-dns-loopback-and-guest-path.md` | `APPROVED` | 5 ACs |
+| **SPEC-014** | Cadena de Confianza TLS/CA y Puente Automatizado de Despacho de URLs para Autenticación OAuth | `specs/14-tls-certificates-and-url-dispatcher-bridge.md` | `APPROVED` | 7 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
+
