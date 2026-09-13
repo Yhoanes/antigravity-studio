@@ -860,6 +860,11 @@ Se formaliza la evolución arquitectónica hacia **Nova IDE** bajo la especifica
 - **Compromisos Operativos:**
   - Requiere conexión a Internet durante el primer inicio para descargar el rootfs de Ubuntu (~80 MB) y el binario `agy` mediante el asistente asistido.
 
+#### 4.52 Estado de Avance de la Implementación de Nova IDE (Scaffold Base)
+- **Scaffold de Frontend Completado:** Código base de Acode integrado en el directorio `nova-src/`, estableciendo los fundamentos de la interfaz táctil desacoplada.
+- **Configuración de Paquete y Marca:** Configurado el identificador de paquete oficial `io.nova.ide` y nombre "Nova IDE" en `nova-src/config.xml`, `nova-src/package.json` y `nova-src/www/index.html`.
+- **Harness de Arquitectura Activo:** Integrado el script automatizado [`harness/test_nova_ide_architecture.sh`](harness/test_nova_ide_architecture.sh), certificando al 100% las 7 compuertas de verificación estructural, estilística y de contratos para `SPEC-017`.
+
 ---
 
 ## 5. Catálogo de Especificaciones SDD Registradas
