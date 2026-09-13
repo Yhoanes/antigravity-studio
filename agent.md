@@ -655,6 +655,54 @@ Se formalizan e implementan dos contratos de arquitectura en `TermuxInstaller.ja
 
 ---
 
+### ADR-013: Sanitización de PATH de Huésped y Configuración Incondicional de Loopback DNS en PRoot Linux
+
+- **Identificador:** `ADR-013`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.37 Contexto
+Tras resolver el aislamiento de preload Bionic y la configuración de `TMPDIR` en [`ADR-012`](file:///c:/Projects/antigravity/agent.md#adr-012-aislamiento-total-de-preload-bionic-ld_preload-configuraci%C3%B3n-obligatoria-de-tmpdir-y-fallback-resiliente-de-sesi%C3%B3n), la ejecución del CLI oficial de Google Antigravity (`agy`) en la tablet Xiaomi Pad 6 experimentaba dos fallos críticos en la terminal:
+1. **Fallo Fatal de Red en Go Runtime (`netgo`):** Al iniciar el servidor local de loopback para el flujo de autenticación OAuth 2.0 PKCE, `agy` abortaba con el error:
+   ```text
+   fatal error: failed to initialize auth loopback server: lookup localhost on [::1]:53: read udp [::1]:54123->[::1]:53: connection refused
+   ```
+   El análisis forense determinó que en el rootfs desempaquetado de Ubuntu, `/etc/hosts` y `/etc/resolv.conf` existían como inodos físicos vacíos de exactamente **0 bytes**. La condición de guarda previa `if [ ! -f /etc/... ]` evaluaba falsedad por existencia del inodo, impidiendo que los archivos se poblaran. Ante un `/etc/hosts` vacío, el resolvedor puro `netgo` de Go realizaba una petición DNS UDP al puerto local `[::1]:53`, donde no existía ningún servidor de nombres escuchando, provocando el rechazo inmediato de conexión.
+2. **Contaminación de `PATH` del Anfitrión:** Al invocar el login shell `/bin/bash -l`, el intérprete heredaba el `PATH` del entorno host de Termux (`/data/data/com.termux/files/usr/bin`). Durante la ejecución de `/etc/profile`, se intentaba ejecutar herramientas del sistema guest produciendo la advertencia:
+   ```text
+   /etc/profile: line 21: /data/data/com.termux/files/usr/bin/run-parts: No such file or directory
+   ```
+
+#### 4.38 Decisión
+Se formaliza e implementa la solución definitiva en `TermuxInstaller.java` y `antigravity-boot` bajo el contrato formal [`SPEC-013`](file:///c:/Projects/antigravity/specs/13-fix-dns-loopback-and-guest-path.md):
+1. **Configuración Incondicional Obligatoria de Red y DNS Local:**
+   - Se elimina la condición pasiva `[ ! -f ... ]`.
+   - Escritura forzada e incondicional tanto en la fase de pre-aprovisionamiento Java como en el script bootloader de:
+     - `/etc/hosts`: mapeo canónico de loopback:
+       ```text
+       127.0.0.1 localhost
+       ::1 localhost ip6-localhost ip6-loopback
+       ```
+     - `/etc/resolv.conf`: servidores de nombres públicos de respaldo:
+       ```text
+       nameserver 8.8.8.8
+       nameserver 1.1.1.1
+       ```
+2. **Aislamiento y Sanitización de `PATH` del Huésped:**
+   - Inyección explícita de `PATH="/usr/local/bin:/usr/local/sbin:/usr/bin:/usr/sbin:/bin:/sbin"` como parámetro directo en el envoltorio `env -u` antes de transferir el control a `proot`.
+   - Garantiza que `/etc/profile`, `run-parts` y cualquier subproceso del login shell resuelvan de inmediato los binarios nativos del sistema Linux Ubuntu sin heredar rutas de Android Bionic.
+
+#### 4.39 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Resolución Instantánea de Loopback:** `localhost` resuelve en $0\,\text{ms}$ a través de `/etc/hosts`, permitiendo que el servidor local de autenticación OAuth de `agy` levante sin intentar conexiones fallidas en el puerto 53.
+  - **Login Shell Inmaculado:** Cero advertencias de `run-parts` en `/etc/profile`.
+  - **Arranque Agéntico a 144Hz:** Despliegue inmediato del prompt y de los modelos agénticos en la pantalla de la Xiaomi Pad 6.
+- **Compromisos Operativos:**
+  - Toda personalización de `PATH` para herramientas de usuario debe residir dentro de `/etc/environment` o `~/.bashrc` del entorno Ubuntu.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -672,6 +720,7 @@ Se formalizan e implementan dos contratos de arquitectura en `TermuxInstaller.ja
 | **SPEC-010** | Aislamiento Estricto de Proyectos por Sesión, Selector de Proyectos Nativo, Splash Cyber-Obsidian V2 y Pre-empaquetado de Runtime | `specs/10-project-isolation-and-prebundled-runtime.md` | `APPROVED` | 9 ACs |
 | **SPEC-011** | Runtime Agéntico 100% Autónomo Offline (Zero-Download) y Validación en Emulador Android Tablet | `specs/11-zero-download-offline-runtime.md` | `APPROVED` | 9 ACs |
 | **SPEC-012** | Corrección Crítica del Entorno de Virtualización PRoot: Aislamiento de Preload Bionic, Configuración de TMPDIR y Fallback Resiliente | `specs/12-fix-proot-bionic-preload-and-tmpdir.md` | `APPROVED` | 4 ACs |
+| **SPEC-013** | Sanitización de Entorno y Resolución de Red Local en PRoot: Aislamiento de PATH de Invitado y Configuración Incondicional de Loopback DNS | `specs/13-fix-dns-loopback-and-guest-path.md` | `APPROVED` | 5 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
