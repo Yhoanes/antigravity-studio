@@ -937,7 +937,9 @@ Se formaliza e implementa la solución en `Terminal.js`, `terminalManager.js`, `
    - Actualización de `welcome.js` con el encabezado "Welcome to Nova IDE" y fila de acción rápida "Nova Agent (Google Antigravity)".
    - Redirección del verificador de actualizaciones en `main.js` hacia `Yhoanes/antigravity-studio`.
 5. **Compilación y Publicación de Nova IDE v1.0.1:**
-   - Generación del paquete instalador `NovaIDE-v1.0.1-ARM64.apk` (~36.7 MB) y publicación del release oficial bajo el tag `nova-v1.0.1`.
+   - Generación del paquete instalador `NovaIDE-v1.0.1-ARM64.apk` (~36.7 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.1 ARM64 (Dual-Terminal & Agent Onboarding)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.1)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.1-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.1/NovaIDE-v1.0.1-ARM64.apk)
 
 #### 4.58 Consecuencias y Criterios de Evaluación
 - **Consecuencias Positivas:**
