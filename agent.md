@@ -493,6 +493,48 @@ Se implementa una solución integral en la capa nativa Android (`TermuxActivity.
 
 ---
 
+### ADR-009: Gestión Nativa de Sesiones por Proyecto, Depuración de Montajes PRoot y Pantalla de Carga Cyber-Obsidian
+
+- **Identificador:** `ADR-009`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.25 Contexto
+Tras la implementación de la transición limpia de proyectos y aprovisionamiento autónomo ([`ADR-008`](file:///c:/Projects/antigravity/agent.md#adr-008-automatizaci%C3%B3n-de-configuraci%C3%B3n-inicial-de-antigravity-cli-y-transici%C3%B3n-limpia-de-proyectos)), las pruebas de interacción en la estación de trabajo Xiaomi Pad 6 evidenciaron cuatro deficiencias de arquitectura y experiencia de usuario:
+1. **Inyección PTY Destructiva y Colapso de Contexto Multitarea:** Al conmutar entre proyectos desde el drawer, el método `switchToProject()` inyectaba comandos por la entrada estándar de la PTY (`\u0003clear...cd...exec agy`). Esto abortaba de manera irreversible cualquier sesión interactiva de conversación o análisis agéntico en curso con Google Gemini, forzaba a todos los proyectos a coexistir en una única terminal monolítica y producía parpadeos visuales en el canvas a 144Hz.
+2. **Identificadores Numéricos Opacos en Sesiones de Terminal:** La lista de sesiones activas en el drawer desplegaba etiquetas genéricas como `[1]`, `[2]` o títulos estáticos de bash, impidiendo al usuario identificar qué sesión pertenecía a cada proyecto.
+3. **Advertencias Amarillas de Montajes Duplicados en PRoot:** En `antigravity-boot`, se especificaban los argumentos redundantes `--bind /storage/emulated/0:/sdcard` y `--bind /system:/system` dentro de `PROOT_BINDS`. Dado que `proot-distro login ubuntu` ya realiza estos enlaces de forma predeterminada, el motor PRoot emitía avisos amarillos en `stderr` (`proot warning: duplicate mount '/system'`), degradando la estética de arranque.
+4. **Descargas y Logs Crudos Visibles al Inicio:** El primer arranque exponía cientos de líneas de texto de consola crudo (`apt-get`, barras de descarga de `curl`, extracción de tarballs) sin una experiencia visual de bienvenida protegida ante toques accidentales.
+
+#### 4.26 Decisión
+Se implementa una solución integral en la capa nativa Android (`TermuxActivity.java`, `TermuxSessionsListViewController.java`, `activity_termux.xml`) y en el script de arranque (`TermuxInstaller.java` / `antigravity-boot`) bajo el contrato formal [`SPEC-009`](file:///c:/Projects/antigravity/specs/09-clean-sessions-and-splash-ui.md):
+1. **Gestión Nativa de Sesiones por Proyecto (Zero-PTY Injection):**
+   - Se suprime por completo la inyección de comandos en la PTY (`session.write(...)`).
+   - `switchToProject(projectName)` busca si ya existe una `TermuxSession` cuyo `shellName` coincida con el nombre del proyecto. Si existe, conmuta inmediatamente a ella mediante `setCurrentSession(ts)`.
+   - Si no existe, invoca la API nativa `createTermuxSession(..., new String[]{projectName}, ...)`.
+   - `antigravity-boot` recibe el nombre del proyecto en `$1` y navega automáticamente a `/home/studio/workspace/$1` antes de invocar `exec agy`, asignando a la sesión su propio proceso y memoria aislada sin interferir con otros proyectos.
+2. **Etiquetado Semántico Determinista en el Drawer:**
+   - `TermuxSessionsListViewController.java` formatea cada pestaña activa como `[index] projectName` (ej. `[1] calculadora`, `[2] prueba`), con tipografía monoespaciada, negrita y estado visual claro.
+3. **Depuración Total de Montajes de PRoot:**
+   - Se eliminan los argumentos `--bind /storage/emulated/0:/sdcard` y `--bind /system:/system` de `PROOT_BINDS` en `antigravity-boot`, conservando exclusivamente el montaje del espacio de trabajo agéntico y suprimiendo el 100% de advertencias amarillas de colisión.
+4. **Pantalla de Carga Splash Screen Cyber-Obsidian:**
+   - Se incorpora `loading_splash_view` en `activity_termux.xml` con fondo Cyber-Obsidian `#0B0F19`, acentos cian `#00F0FF`, barra de progreso indeterminada y banner de estado.
+   - La vista cubre la terminal hasta que `antigravity-boot` genera el archivo de sincronización `$PREFIX/var/lib/antigravity_ready`.
+   - Al detectarse dicha bandera, `dismissSplashScreen(true)` ejecuta una animación suave de desvanecimiento (fade-out de 400ms a 144Hz) pasando a `View.GONE`.
+   - En arranques en caliente subsecuentes con la bandera presente, el splash inicia directamente en `View.GONE` con latencia cero.
+
+#### 4.27 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Multitarea Agéntica Verdadera:** El usuario puede alternar entre proyectos y conservar conversaciones, diffs y contextos intactos en cada pestaña.
+  - **Identificación Instantánea:** Navegación semántica clara en el drawer visual de sesiones.
+  - **Arranque Inmaculado:** Cero comandos ni advertencias amarillas visibles en la terminal.
+  - **Experiencia de Bienvenida de Grado Enterprise:** Pantalla de carga pulida que oculta descargas complejas de aprovisionamiento.
+- **Compromisos Operativos:**
+  - Cada proyecto abierto consume recursos de memoria de una sesión terminal adicional, los cuales son gestionados y liberados normalmente por el kernel de Android.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -506,6 +548,7 @@ Se implementa una solución integral en la capa nativa Android (`TermuxActivity.
 | **SPEC-006** | Puente de Almacenamiento Compartido (/sdcard/Projects) y Cadena de Herramientas Git/Ripgrep | `specs/06-storage-bridge-and-git-toolchain.md` | `APPROVED` | 8 ACs |
 | **SPEC-007** | Panel Lateral Nativo de Gestión de Proyectos (Projects Drawer) y Mapeo Táctil | `specs/07-projects-drawer-ui.md` | `APPROVED` | 9 ACs |
 | **SPEC-008** | Aprovisionamiento Autónomo de Google Antigravity CLI y Transición Limpia de Proyectos | `specs/08-automated-cli-provisioning-and-clean-navigation.md` | `APPROVED` | 7 ACs |
+| **SPEC-009** | Gestión Nativa de Sesiones por Proyecto, Depuración de Montajes PRoot y Pantalla de Carga Cyber-Obsidian | `specs/09-clean-sessions-and-splash-ui.md` | `APPROVED` | 11 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
