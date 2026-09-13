@@ -828,6 +828,40 @@ Se formaliza e implementa la solución arquitectónica integral en `TermuxActivi
 
 ---
 
+### ADR-017: Arquitectura de Nova IDE - Transición a Entorno de Desarrollo Táctil Unificado y Backend Thin Client On-Demand
+
+- **Identificador:** `ADR-017`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.49 Contexto
+A lo largo de las especificaciones `SPEC-000` a `SPEC-016`, el proyecto operó sobre una bifurcación directa de Termux Core (emulador de terminal VT100). Si bien esto permitió resolver desafíos de bajo nivel como la virtualización PRoot, resolución DNS, certificados TLS y enlaces PTY, la experiencia de desarrollo en pantallas táctiles evidenció limitaciones críticas:
+1. **Fricción de Edición Táctil en Consola:** La edición de código fuente mediante editores de consola (Nano, Micro o Neovim) en pantallas táctiles carece de selección precisa con asas táctiles, desplazamiento inercial suave, autocompletado visual y minimapa de código.
+2. **Fragmentación Visual:** La terminal al 100% de la pantalla oculta los archivos del proyecto mientras el agente de IA emite su razonamiento, obligando a alternar permanentemente entre vistas.
+3. **Sobrecarga de Paquete Binario (Fat APK):** La inclusión del rootfs completo de Ubuntu elevó el APK a ~142-180 MB, generando fricción en descargas y actualizaciones.
+4. **Protección de Marca y Neutralidad:** El uso de "Antigravity" en la marca principal acarrea riesgos de propiedad intelectual respecto a Google LLC.
+
+#### 4.50 Decisión
+Se formaliza la evolución arquitectónica hacia **Nova IDE** bajo la especificación [`SPEC-017`](specs/17-nova-ide-architecture-and-ui.md):
+1. **Identidad Visual y Marca Soberana:** Adopción del nombre **Nova IDE** con isotipo `‹ ✦ ›` y paleta cromática de alto contraste *Deep Cosmos & Supernova Cyan* (`#090d16`, `#00f0ff`, `#8b5cf6`), optimizada para la pantalla 2.8K 144Hz de la Xiaomi Pad 6.
+2. **Diseño de Tres Columnas (Tablet Layout):** Distribución simultánea e integrada con Sidebar de Archivos colapsable (`☰`), Editor Workspace multitarea con pestañas (motor Ace/Monaco optimizado para móvil) y Panel Lateral "Nova Agent / Ask" con terminal Xterm.js v5+ WebGL a 144Hz y botón de maximización `⛶` al 100%.
+3. **Arquitectura Desacoplada Thin Client (~18-20 MB):** El instalador APK base se reduce a ~19 MB alojando la interfaz híbrida y los componentes nativos C++20 (`libproot.so`, `libpty.so`), excluyendo el rootfs monolítico del paquete.
+4. **Motor de Aprovisionamiento Bajo Demanda (`OnDemandProvisioner`):** En el primer arranque, el asistente descarga de manera asistida y reanudable el rootfs de Ubuntu y Google Antigravity CLI (`agy`), validando criptográficamente sus sumas SHA-256 e inyectando de forma silenciosa el onboarding (`onboarding.json` y `settings.json`).
+5. **Sincronización Reactiva de Archivos (`FileWatcher`):** Un observador inotify en Android detecta cambios generados por el agente en `/sdcard/Projects/` y los sincroniza en el editor en tiempo real con ventana de debounce (150 ms) y diálogo de prevención anti-sobrescritura para buffers no guardados.
+6. **Gobernanza Empresarial Nativa:** Integración directa con las directivas de `agent.md`, soporte de servidores MCP (`mcp_config.json`), catálogo de habilidades en `~/.gemini/config/skills/` y botón de compuertas de calidad en la barra de estado.
+
+#### 4.51 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia de Desarrollo Completa:** Coexistencia fluida de edición visual táctil y ejecución agéntica en tiempo real.
+  - **Instalación Rápida y Distribución Ligera:** Reducción del tamaño del APK de ~180 MB a ~19 MB.
+  - **Identidad de Marca Autónoma:** Plataforma abierta y desacoplada de riesgos de marca de terceros.
+  - **Rendimiento Visual a 144Hz:** Terminal Xterm.js acelerada por hardware con WebGL Canvas.
+- **Compromisos Operativos:**
+  - Requiere conexión a Internet durante el primer inicio para descargar el rootfs de Ubuntu (~80 MB) y el binario `agy` mediante el asistente asistido.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -849,9 +883,11 @@ Se formaliza e implementa la solución arquitectónica integral en `TermuxActivi
 | **SPEC-014** | Cadena de Confianza TLS/CA y Puente Automatizado de Despacho de URLs para Autenticación OAuth | `specs/14-tls-certificates-and-url-dispatcher-bridge.md` | `APPROVED` | 7 ACs |
 | **SPEC-015** | Experiencia de Usuario de Próxima Generación: Tarjeta Flotante OAuth Inteligente, Onboarding Silencioso Zero-Click y Explorador de Archivos de Proyecto Activo | `specs/15-oauth-smart-card-silent-onboarding-and-project-file-tree.md` | `APPROVED` | 9 ACs |
 | **SPEC-016** | Resiliencia de Arranque en Frío, Persistencia de Autenticación, Enlace de Proyectos en Sesiones y Publicación de Versión 1.5.0 | `specs/16-cold-boot-resilience-and-auth-persistence.md` | `APPROVED` | 10 ACs |
+| **SPEC-017** | Arquitectura de Nova IDE: Entorno de Desarrollo Táctil y Panel de Agente Inteligente Unificado | `specs/17-nova-ide-architecture-and-ui.md` | `APPROVED` | 10 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
+
 
 
 
