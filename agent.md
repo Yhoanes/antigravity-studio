@@ -535,6 +535,47 @@ Se implementa una solución integral en la capa nativa Android (`TermuxActivity.
 
 ---
 
+### ADR-010: Aislamiento Estricto de Proyectos por Sesión, Selector Nativo Material 3, Splash Cyber-Obsidian V2 y Pre-empaquetado de Runtime
+
+- **Identificador:** `ADR-010`
+- **Fecha:** 2026-09-13
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.28 Contexto
+Tras la implementación de pestañas nativas por proyecto ([`ADR-009`](file:///c:/Projects/antigravity/agent.md#adr-009-gesti%C3%B3n-nativa-de-sesiones-por-proyecto-depuraci%C3%B3n-de-montajes-proot-y-pantalla-de-carga-cyber-obsidian)), la auditoría de interacción móvil en la Xiaomi Pad 6 detectó cuatro limitaciones operativas:
+1. **Contaminación Cruzada de Proyectos en Terminal (Workspace Polución):** El script `antigravity-boot` enlazaba el directorio raíz compartido `/storage/emulated/0/Projects` en `/home/studio/workspace`. Las carpetas de proyectos hermanos convivían en el mismo árbol de trabajo, exponiendo código no relacionado a las herramientas de indexación y búsqueda del agente de IA (`ripgrep`), provocando desbordamiento de contexto y riesgo de modificaciones erróneas.
+2. **Sesiones Iniciales Huérfanas y Falta de Selector:** Al iniciar en frío o pulsar el botón de nueva sesión (`new_session_button`), la terminal nacía sin proyecto asignado (etiquetada como `principal`), forzando al usuario a desplazarse manualmente por el drawer para seleccionar su proyecto.
+3. **Splash Screen V1 con Bitmap y Timeout Destructivo:** La pantalla de carga empleaba un recurso rasterizado obsoleto (`banner.png`) y un temporizador rígido de 90 segundos que se ocultaba prematuramente en conexiones lentas, exponiendo la terminal con comandos de instalación en curso.
+4. **Dependencia de Red para la CLI Oficial:** El contenedor requería descargar 45-54 MB de `cli_linux_arm64.tar.gz` mediante `curl` en el arranque primario, generando demoras de varios minutos en redes móviles.
+
+#### 4.29 Decisión
+Se formaliza e implementa la solución integral de confinamiento y optimización en `TermuxActivity.java`, `TermuxInstaller.java`, `activity_termux.xml` y los assets del proyecto bajo el contrato formal [`SPEC-010`](file:///c:/Projects/antigravity/specs/10-project-isolation-and-prebundled-runtime.md):
+1. **Aislamiento Estricto de Espacios de Trabajo:**
+   - `antigravity-boot` resuelve dinámicamente `TARGET_PROJECT_DIR` vinculando exclusivamente `--bind "$TARGET_PROJECT_DIR:/home/studio/workspace"`.
+   - Dentro de Linux PRoot, `/home/studio/workspace` contiene única y estrictamente los archivos del proyecto asignado a esa sesión, asegurando pureza contextual total para el agente inteligente.
+2. **Selector Nativo Material 3 al Inicio y Nueva Sesión:**
+   - Se implementa `showProjectSelectionDialog()` en `TermuxActivity.java`, desplegando un diálogo modal ergonómico que lista los proyectos de `/storage/emulated/0/Projects` y ofrece creación inmediata con `+ Nuevo Proyecto`.
+   - Se dispara automáticamente tanto en arranques sin sesiones como al pulsar `new_session_button`, erradicando sesiones anónimas.
+3. **Splash Screen Cyber-Obsidian V2 con Telemetría Dinámica:**
+   - Sustitución de `banner.png` por el imagotipo vectorial `ic_antigravity_logo.xml` con renderizado nítido a 2.8K 144Hz.
+   - Seguimiento reactivo del progreso consumiendo `$PREFIX/var/lib/antigravity_status` cada 200 ms para reflejar cada etapa en `loading_status_text`.
+   - Eliminación del timeout destructivo de 90s: el splash se desvanece de manera suave y exclusiva cuando `$PREFIX/var/lib/antigravity_ready` certifica la inicialización completa.
+4. **Pre-empaquetado y Despliegue Local del Binario (`cli_linux_arm64.tar.gz`):**
+   - Inclusión del archivo oficial en los assets de la aplicación (`app/src/main/assets/antigravity/cli_linux_arm64.tar.gz`).
+   - `antigravity-boot` detecta `LOCAL_TARBALL` y realiza la extracción directa a `/usr/local/bin/` con latencia de red cero, manteniendo `curl` únicamente como respaldo de contingencia.
+
+#### 4.30 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Aislamiento Contextual Absoluto:** Cada sesión confina al agente exclusivamente al alcance de su repositorio.
+  - **Experiencia de Inicio Guiada:** Todo flujo de sesión nace formalmente vinculado a un proyecto.
+  - **Arranque Instantáneo y Resiliente Offline:** Instalación inmediata del CLI sin depender de ancho de banda.
+  - **Identidad Visual Cyber-Obsidian V2:** Pantalla de carga vectorial moderna y sin interrupciones abruptas.
+- **Compromisos Operativos:**
+  - El tamaño del APK se incrementa de forma justificada para alojar el binario compilado de Google Antigravity CLI, asegurando autonomía *local-first*.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -549,6 +590,7 @@ Se implementa una solución integral en la capa nativa Android (`TermuxActivity.
 | **SPEC-007** | Panel Lateral Nativo de Gestión de Proyectos (Projects Drawer) y Mapeo Táctil | `specs/07-projects-drawer-ui.md` | `APPROVED` | 9 ACs |
 | **SPEC-008** | Aprovisionamiento Autónomo de Google Antigravity CLI y Transición Limpia de Proyectos | `specs/08-automated-cli-provisioning-and-clean-navigation.md` | `APPROVED` | 7 ACs |
 | **SPEC-009** | Gestión Nativa de Sesiones por Proyecto, Depuración de Montajes PRoot y Pantalla de Carga Cyber-Obsidian | `specs/09-clean-sessions-and-splash-ui.md` | `APPROVED` | 11 ACs |
+| **SPEC-010** | Aislamiento Estricto de Proyectos por Sesión, Selector de Proyectos Nativo, Splash Cyber-Obsidian V2 y Pre-empaquetado de Runtime | `specs/10-project-isolation-and-prebundled-runtime.md` | `APPROVED` | 9 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
