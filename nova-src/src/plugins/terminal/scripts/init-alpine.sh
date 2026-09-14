@@ -41,23 +41,25 @@ if [ "$INSTALLING" != true ] && [ $# -gt 0 ] && [ "${1#--}" = "$1" ]; then
     fi
 fi
 
-required_packages="bash command-not-found tzdata wget"
-missing_packages=""
+if command -v apk >/dev/null 2>&1; then
+    required_packages="bash command-not-found tzdata wget"
+    missing_packages=""
 
-for pkg in $required_packages; do
-    if ! apk info -e "$pkg" >/dev/null 2>&1; then
-        missing_packages="$missing_packages $pkg"
-    fi
-done
+    for pkg in $required_packages; do
+        if ! apk info -e "$pkg" >/dev/null 2>&1; then
+            missing_packages="$missing_packages $pkg"
+        fi
+    done
 
-if [ -n "$missing_packages" ]; then
-    echo -e "\e[34;1m[*] \e[0mInstalling important packages\e[0m"
-    apk update && apk upgrade
-    apk add $missing_packages
-    if [ $? -eq 0 ]; then
-        echo -e "\e[32;1m[+] \e[0mSuccessfully installed\e[0m"
+    if [ -n "$missing_packages" ]; then
+        echo -e "\e[34;1m[*] \e[0mInstalling important packages\e[0m"
+        apk update && apk upgrade
+        apk add $missing_packages
+        if [ $? -eq 0 ]; then
+            echo -e "\e[32;1m[+] \e[0mSuccessfully installed\e[0m"
+        fi
+        echo -e "\e[34m[*] \e[0mUse \e[32mapk\e[0m to install new packages\e[0m"
     fi
-    echo -e "\e[34m[*] \e[0mUse \e[32mapk\e[0m to install new packages\e[0m"
 fi
 
 

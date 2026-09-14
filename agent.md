@@ -1087,6 +1087,45 @@ Se formalizan e implementan dos reglas de arquitectura en `Terminal.js`:
 
 ---
 
+### ADR-022: Eliminación Preventiva de Symlinks Rotos en etc/resolv.conf y Protección de Binarios Nativos GNU de Ubuntu
+
+- **Identificador:** `ADR-022`
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.68 Contexto
+Durante las pruebas de aprovisionamiento en la tablet física Xiaomi Pad 6, tras superar los desafíos de descompresión POSIX y enlaces relativos, el flujo de inicialización en `Terminal.js` y scripts asociados arrojó fallos en cascada:
+1. **Fallo de Escritura por Enlace Simbólico Roto (`resolv.conf`):** Al ejecutar `writeText("${alpineDir}/etc/resolv.conf", ...)`, la llamada nativa de Cordova arrojaba `Failed to write file: .../alpine/etc/resolv.conf`. En Ubuntu 24.04 (Noble), `/etc/resolv.conf` viene preconfigurado como un symlink apuntando a `/run/systemd/resolve/stub-resolv.conf`. Como el directorio `/run/systemd/resolve` no existe en un entorno chroot PRoot en frío, el symlink estaba roto, impidiendo la apertura en modo escritura del archivo.
+2. **Corrupción y Reemplazo Inadecuado de GNU Coreutils `/bin/rm`:** `Terminal.js` sobrescribía incondicionalmente `/bin/rm` con `rm-wrapper.sh` (un envoltorio adaptado para el comando `rm` de BusyBox en Alpine Linux). En Ubuntu ARM64, esto corrompía la utilidad estándar de GNU coreutils necesaria para los scripts de mantenimiento y empaquetado del sistema.
+3. **Invocación Inválida del Gestor de Paquetes `apk` en Entorno Debian/Ubuntu:** El script `init-alpine.sh` intentaba ejecutar de forma incondicional `apk update` y `apk add ...`. Al ejecutarse sobre Ubuntu 24.04, el binario `apk` no existe (sustituido por `apt`/`dpkg`), emitiendo advertencias y errores en consola.
+
+#### 4.69 Decisión
+Se formalizan e implementan tres contratos de resiliencia en `Terminal.js` e `init-alpine.sh`:
+1. **Eliminación Preventiva Incondicional de `etc/resolv.conf`:**
+   - Antes de escribir la configuración estática de DNS, se invoca `await deleteFile("${alpineDir}/etc/resolv.conf").catch(() => {})`.
+   - Esto purga el symlink desreferenciado hacia `systemd-resolved` y permite que `writeText` cree un archivo físico regular con los servidores de nombres `8.8.8.8` y `8.8.4.4`.
+2. **Protección Condicional de Binarios Nativos de GNU Coreutils:**
+   - Se condiciona la inyección de `rm-wrapper.sh` bajo la guarda `if (arch !== "arm64-v8a")`.
+   - En arquitecturas ARM64 (Ubuntu), `/bin/rm` de GNU coreutils se preserva íntegro y sin alteraciones.
+3. **Salvaguarda Condicional de Inicialización de Paquetes:**
+   - En `init-alpine.sh`, la verificación e instalación de paquetes se envuelve bajo `if command -v apk >/dev/null 2>&1; then ... fi`, evitando errores fatales en distribuciones basadas en Ubuntu/Debian.
+4. **Incremento de Versión y Compilación de Nova IDE v1.0.5:**
+   - Versión incrementada a `1.0.5` (versionCode `10006`) en `config.xml` y `package.json`.
+   - Generación del paquete instalador oficial `NovaIDE-v1.0.5-ARM64.apk` (~36.7 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.5 ARM64 (Resolv.conf Symlink Fix & GNU Coreutils Protection)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.5)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.5-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.5/NovaIDE-v1.0.5-ARM64.apk)
+
+#### 4.70 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Escritura Determinista de DNS:** Cero errores `Failed to write file` en `/etc/resolv.conf`.
+  - **Integridad del Toolchain GNU:** Preservación completa de las utilidades nativas de Ubuntu.
+  - **Arranque Limpio:** Supresión de advertencias espurias en `init-alpine.sh`.
+- **Compromisos Operativos:**
+  - Si en el futuro se requiere actualizar los resolvedores DNS dinámicamente, debe realizarse directamente sobre el archivo regular `/etc/resolv.conf`.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |

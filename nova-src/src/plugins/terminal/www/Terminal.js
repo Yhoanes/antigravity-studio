@@ -16,6 +16,10 @@ const Terminal = {
             system.getFilesDir(resolve, reject);
         });
 
+        const arch = await new Promise((resolve, reject) => {
+            system.getArch(resolve, reject);
+        });
+
         const failsafeArg = failsafe ? "--failsafe" : "";
 
         const [initAlpine, rmWrapper, initSandbox] = await Promise.all([
@@ -37,9 +41,11 @@ const Terminal = {
         await writeText(`${filesDir}/init-alpine.sh`, initAlpine);
         await writeText(`${filesDir}/init-sandbox.sh`, initSandbox);
 
-        await deleteFile(`${filesDir}/alpine/bin/rm`).catch(() => {});
-        await writeText(`${filesDir}/alpine/bin/rm`, rmWrapper);
-        await setExec(`${filesDir}/alpine/bin/rm`, true);
+        if (arch !== "arm64-v8a") {
+            await deleteFile(`${filesDir}/alpine/bin/rm`).catch(() => {});
+            await writeText(`${filesDir}/alpine/bin/rm`, rmWrapper);
+            await setExec(`${filesDir}/alpine/bin/rm`, true);
+        }
 
         if (installing) {
             return new Promise((resolve, reject) => {
@@ -420,12 +426,15 @@ fi
             await Executor.execute(`ln -sf xdg-open ${alpineDir}/usr/local/bin/x-www-browser`);
 
             logger("⚙️  Applying basic configuration...");
-            await writeText(`${alpineDir}/etc/resolv.conf`, `nameserver 8.8.4.4 \nnameserver 8.8.8.8`);
+            await deleteFile(`${alpineDir}/etc/resolv.conf`).catch(() => {});
+            await writeText(`${alpineDir}/etc/resolv.conf`, `nameserver 8.8.8.8\nnameserver 8.8.4.4\n`);
 
-            const rmWrapper = await readAsset("rm-wrapper.sh");
-            await deleteFile(`${alpineDir}/bin/rm`).catch(() => {});
-            await writeText(`${alpineDir}/bin/rm`, rmWrapper);
-            await setExec(`${alpineDir}/bin/rm`, true);
+            if (arch !== "arm64-v8a") {
+                const rmWrapper = await readAsset("rm-wrapper.sh");
+                await deleteFile(`${alpineDir}/bin/rm`).catch(() => {});
+                await writeText(`${alpineDir}/bin/rm`, rmWrapper);
+                await setExec(`${alpineDir}/bin/rm`, true);
+            }
 
             logger("✅  Extraction complete");
             await ensureDir(`${filesDir}/.extracted`);
