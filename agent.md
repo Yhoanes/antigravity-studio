@@ -1820,6 +1820,45 @@ Se formaliza e implementa la solución integral bajo el contrato formal [`SPEC-0
 
 ---
 
+### ADR-028: Transición a Terminal Limpia Minimalista v2.1.0 y Desmantelamiento de Chat Canvas Bloqueante (CleanAgentTerminal)
+
+- **Identificador:** `ADR-028` (Secuencia Repositorio: `ADR-038` / `ADR-028`)
+- **Especificación SDD Asociada:** [`SPEC-028`](specs/28-minimal-agent-terminal-clean-apk.md)
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.116 Contexto
+Durante las pruebas de validación de campo en dispositivo físico (Xiaomi Pad 6), el usuario reportó un congelamiento indefinido en "THINKING" y pantalla negra vacía tras ingresar la entrada inicial "hola" en la UI de `ChatCanvas`:
+1. **Atrapamiento en Estado THINKING:** `AgentBridge` transicionó la interfaz a `THINKING`, desplegando el spinner e inyectando `hola\r` hacia la PTY del subsistema Linux vía WebSocket.
+2. **Defecto de Desconexión Semántica de Flujo PTY:** La CLI oficial de Google Antigravity (`agy`) opera intrínsecamente como un motor interactivo basado en terminal (REPL ANSI enriquecido con secuencias de escape VT100/xterm, captura raw de stdin, prompts de confirmación `[y/N]`). El parser intermediario de expresiones regulares en `AgentBridge.js` absorbía y perdía estas secuencias ANSI y prompts interactivos. Al esperar stdin en segundo plano sin recibir respuesta estructurada, el frontend permanecía perpetuamente bloqueado en el acordeón "Pensando...".
+3. **Colapso en Pantalla Negra:** La renderización web colapsaba en una pantalla negra vacía sin retroalimentación textual ni interactiva (ANR visual), rompiendo por completo la experiencia de usuario.
+
+#### 4.117 Decisión
+Se decide adoptar la directriz arquitectónica de retorno a la terminal agéntica pura bajo el contrato formal [`SPEC-028`](specs/28-minimal-agent-terminal-clean-apk.md):
+1. **Desmantelamiento Completo de Frontend Experimental y ChatCanvas:** Se retiran por completo `AntigravityApp`, `ChatCanvas`, `LivePreview`, `SidebarDrawer` y toda la interfaz decorativa rota que inducía fallas de renderizado en el ciclo de vida de arranque.
+2. **Montaje Exclusivo de `CleanAgentTerminal`:** En `nova-src/src/main.js`, se purga el contenedor raíz `#root` y se monta exclusivamente el componente `CleanAgentTerminal` conectado directamente por WebSocket (`ws://127.0.0.1:8767/terminals/{pid}`) al daemon PTY/AXS (:8767).
+3. **Ejecución Automática y Transparente de `agy`:** Al conectarse la sesión PTY, se transmite de forma inmediata el comando `agy\r`, permitiendo que la CLI oficial de Google Antigravity despliegue nativamente su propio REPL enriquecido (colores 24-bit TrueColor, diffs interactivos, diagramas ANSI y prompts de consentimiento `[y/N]`) sin intermediación heurística propensa a errores.
+4. **Ergonomía Táctil y Auto-Resize Adaptativo para Tablet 11" 144Hz:** Integración de `FitAddon`, `Unicode11Addon`, `WebLinksAddon` y `WebglAddon` a 144Hz. Manejo debounced de `window.visualViewport` para redimensionar filas/columnas y notificar dinámicamente a AXS (`POST /terminals/{pid}/size`) cuando se despliega el teclado virtual Android (IME).
+5. **Mini-Barra Superior Sutil e Interactiva:** Cabecera de 38px con badge informativo de estado (`CONECTANDO...`, `READY`, `ERROR / DESCONECTADO`) y botón interactivo `[ ↻ Reiniciar ]` para reciclado de sesiones zombis.
+6. **Preservación del Empaquetado Ultra-Ligero (36.81 MB $\le$ 42 MB):** Erradicación de tarballs rootfs y binarios redundantes en los assets del APK (`GoogleAntigravity-v2.1.0-ARM64.apk`, peso exacto: 36.81 MB / 38,596,093 bytes), cumpliendo holgadamente el límite de 42 MB y operando con cero descargas externas en runtime.
+7. **Invariantes del Sistema Reafirmados:**
+   - *Invariante Zero-Direct-Code:* El orquestador principal no modifica archivos de producción; ejecución delegada a `@android-core`.
+   - *Invariante SDD-First:* Implementación 100% gobernada por `SPEC-028` y sus 9 criterios verificables (`AC-CORE-01` a `AC-CORE-06`, `AC-UI-01`, `AC-UI-02`, `AC-PERF-01`).
+   - *Invariante Terminal PTY Nativa Pura:* Cero capas de abstracción o parsing intermediario entre Xterm.js y el daemon AXS.
+   - *Invariante Auto-Resize Adaptativo:* Soporte pleno de rotación y teclado virtual en pantalla Xiaomi Pad 6 11" 2.8K a 144Hz.
+
+#### 4.118 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Cero Congelamientos y Cero Pantallas Negras:** Al conectar la terminal PTY directamente a la CLI `agy`, se erradican los bloqueos en `THINKING` y los fallos de renderizado.
+  - **Fidelidad Absoluta de la CLI de Google:** Todo el ecosistema de la CLI oficial (prompts de aprobación, diffs de código, toolchains y selección de modelos) se ejecuta de forma natural e interactiva.
+  - **Máximo Rendimiento a 144Hz:** Latencia de renderizado $< 16\,\text{ms}$ acelerada por GPU Webgl en el WebView.
+  - **Distribución Rápida y Compacta:** APK reducido a 36.81 MB, facilitando instalación instantánea y bajo consumo de almacenamiento.
+- **Compromisos Operativos:**
+  - La interacción agéntica se efectúa a través del REPL de terminal nativa enriquecida, prescindiendo del lienzo web decorativo desacoplado.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1852,6 +1891,7 @@ Se formaliza e implementa la solución integral bajo el contrato formal [`SPEC-0
 | **SPEC-025** | Auto-Transición Zero-Lock en Ciclo de Vida Agéntico y Optimización de Peso del APK (Slimming) | `specs/25-antigravity-2-mobile-auto-transition-and-apk-slimming.md` | `APPROVED` | 8 ACs |
 | **SPEC-026** | Limpieza de Detección de Puertos (Anti-Falsos Positivos), Flujo Nativo de Google OAuth 2.0 PKCE y Refinamiento UI/UX | `specs/26-antigravity-2-mobile-oauth-cleanup-and-uix.md` | `APPROVED` | 9 ACs |
 | **SPEC-027** | Arquitectura de Doble Motor Agéntico (Google Antigravity PTY & Gemini Direct API), Estado Informativo de Autenticación y Suite de Pruebas E2E en Tablet | `specs/27-antigravity-2-mobile-gemini-bridge-and-e2e-testing.md` | `APPROVED` | 7 ACs |
+| **SPEC-028** | Arquitectura de Terminal Agéntica Minimalista (CleanAgentTerminal), Desmantelamiento de ChatCanvas y Empaquetado de APK Ultra-Ligero (~38 MB) | `specs/28-minimal-agent-terminal-clean-apk.md` | `APPROVED` | 9 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

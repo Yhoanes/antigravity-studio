@@ -27,7 +27,7 @@ import {
 import Contextmenu from "components/contextmenu";
 import Sidebar from "components/sidebar";
 import agentPanel from "components/agentPanel";
-import AntigravityApp from "./antigravity2/AntigravityApp";
+import CleanAgentTerminal from "./antigravity2/CleanAgentTerminal";
 import tile from "components/tile";
 import toast from "components/toast";
 import alert from "dialogs/alert";
@@ -737,16 +737,17 @@ async function loadApp() {
 	root.appendOuter($header, $main, $floatingNavToggler, $headerToggler);
 	app.append(agentPanel.el);
 
-	// Google Antigravity 2.0 Mobile: AI-First primary UI mounting (SPEC-021)
-	const antigravityApp = new AntigravityApp();
-	window.antigravityApp = antigravityApp;
+	// Google Antigravity 2.1: CleanAgentTerminal mounting (SPEC-028)
+	const cleanTerminal = new CleanAgentTerminal();
+	const cleanAgentTerminal = cleanTerminal;
+	window.cleanAgentTerminal = cleanTerminal;
 	root.innerHTML = "";
-	root.appendOuter(antigravityApp.el);
+	cleanAgentTerminal.mount(root);
 	//#endregion
 
 	//#region Add event listeners
 	initModes();
-	if (!window.antigravityApp) {
+	if (!window.cleanAgentTerminal) {
 		quickToolsInit();
 	}
 	sidebarApps.init($sidebar);
