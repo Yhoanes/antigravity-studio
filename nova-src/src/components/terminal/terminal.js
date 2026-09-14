@@ -86,20 +86,21 @@ export default class TerminalComponent {
 	}
 
 	init() {
-		this.terminal = new Xterm(this.options);
+		this.terminal = new Xterm({
+			...this.options,
+			linkHandler: {
+				activate: (event, uri) => {
+					system.openInBrowser(uri);
+				},
+			},
+		});
 
 		// Initialize addons
 		this.fitAddon = new FitAddon();
 		this.unicode11Addon = new Unicode11Addon();
 		this.searchAddon = new SearchAddon();
-		this.webLinksAddon = new WebLinksAddon(async (event, uri) => {
-			const linkOpenConfirm = await confirm(
-				"Terminal",
-				`Do you want to open ${uri} in browser?`,
-			);
-			if (linkOpenConfirm) {
-				system.openInBrowser(uri);
-			}
+		this.webLinksAddon = new WebLinksAddon((event, uri) => {
+			system.openInBrowser(uri);
 		});
 		this.webglAddon = null;
 

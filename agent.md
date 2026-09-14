@@ -1325,6 +1325,62 @@ Se formaliza e implementa un conjunto coordinado de medidas de aislamiento, reso
 
 ---
 
+### ADR-027: Intercepción Nativa de Enlaces OSC en Xterm.js (linkHandler) y Blindaje Global de window.open para Aislamiento de Navegación Externa
+
+- **Identificador:** `ADR-027`
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.83 Contexto
+Durante las pruebas de usuario en la Xiaomi Pad 6, al ejecutarse comandos que imprimen enlaces de autenticación en la terminal (como `agy auth` o hipervínculos de Git), pulsar sobre el enlace producía dos fallas críticas en la experiencia de usuario:
+1. **Diálogo Intrusivo de Advertencia de Xterm.js:** Xterm.js desplegaba un diálogo de confirmación en inglés (`WARNING: This link could potentially be dangerous... Do you want to open...`) derivado del proveedor interno `OscLinkProvider` y del callback por defecto de `WebLinksAddon`, rompiendo la fluidez del flujo de trabajo de la terminal.
+2. **Conversión de la Aplicación en Navegador Web y Destrucción de la Sesión:** Al aceptar el diálogo o procesar enlaces OSC 8 estándar, Xterm.js recurría a la función nativa `window.open(uri)`. En el entorno Apache Cordova sin el plugin InAppBrowser, invocar `window.open()` carga la URL remota directamente dentro del WebView primario de la aplicación. Esto provocaba que la interfaz completa de Nova IDE fuera reemplazada por la página web de inicio de sesión de Google. Al intentar volver atrás mediante el gesto de navegación de Android, el WebView retrocedía en su historial HTTP o destruía la Activity, provocando la pérdida irrevocable de la sesión interactiva PTY, el lienzo de código y el token volátil PKCE en memoria.
+
+#### 4.84 Decisión
+Se formaliza e implementa una solución de dos capas para garantizar navegación externa transparente y blindada:
+1. **Intercepción Nativa de Enlaces en Xterm.js (`linkHandler` y `WebLinksAddon`):**
+   En `nova-src/src/components/terminal/terminal.js`, se configura de forma explícita la opción `linkHandler` en el constructor de `Xterm`:
+   ```javascript
+   this.terminal = new Xterm({
+       ...this.options,
+       linkHandler: {
+           activate: (event, uri) => {
+               system.openInBrowser(uri);
+           },
+       },
+   });
+   ```
+   Asimismo, se simplifica el handler de `WebLinksAddon` eliminando el diálogo modal `confirm()` y despachando de forma directa a `system.openInBrowser(uri)`. Esto asegura que cualquier enlace de texto o hipervínculo OSC 8 emitido por la terminal sea interceptado al instante.
+2. **Blindaje Global de `window.open` en el Runtime Web:**
+   En `nova-src/src/main.js`, se intercepta preventivamente la API global `window.open`:
+   ```javascript
+   const originalWindowOpen = window.open;
+   window.open = function(url, target, features) {
+       if (url && typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"))) {
+           system.openInBrowser(url);
+           return null;
+       }
+       return originalWindowOpen ? originalWindowOpen.apply(this, arguments) : null;
+   };
+   ```
+   Cualquier intento por parte de librerías de terceros (Monaco, Xterm, plugins) de navegar vía `window.open` hacia esquemas HTTP o HTTPS es capturado y canalizado hacia el navegador externo del sistema (Google Chrome) en una pila de tareas aislada (`FLAG_ACTIVITY_NEW_TASK` de `ADR-026`), impidiendo de forma categórica que el WebView principal cargue contenido web ajeno al IDE.
+3. **Incremento de Versión y Compilación de Nova IDE v1.0.10:**
+   - Versión incrementada a `1.0.10` (versionCode `10011`) en `config.xml` y `package.json`.
+   - Generación del paquete instalador final `NovaIDE-v1.0.10-ARM64.apk` (38,509,119 bytes ~ 36.7 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.10 ARM64 (Terminal Link & Browser Isolation Fix)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.10)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.10-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.10/NovaIDE-v1.0.10-ARM64.apk)
+
+#### 4.85 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Navegación Cero Fricción:** Un solo clic sobre el enlace OAuth en la terminal abre inmediatamente Google Chrome sin diálogos de advertencia intrusivos.
+  - **Inmunidad del WebView:** Es imposible que la vista principal del IDE navegue a páginas externas o sea reemplazada por un navegador web.
+  - **Preservación Absoluta de Sesión:** La Activity permanece intacta en segundo plano durante todo el proceso de login en el navegador.
+- **Compromisos Operativos:**
+  - Ningún componente de la interfaz de usuario debe asumir que `window.open` devolverá una referencia de ventana (`WindowProxy`), ya que las URLs HTTP/HTTPS devuelven `null` al delegarse en el Intent nativo de Android.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |

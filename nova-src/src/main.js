@@ -76,6 +76,15 @@ const oldPreventDefault = TouchEvent.prototype.preventDefault;
 const previousVersionCode = Number.parseInt(localStorage.versionCode, 10);
 const logger = new Logger();
 
+const originalWindowOpen = window.open;
+window.open = function(url, target, features) {
+	if (url && typeof url === "string" && (url.startsWith("http://") || url.startsWith("https://"))) {
+		system.openInBrowser(url);
+		return null;
+	}
+	return originalWindowOpen ? originalWindowOpen.apply(this, arguments) : null;
+};
+
 ajax.response = (xhr) => {
 	return xhr.response;
 };

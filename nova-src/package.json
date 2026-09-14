@@ -1,11 +1,12 @@
 {
   "name": "io.nova.ide",
   "displayName": "Nova IDE",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "description": "Nova IDE - Agentic Touch-First IDE for Android with Embedded Linux & PRoot",
   "scripts": {
     "lang": "node ./utils/lang.js",
     "build": "sh utils/scripts/build.sh",
+    "build:prod": "node ./utils/config.js prod paid && rspack --mode production",
     "build:admob": "npm ci --prefix src/plugins/admob --no-audit --no-fund && npm run build --prefix src/plugins/admob",
     "start": "sh utils/scripts/start.sh",
     "dev": "node utils/scripts/dev.js",
