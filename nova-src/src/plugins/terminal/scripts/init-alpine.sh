@@ -39,6 +39,32 @@ if [ -f "$PREFIX/cacert.pem" ]; then
     chmod 644 "$PREFIX/alpine/etc/ssl/certs/ca-certificates.crt" /etc/ssl/certs/ca-certificates.crt 2>/dev/null || true
 fi
 
+# Normalización silenciosa de grupos Bionic/Android en /etc/group (SPEC-019 §6)
+for grp_target in "$PREFIX/alpine/etc/group" "/etc/group"; do
+    if [ -w "$grp_target" ]; then
+        for gid in $(id -G 2>/dev/null); do
+            if ! grep -q ":$gid:" "$grp_target" 2>/dev/null; then
+                echo "aid_$gid:x:$gid:root,studio" >> "$grp_target" 2>/dev/null || true
+            fi
+        done
+        for canonical_entry in \
+            "aid_sdcard_rw:x:1015:root,studio" \
+            "aid_media_rw:x:1023:root,studio" \
+            "aid_inet:x:3003:root,studio" \
+            "aid_net_raw:x:3004:root,studio" \
+            "aid_admin:x:3005:root,studio" \
+            "aid_everybody:x:9997:root,studio" \
+            "aid_app:x:20399:root,studio" \
+            "aid_app2:x:50399:root,studio" \
+            "aid_isolated:x:99909997:root,studio"; do
+            gid_num=$(echo "$canonical_entry" | cut -d: -f3)
+            if ! grep -q ":$gid_num:" "$grp_target" 2>/dev/null; then
+                echo "$canonical_entry" >> "$grp_target" 2>/dev/null || true
+            fi
+        done
+    fi
+done
+
 # Ensure workspace exists and switch to it
 mkdir -p /home/studio/workspace
 cd /home/studio/workspace 2>/dev/null || cd "$HOME"

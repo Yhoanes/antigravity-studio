@@ -646,14 +646,18 @@ async function loadApp() {
 		<span className="icon more_vert" attr-action="toggle-menu" />
 	);
 	const $agentToggler = (
-		<span
+		<button
 			id="agent-toggler"
-			className="icon wand-sparkles"
+			className="agent-toggle-btn"
 			attr-action="toggle-agent"
-			title="Nova Agent (Ask)"
-			style={{ fontSize: "1.2em", cursor: "pointer", marginRight: "6px" }}
+			title="Nova Agent (< ✦ >)"
+			aria-label="Toggle Nova Agent"
 			onclick={() => acode.exec("toggle-agent")}
-		/>
+		>
+			<span className="agent-logo-bracket">&lt;</span>
+			<span className="agent-logo-star">✦</span>
+			<span className="agent-logo-bracket">&gt;</span>
+		</button>
 	);
 	const $headerTail = (
 		<span className="header-tail-actions" style={{ display: "inline-flex", alignItems: "center" }}>

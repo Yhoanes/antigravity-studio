@@ -451,7 +451,7 @@ fi
             await Executor.execute(`rm -f "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.8.8" > "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.4.4" >> "${alpineDir}/etc/resolv.conf"`);
             await Executor.execute(`echo "127.0.0.1 localhost" > "${alpineDir}/etc/hosts" && echo "::1 localhost ip6-localhost ip6-loopback" >> "${alpineDir}/etc/hosts"`);
             await Executor.execute(`echo "hosts: files dns" > "${alpineDir}/etc/nsswitch.conf"`);
-            await Executor.execute(`echo -e "aid_inet:x:3003:root\naid_everybody:x:9997:root\naid_app:x:20399:root\naid_app2:x:50399:root\naid_isolated:x:99909997:root" >> "${alpineDir}/etc/group"`);
+            await Executor.execute(`echo -e "aid_sdcard_rw:x:1015:root,studio\naid_media_rw:x:1023:root,studio\naid_inet:x:3003:root,studio\naid_net_raw:x:3004:root,studio\naid_admin:x:3005:root,studio\naid_everybody:x:9997:root,studio\naid_app:x:20399:root,studio\naid_app2:x:50399:root,studio\naid_isolated:x:99909997:root,studio" >> "${alpineDir}/etc/group"`);
 
             // Inyección de certificados CA Mozilla / Google Trust Services (GTS)
             try {

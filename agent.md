@@ -1426,6 +1426,54 @@ Se formaliza e implementa el empaquetado nativo de certificados y un mecanismo d
 
 ---
 
+### ADR-014 / ADR-029: Identidad de Marca Oficial Nova IDE (‹ ✦ ›), Sidebar Docked con Tirador Táctil, Ciclo de Vida Keep-Alive y Normalización Bionic
+
+- **Identificador:** `ADR-014` (Secuencia Repositorio: `ADR-029`)
+- **Especificación SDD Asociada:** [`SPEC-019`](specs/19-nova-docked-sidebar-keepalive-and-brand-identity.md)
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.89 Contexto
+Tras el despliegue de las versiones preliminares de Nova IDE en la Xiaomi Pad 6 (pantalla de 11" 2.8K 16:10), las pruebas de usuario evidenciaron tres deficiencias críticas de usabilidad y ergonomía:
+1. **Ventana Flotante No Ergonómica y Oclusión de Código:** El panel lateral de Nova Agent operaba como un overlay flotante fijo (`position: fixed; right: 0; width: 380px; z-index: 105;`), tapando la mitad derecha del editor de texto y forzando al desarrollador a abrir y cerrar el panel de forma repetitiva. Además, carecía de ajuste táctil dinámico para adaptarse a pantallas tablet de alta resolución.
+2. **Destrucción de Sesión en el Ciclo de Vida:** Al minimizar u ocultar el panel de agente, la arquitectura previa desmontaba el contenedor o forzaba la recarga del componente, provocando la pérdida de la sesión PTY activa y el reinicio completo de `agy`, obligando a reautenticar o reiniciar tareas desde cero.
+3. **Rotura Horizontal de Menús (Line Wrapping) por Falta de 80 Columnas:** Al estar confinado a 380px (~340px útiles, ~40-45 columnas), las herramientas ANSI/VT100 como Google Antigravity CLI rompían menús interactivos, tablas Markdown y bloques de razonamiento en saltos de línea ininteligibles.
+4. **Falta de Identidad Visual Propia y Advertencias Espurias Bionic:** La aplicación conservaba iconos genéricos y la terminal arrojaba avisos como `groups: cannot find name for group ID...` al interactuar con el entorno Linux bajo las restricciones de grupos de Android Bionic.
+
+#### 4.90 Decisión
+Bajo el contrato formal `SPEC-019`, se formaliza e implementa una transformación integral de ergonomía, ciclo de vida e identidad de marca:
+1. **Identidad de Marca Oficial Nova IDE (`‹ ✦ ›`):**
+   - Adopción oficial del isotipo `‹ ✦ ›` y la paleta Deep Cosmos en el icono adaptativo de Android (`ic_launcher.xml`, `ic_launcher_round.xml`, `ic_launcher_foreground.xml`, `ic_launcher_background.xml`) con estrella central de 4 puntas en degradado cian-púrpura (`#00F0FF` -> `#8B5CF6`) y corchetes angulares esmeralda (`#10B981`).
+   - Integración del isotipo en el botón de la barra de herramientas y encabezados.
+2. **Sidebar Docked en Flexbox con Tirador Táctil (`#agent-resize-handle`):**
+   - Transición a diseño acoplado en Flexbox: el editor de código y el panel del agente comparten la pantalla horizontalmente sin solaparse (`flex: 1 1 auto` para el editor, ancho dinámico para el agente).
+   - Implementación de un tirador táctil `#agent-resize-handle` con ancho de 12px, respuesta háptica visual y soporte de arrastre fluido con touch events (`touchstart`, `touchmove`, `touchend`), restringido a un rango ergonómico entre el 25vw y el 75vw del viewport.
+3. **Persistencia Keep-Alive Absoluta (0ms de Restauración):**
+   - El componente `AgentPanel` y su instancia de `Xterm.js` NUNCA se destruyen al cerrar u ocultar el sidebar; en su lugar, se conmuta la visibilidad mediante clases CSS (`display: none` / `display: flex`).
+   - La conexión WebSocket y el proceso PTY en background continúan ejecutándose de forma ininterrumpida, permitiendo restaurar la sesión instantáneamente en 0ms sin recargas.
+4. **Ergonomía de 80 Columnas y Auto-Ajuste con ResizeObserver:**
+   - Integración de `ResizeObserver` sobre el contenedor de terminal con invocación automática de `fitAddon.fit()`.
+   - Garantía de un mínimo de 80 columnas estándar sin line wrap, con escalado tipográfico inteligente (12px - 15px) en pantallas widescreen.
+5. **Normalización Dinámica y Estática de Grupos Android Bionic:**
+   - Enriquecimiento de `/etc/group` en `init-alpine.sh` y `Terminal.js` con mapeo dinámico de los GIDs del proceso Android (`id -G`), suprimiendo completamente las advertencias `groups: cannot find name...`.
+6. **Compilación y Publicación de Nova IDE v1.0.12:**
+   - Versión incrementada a `1.0.12` (versionCode `10013`) en `config.xml` y `package.json`.
+   - Generación del paquete instalador final `NovaIDE-v1.0.12-ARM64.apk` (38,625,478 bytes ~ 36.8 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.12 ARM64 (Official Identity & Docked Keep-Alive Sidebar)](https://github.com/Yhoanes/antigravity-studio/releases/tag/v1.0.12)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.12-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/v1.0.12/NovaIDE-v1.0.12-ARM64.apk)
+
+#### 4.91 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Cero Oclusión:** Editor y agente coexisten en paralelo en la pantalla 2.8K de la Xiaomi Pad 6.
+  - **Continuidad Total:** Cero pérdidas de contexto o reinicios al alternar la visualización del agente.
+  - **Visualización Limpia de CLI:** Menús interactivos y tablas de `agy` renderizados a 80+ columnas con legibilidad perfecta.
+  - **Consola Limpia:** Eliminación total de advertencias espurias de GIDs en PRoot Linux.
+- **Compromisos Operativos:**
+  - En pantallas pequeñas (< 768px), el layout conmuta automáticamente a modo modal para maximizar el área táctil.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1449,6 +1497,7 @@ Se formaliza e implementa el empaquetado nativo de certificados y un mecanismo d
 | **SPEC-016** | Resiliencia de Arranque en Frío, Persistencia de Autenticación, Enlace de Proyectos en Sesiones y Publicación de Versión 1.5.0 | `specs/16-cold-boot-resilience-and-auth-persistence.md` | `APPROVED` | 10 ACs |
 | **SPEC-017** | Arquitectura de Nova IDE: Entorno de Desarrollo Táctil y Panel de Agente Inteligente Unificado | `specs/17-nova-ide-architecture-and-ui.md` | `APPROVED` | 10 ACs |
 | **SPEC-018** | Arquitectura Dual-Terminal, Recuperación del Rootfs Ubuntu Noble y Onboarding Agéntico en Nova IDE | `specs/18-nova-agent-split-and-terminal-repair.md` | `APPROVED` | 8 ACs |
+| **SPEC-019** | Sidebar Lateral Acoplado con Redimensionamiento Táctil, Ciclo de Vida Keep-Alive, Ergonomía de 80 Columnas y Logotipo Oficial Nova IDE | `specs/19-nova-docked-sidebar-keepalive-and-brand-identity.md` | `APPROVED` | 8 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
