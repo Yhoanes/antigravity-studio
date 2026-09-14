@@ -254,7 +254,7 @@ const Terminal = {
                 err_logger(`${formatError(e)}`);
             }
 
-            logger("📁  Setting up directories...");
+            logger("📁  Configurando estructura de directorios del sistema...");
 
             await ensureDir(`${filesDir}/.downloaded`);
 
@@ -263,12 +263,12 @@ const Terminal = {
             await ensureDir(alpineDir);
 
             if (arch === "arm64-v8a") {
-                logger("📦  Extracting Ubuntu ARM64 filesystem...");
+                logger("📦  Descomprimiendo sistema base Linux Ubuntu ARM64...");
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/rootfs.tar.gz -C ${alpineDir} || [ -f ${alpineDir}/bin/sh ]`);
                 await Executor.execute(`ln -sf perl ${alpineDir}/usr/bin/perl5.38.2 2>/dev/null || true`);
                 await Executor.execute(`ln -sf gunzip ${alpineDir}/usr/bin/uncompress 2>/dev/null || true`);
 
-                logger("📦  Installing Google Antigravity CLI (agy)...");
+                logger("⚡  Instalando Google Antigravity CLI (agy)...");
                 await ensureDir(`${alpineDir}/usr/local/bin`);
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/cli_linux_arm64.tar.gz -C ${alpineDir}/usr/local/bin`);
                 await Executor.execute(`chmod +x ${alpineDir}/usr/local/bin/antigravity`);
@@ -278,13 +278,13 @@ const Terminal = {
                 await deleteFile(`${filesDir}/rootfs.tar.gz`).catch(() => {});
                 await deleteFile(`${filesDir}/cli_linux_arm64.tar.gz`).catch(() => {});
             } else {
-                logger("📦  Extracting sandbox filesystem...");
+                logger("📦  Descomprimiendo sistema sandbox...");
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/alpine.tar.gz -C ${alpineDir}`);
                 await deleteFile(`${filesDir}/alpine.tar.gz`).catch(() => {});
             }
 
             // Silent onboarding injection & settings
-            logger("⚙️  Injecting silent onboarding & workspace configuration...");
+            logger("⚙️  Configurando espacio de trabajo y onboarding agéntico...");
             const onboardingConfig = JSON.stringify({
                 consumerOnboardingComplete: true,
                 enterpriseOnboardingComplete: false,
@@ -324,7 +324,7 @@ fi
             await setExec(`${alpineDir}/usr/local/bin/xdg-open`, true);
             await Executor.execute(`ln -sf xdg-open ${alpineDir}/usr/local/bin/x-www-browser`);
 
-            logger("⚙️  Applying basic configuration...");
+            logger("⚙️  Aplicando configuración del sistema y certificados TLS...");
             await ensureDir(`${alpineDir}/etc`);
             await ensureDir(`${alpineDir}/etc/ssl/certs`);
             await ensureDir(`${alpineDir}/etc/pki/tls/certs`);
@@ -354,10 +354,10 @@ fi
                 await setExec(`${alpineDir}/bin/rm`, true);
             }
 
-            logger("✅  Extraction complete");
+            logger("✅  Descompresión completada");
             await ensureDir(`${filesDir}/.extracted`);
 
-            logger("⚙️  Updating sandbox enviroment...");
+            logger("⚙️  Configurando entorno sandbox...");
             const installResult = await this.startAxs(true, logger, err_logger);
             if (!installResult) {
                 throw new Error(this.lastInstallError || "Sandbox configuration failed.");
@@ -367,7 +367,7 @@ fi
         } catch (e) {
             const message = formatError(e);
             this.lastInstallError = message;
-            err_logger(`Installation failed: ${message}`);
+            err_logger(`Fallo en la instalación: ${message}`);
             console.error("Installation failed:", e);
             return false;
         }

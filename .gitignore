@@ -19,6 +19,7 @@ __pycache__/
 
 termux-src/
 *.apk
+/antigravity
 
 # Nova IDE dependencies and build artifacts
 nova-src/node_modules/

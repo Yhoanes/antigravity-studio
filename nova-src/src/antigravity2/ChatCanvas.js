@@ -453,9 +453,9 @@ export class ChatCanvas {
         Para ejecutar Google Antigravity en este dispositivo es necesario inicializar el subsistema Linux Ubuntu ARM64 y el motor agéntico.
       </p>
       <div class="ag-setup-progress-bar">
-        <div class="ag-setup-progress-fill" id="setup-progress-fill" style="width: 25%;"></div>
+        <div class="ag-setup-progress-fill" id="setup-progress-fill" style="width: 25%; background: linear-gradient(90deg, #4285F4 0%, #34A853 50%, #4285F4 100%); transition: width 0.3s ease;"></div>
       </div>
-      <div class="ag-setup-log" id="setup-log-view">Iniciando extracción local de assets...</div>
+      <div class="ag-setup-log" id="setup-log-view">📦 Preparando entorno de desarrollo local...</div>
       ${buttonHtml}
     `;
 
@@ -571,9 +571,9 @@ export class ChatCanvas {
       }
       const fill = this.messagesListEl.querySelector("#setup-progress-fill");
       if (fill) {
-        if (message.includes("Extrayendo") || message.includes("Extracting")) fill.style.width = "50%";
-        else if (message.includes("Installing") || message.includes("Instalando")) fill.style.width = "80%";
-        else if (message.includes("éxito") || message.includes("completed")) fill.style.width = "100%";
+        if (message.includes("Extrayendo") || message.includes("Extracting") || message.includes("Descomprimiendo")) fill.style.width = "50%";
+        else if (message.includes("Installing") || message.includes("Instalando") || message.includes("directorios")) fill.style.width = "80%";
+        else if (message.includes("éxito") || message.includes("completed") || message.includes("completada") || message.includes("inicializado")) fill.style.width = "100%";
       }
     });
 

@@ -1737,6 +1737,49 @@ Se formaliza e implementa la solución integral bajo el contrato formal [`SPEC-0
 
 ---
 
+### ADR-021 / ADR-036: Sanitización del Escáner de Puertos, Flujo Nativo de Google OAuth 2.0 PKCE con Loopback en Puerto 54123 y Refinamiento UI/UX en Antigravity 2.0 Mobile
+
+- **Identificador:** `ADR-021` (Secuencia Repositorio: `ADR-036` / `ADR-026`)
+- **Especificación SDD Asociada:** [`SPEC-026`](specs/26-antigravity-2-mobile-oauth-cleanup-and-uix.md)
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.110 Contexto
+Durante las pruebas de aceptación y experiencia de usuario sobre la versión `v2.0.4`, se identificaron tres fallas de calidad y presentación:
+1. **Falso Positivo Masivo en `AgentBridge.startPortScanner()`:** El algoritmo de escaneo de puertos utilizaba una heurística basada en `new Image()`, donde `img.onerror = () => resolve(true)` provocaba que cualquier puerto cerrado (`ERR_CONNECTION_REFUSED`) resolviera erróneamente en `true`. Al arrancar la aplicación, el lienzo se inundaba inmediatamente con 5 pastillas espurias de servidor activo (`3000`, `5173`, `8080`, `8000`, `4321`) con botones de Live Preview inservibles.
+2. **Desconexión del Flujo Google OAuth en Interfaz Táctil:** El botón *"Vincular Cuenta Google"* en `SidebarDrawer.js` dependía exclusivamente de inyectar `agy auth login\r` en el flujo de la terminal PTY. Este enfoque carecía de retroalimentación en la UI JavaScript, no utilizaba Custom Tabs y no sincronizaba el perfil del usuario (`displayName`, `avatarUrl`, `email`, categoría `Google AI Ultra`) en `localStorage` ni inyectaba las credenciales en el sistema de archivos de PRoot Linux (`oauth_creds.json`).
+3. **Inconsistencias Lingüísticas y Estéticas:** Múltiples trazas de log en `Terminal.js` conservaban cadenas en inglés (`Extracting Ubuntu ARM64...`, `Installing Google Antigravity CLI...`), y la barra de progreso de inicialización en `ChatCanvas.js` requería un gradiente estelar animado acorde a la identidad Google Material 3.
+
+#### 4.111 Decisión
+Se formalizan e implementan los siguientes contratos técnicos bajo la especificación formal [`SPEC-026`](specs/26-antigravity-2-mobile-oauth-cleanup-and-uix.md):
+1. **Contrato de Detección Fidedigna de Puertos (`PortScannerSanitizationContract`):**
+   - Erradicación absoluta de la heurística espuria `new Image().onerror`.
+   - Implementación de `probePort(port)` en `AgentBridge.js` utilizando peticiones HTTP `HEAD`/`GET` fidedignas a través de `cordova.plugin.http.sendRequest` (con fallback de `fetch`). Un puerto se considera activo únicamente si responde con un código HTTP válido ($200 \le \text{status} < 600$).
+   - El escaneo se activa exclusivamente si `this.isConnected === true`, asegurando cero pastillas de servidor en frío.
+2. **Contrato de Puente Nativo Google OAuth 2.0 PKCE (`NativeGoogleOAuthContract`):**
+   - Creación del servicio desacoplado `GoogleAuthService.js` implementando RFC 7636 (PKCE con `code_verifier` de 64 caracteres Base64URL y `code_challenge` SHA-256 S256).
+   - Apertura de servidor local de bucle invertido (*Loopback Server*) en el puerto `54123` (`http://localhost:54123/callback`) mediante `cordova-plugin-server`.
+   - Despacho seguro de la URL de autorización mediante Custom Tabs (`com.foxdebug.acode.rk.customtabs` con barra de herramientas `#07090E`) o navegador del sistema.
+   - Intercambio de tokens (`authorization_code`), obtención del perfil en `Google UserInfo` (`name`, `email`, `picture`) y respuesta con página de éxito Cyber-Obsidian (HTTP 200).
+   - Persistencia dual: en `localStorage` (`ag_user_profile`) y en el sistema de archivos de PRoot Linux (`~/.gemini/oauth_creds.json` y `google_accounts.json`), con actualización reactiva instantánea en `SidebarDrawer.js` (tarjeta `✦ Google AI Ultra`).
+3. **Contrato de Localización y Refinamiento UI/UX (`LocalizedUXContract`):**
+   - Reemplazo del 100% de cadenas en inglés en `Terminal.js` por mensajes en español técnico formal.
+   - Implementación de barra de progreso con gradiente estelar animado (`linear-gradient(90deg, #4285F4 0%, #34A853 50%, #4285F4 100%)`) y visor de log con tipografía monoespaciada suave en `ChatCanvas.js`.
+4. **Salto de Versión y Compilación Oficial:**
+   - Actualización a versión `2.0.5` (versionCode `20005`) en `config.xml` y `package.json`.
+   - Generación y certificación del instalador binario **`GoogleAntigravity-v2.0.5-ARM64.apk`** (~132 MB).
+
+#### 4.112 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Lienzo Inicial Pulcro:** Erradicación del 100% de falsos positivos en el escáner de puertos; la pantalla inicial solo muestra el Hero de bienvenida Google sin botones ficticios.
+  - **Identidad Soberana Fluida:** Vinculación OAuth directa en Custom Tabs con servidor loopback 54123 que actualiza reactivamente el perfil a Google AI Ultra en segundos.
+  - **Experiencia de Usuario Coherente:** Interfaz 100% en español formal y componentes visuales refinados.
+- **Compromisos Operativos:**
+  - El puerto local 54123 debe permanecer libre durante el breve intervalo del intercambio OAuth.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1767,6 +1810,7 @@ Se formaliza e implementa la solución integral bajo el contrato formal [`SPEC-0
 | **SPEC-023** | Invariante Zero-Mock, Resiliencia de Arranque de Runtime y Purga de Datos Ficticios | `specs/23-antigravity-2-mobile-clean-runtime-and-zero-mock.md` | `APPROVED` | 10 ACs |
 | **SPEC-024** | Arquitectura Zero-Download Offline, Auto-Aprovisionamiento en Frío y Puente de Autenticación Google OAuth | `specs/24-antigravity-2-mobile-zero-download-and-oauth-bridge.md` | `APPROVED` | 9 ACs |
 | **SPEC-025** | Auto-Transición Zero-Lock en Ciclo de Vida Agéntico y Optimización de Peso del APK (Slimming) | `specs/25-antigravity-2-mobile-auto-transition-and-apk-slimming.md` | `APPROVED` | 8 ACs |
+| **SPEC-026** | Limpieza de Detección de Puertos (Anti-Falsos Positivos), Flujo Nativo de Google OAuth 2.0 PKCE y Refinamiento UI/UX | `specs/26-antigravity-2-mobile-oauth-cleanup-and-uix.md` | `APPROVED` | 9 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

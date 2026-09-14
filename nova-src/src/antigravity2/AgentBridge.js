@@ -283,9 +283,9 @@ export class AgentBridge {
         (msg) => {
           if (onLog) onLog(msg);
           if (onProgress && typeof msg === "string") {
-            if (msg.includes("Extrayendo") || msg.includes("Extracting")) onProgress(50);
-            else if (msg.includes("Installing") || msg.includes("Instalando")) onProgress(80);
-            else if (msg.includes("éxito") || msg.includes("completed")) onProgress(100);
+            if (msg.includes("Extrayendo") || msg.includes("Extracting") || msg.includes("Descomprimiendo")) onProgress(50);
+            else if (msg.includes("Installing") || msg.includes("Instalando") || msg.includes("directorios")) onProgress(80);
+            else if (msg.includes("éxito") || msg.includes("completed") || msg.includes("completada") || msg.includes("inicializado")) onProgress(100);
           }
           this.emit('installLog', { message: msg });
         },
@@ -310,17 +310,13 @@ export class AgentBridge {
   }
 
   /**
-   * Dispara el flujo de autenticación oficial de Google Antigravity (SPEC-024 §4.3, AC-OAUTH-001)
-   * @returns {Promise<void>}
+   * Dispara el flujo de autenticación oficial de Google Antigravity (SPEC-024 §4.3, SPEC-026: NativeGoogleOAuthContract)
+   * @returns {Promise<any>}
    */
   async triggerGoogleLogin() {
-    if (!this.isConnected || !this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
-      throw new Error("No hay conexión con el motor agéntico PTY");
-    }
-
-    // Enviar comando oficial de inicio de sesión
-    this.websocket.send("agy auth login\r");
     this.emit('statusChange', { status: 'AUTH', type: 'thinking' });
+    const GoogleAuthService = (await import("./GoogleAuthService")).default;
+    return GoogleAuthService.startOAuthFlow();
   }
 
   /**
@@ -402,45 +398,66 @@ export class AgentBridge {
   }
 
   /**
-   * Scans localhost ports (3000, 5173, 8080, 8000, 4321) to detect live servers
+   * Scans localhost ports (3000, 5173, 8080, 8000, 4321) to detect live servers (SPEC-026: PortScannerSanitizationContract)
    */
   startPortScanner() {
     if (this.portScanInterval) clearInterval(this.portScanInterval);
     const candidatePorts = [3000, 5173, 8080, 8000, 4321];
 
     this.portScanInterval = setInterval(async () => {
-      for (const port of candidatePorts) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 1200);
-          const response = await fetch(`http://localhost:${port}/`, {
-            method: "HEAD",
-            signal: controller.signal,
-            mode: "no-cors",
-          }).catch(() => null);
-          clearTimeout(timeoutId);
+      // Solo escanear si el agente está conectado y el entorno está listo
+      if (!this.isConnected) return;
 
-          if (response || (!this.detectedPorts.has(port) && await this.checkPortTcp(port))) {
-            if (!this.detectedPorts.has(port)) {
-              this.detectedPorts.add(port);
-              this.emit('serverDetected', { port, url: `http://localhost:${port}` });
-            }
-          }
-        } catch (e) {}
+      for (const port of candidatePorts) {
+        if (this.detectedPorts.has(port)) continue;
+
+        const isLive = await this.probePort(port);
+        if (isLive && !this.detectedPorts.has(port)) {
+          this.detectedPorts.add(port);
+          this.emit('serverDetected', { port, url: `http://localhost:${port}` });
+        }
       }
-    }, 4000);
+    }, 5000);
   }
 
-  async checkPortTcp(port) {
-    // Quick heuristic: Try to load favicon or probe
-    try {
-      const img = new Image();
+  async probePort(port) {
+    const url = `http://127.0.0.1:${port}/`;
+
+    // 1. Android Nativo vía cordova-plugin-advanced-http
+    if (window.cordova?.plugin?.http) {
       return new Promise((resolve) => {
-        img.onload = () => resolve(true);
-        img.onerror = () => resolve(true); // Connected but 404 still means server is up
-        img.src = `http://localhost:${port}/favicon.ico?_=${Date.now()}`;
-        setTimeout(() => resolve(false), 800);
+        cordova.plugin.http.sendRequest(
+          url,
+          { method: "HEAD", timeout: 0.8 },
+          (response) => {
+            // Si respondió cualquier código HTTP (200, 404, 500), el servidor está vivo
+            resolve(response.status >= 200 && response.status < 600);
+          },
+          (error) => {
+            // Si el código de estado existe en el error (ej. 404/500), el servidor está vivo
+            if (error.status && error.status >= 200 && error.status < 600) {
+              resolve(true);
+            } else {
+              resolve(false); // Conexión rechazada o timeout
+            }
+          }
+        );
       });
+    }
+
+    // 2. Fallback estándar para navegador
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 800);
+      const res = await window.fetch(url, {
+        method: "GET",
+        mode: "no-cors",
+        signal: controller.signal,
+      }).catch(() => null);
+      clearTimeout(timeoutId);
+
+      // En modo no-cors, si la conexión fue rechazada, res es null
+      return res !== null && res.type === "opaque";
     } catch (e) {
       return false;
     }

@@ -100,11 +100,13 @@ export class SidebarDrawer {
           linkBtn.disabled = true;
           linkBtn.innerHTML = `<span>⏳ Abriendo navegador Google...</span>`;
 
+          if (typeof window.toast === "function") {
+            window.toast("Iniciando autenticación oficial con Google...");
+          }
+
           agentBridge.triggerGoogleLogin()
-            .then(() => {
-              if (typeof window.toast === "function") {
-                window.toast("Abriendo inicio de sesión en Google Chrome...");
-              }
+            .then((profile) => {
+              console.log("Autenticación completada con éxito:", profile);
             })
             .catch((err) => {
               console.error("Error al iniciar autenticación Google:", err);
@@ -147,13 +149,13 @@ export class SidebarDrawer {
   }
 
   setupAuthListener() {
-    agentBridge.on('authSuccess', ({ email, tier }) => {
+    agentBridge.on('authSuccess', ({ email, tier, displayName, avatarUrl }) => {
       this.userProfile = {
         isAuthenticated: true,
-        displayName: email.split('@')[0],
+        displayName: displayName || (email ? email.split('@')[0] : "Google Developer"),
         email: email,
         tier: tier || "Google AI Ultra",
-        avatarUrl: null,
+        avatarUrl: avatarUrl || null,
       };
       try {
         localStorage.setItem("ag_user_profile", JSON.stringify(this.userProfile));
@@ -167,7 +169,7 @@ export class SidebarDrawer {
       }
 
       if (typeof window.toast === "function") {
-        window.toast(`Bienvenido, ${email}`);
+        window.toast(`Bienvenido, ${this.userProfile.displayName}`);
       }
     });
   }
