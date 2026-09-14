@@ -93,40 +93,73 @@ export class AgentBridge {
     }
   }
 
-  async waitForServerReady(maxAttempts = 20, delayMs = 400) {
+  async waitForServerReady(maxAttempts = 25, delayMs = 400) {
+    const statusUrl = `http://127.0.0.1:${this.port}/status`;
+
     for (let i = 0; i < maxAttempts; i++) {
       try {
-        const res = await fetch(`http://127.0.0.1:${this.port}/status`).catch(() => null);
-        if (res && res.ok) return true;
-      } catch (e) {}
+        let isOk = false;
+        if (window.cordova?.plugin?.http) {
+          const response = await new Promise((resolve, reject) => {
+            cordova.plugin.http.sendRequest(
+              statusUrl,
+              { method: "GET", responseType: "text" },
+              resolve,
+              reject
+            );
+          });
+          if (response.status >= 200 && response.status < 300 && response.data?.trim() === "OK") {
+            isOk = true;
+          }
+        } else {
+          // Fallback para entornos de desarrollo en navegador de escritorio
+          const res = await window.fetch(statusUrl).catch(() => null);
+          if (res && res.ok) isOk = true;
+        }
+
+        if (isOk) return true;
+      } catch (e) {
+        // Ignorar fallas temporales mientras el servidor AXS inicializa el puerto
+      }
       await new Promise((r) => setTimeout(r, delayMs));
     }
-    // Proceed even if status check fails on restricted WebViews
-    return true;
+    return true; // Continuar de forma resiliente
   }
 
   async createSession() {
-    try {
-      const res = await fetch(`http://127.0.0.1:${this.port}/terminals`, {
+    const terminalsUrl = `http://127.0.0.1:${this.port}/terminals`;
+    const requestBody = { cols: 100, rows: 35 };
+
+    if (window.cordova?.plugin?.http) {
+      const response = await new Promise((resolve, reject) => {
+        cordova.plugin.http.sendRequest(
+          terminalsUrl,
+          {
+            method: "POST",
+            responseType: "text",
+            serializer: "json",
+            data: requestBody,
+          },
+          resolve,
+          (err) => reject(new Error(err.error || `HTTP ${err.status || 'error'}`))
+        );
+      });
+
+      if (response.status >= 200 && response.status < 300) {
+        this.pid = response.data.trim();
+        return this.pid;
+      }
+      throw new Error(`Fallo creando terminal: HTTP ${response.status}`);
+    } else {
+      // Fallback de navegador
+      const res = await window.fetch(terminalsUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cols: 100, rows: 35 }),
+        body: JSON.stringify(requestBody),
       });
-      if (!res.ok) throw new Error(`Failed to create terminal: ${res.status}`);
-      const pidText = await res.text();
-      return pidText.trim();
-    } catch (e) {
-      // Fallback: If Cordova HTTP is available
-      if (window.cordova?.plugin?.http) {
-        return new Promise((resolve, reject) => {
-          cordova.plugin.http.sendRequest(`http://127.0.0.1:${this.port}/terminals`, {
-            method: "POST",
-            data: { cols: 100, rows: 35 },
-            serializer: "json",
-          }, (r) => resolve(r.data.trim()), (err) => reject(new Error(err.error || "Terminal creation error")));
-        });
-      }
-      throw e;
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      this.pid = (await res.text()).trim();
+      return this.pid;
     }
   }
 

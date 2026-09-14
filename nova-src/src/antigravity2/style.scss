@@ -560,6 +560,9 @@
 
     /* Bottom Prompt Input Bar */
     .ag-chat-input-bar {
+      position: relative;
+      z-index: 150;
+      margin-bottom: env(safe-area-inset-bottom, 0px);
       background-color: var(--ag-surface);
       border-top: 1px solid var(--ag-surface-variant);
       padding: 10px 14px;
@@ -661,6 +664,47 @@
             background-color: #3b78e7;
             transform: scale(0.96);
           }
+        }
+      }
+    }
+
+    /* Server Detected Pill (SPEC-022 §5.2) */
+    .ag-server-detected-pill {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: linear-gradient(90deg, rgba(66, 133, 244, 0.15), rgba(52, 168, 83, 0.15));
+      border: 1px solid var(--ag-primary);
+      border-radius: 8px;
+      padding: 8px 12px;
+      margin: 8px 0;
+      font-size: 0.85rem;
+      animation: agSlideDown 0.25s ease-out;
+
+      .ag-pill-icon {
+        font-size: 1.1rem;
+        margin-right: 8px;
+      }
+
+      .ag-pill-text {
+        flex: 1;
+        color: var(--ag-text-primary);
+        strong {
+          color: #38bdf8;
+        }
+      }
+
+      .ag-pill-btn-open {
+        background-color: var(--ag-primary);
+        color: #ffffff;
+        border: none;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        &:active {
+          background-color: #3b78e7;
         }
       }
     }
@@ -987,4 +1031,24 @@
 @keyframes agPulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+/* Supresión Absoluta de Teclas Residuales Quicktools en Antigravity 2.0 (SPEC-022) */
+#quicktools,
+#quicktools-toggler,
+.quick-tools,
+footer.button-container,
+.button-container:has(#quicktools-toggler),
+body > footer,
+#root ~ #quicktools-toggler {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  max-height: 0 !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  z-index: -9999 !important;
 }

@@ -17,7 +17,7 @@ export class AntigravityApp {
     this.chatCanvas = null;
     this.livePreview = null;
     this.sidebarDrawer = null;
-    this.activeProject = "ecommerce-api";
+    this.activeProject = "calculadora";
     this.activeTab = "chat"; // 'chat' | 'preview'
     this.isSplitView = window.innerWidth >= 1024;
     this.statusBadgeEl = null;
@@ -171,6 +171,10 @@ export class AntigravityApp {
         this.livePreview.reload();
       }
     }
+  }
+
+  showPreviewTab() {
+    this.setActiveTab("preview");
   }
 
   onProjectChanged(projectName) {

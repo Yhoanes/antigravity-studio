@@ -5,17 +5,15 @@
  */
 
 import agentBridge from "./AgentBridge";
+import fsOperation from "fileSystem";
 import { DEFAULT_USER_PROFILE } from "./types";
 
 export class SidebarDrawer {
   constructor(options = {}) {
     this.userProfile = options.userProfile || DEFAULT_USER_PROFILE;
-    this.activeProject = options.activeProject || "ecommerce-api";
-    this.projects = options.projects || [
-      "ecommerce-api",
-      "antigravity-studio",
-      "demo-nextjs"
-    ];
+    this.activeProject = options.activeProject || "calculadora";
+    this.projects = options.projects || ["calculadora"];
+    this.projectSelectContainer = null;
     this.chatHistory = options.chatHistory || [
       { id: "chat-001", title: "Autenticación JWT y Middleware", group: "Hoy", timestamp: Date.now() - 3600000, count: 14 },
       { id: "chat-002", title: "Refactorización de Base de Datos", group: "Hoy", timestamp: Date.now() - 7200000, count: 22 },
@@ -53,6 +51,9 @@ export class SidebarDrawer {
     // 3. Footer
     const footer = this.createFooter();
     this.drawerEl.appendChild(footer);
+
+    // 4. Initial dynamic project discovery (SPEC-022 §4.2, AC-REP-006)
+    this.loadProjectsFromStorage();
   }
 
   createHeader() {
@@ -105,26 +106,9 @@ export class SidebarDrawer {
 
     const projectSelectContainer = document.createElement("div");
     projectSelectContainer.className = "ag-history-list";
+    this.projectSelectContainer = projectSelectContainer;
+    this.renderProjectsList();
 
-    this.projects.forEach((proj) => {
-      const projItem = document.createElement("div");
-      projItem.className = `ag-history-item ${proj === this.activeProject ? 'active' : ''}`;
-      projItem.innerHTML = `
-        <span class="ag-item-icon">📁</span>
-        <span style="flex: 1; font-weight: 500;">${proj}</span>
-        ${proj === this.activeProject ? '<span style="color: var(--ag-google-green); font-size: 0.8rem;">●</span>' : ''}
-      `;
-      projItem.onclick = () => {
-        this.activeProject = proj;
-        agentBridge.switchProject(proj);
-        if (this.onProjectSelectCallback) {
-          this.onProjectSelectCallback(proj);
-        }
-        this.close();
-        this.refreshProjectsList();
-      };
-      projectSelectContainer.appendChild(projItem);
-    });
     projectSection.appendChild(projectSelectContainer);
     body.appendChild(projectSection);
 
@@ -186,17 +170,122 @@ export class SidebarDrawer {
     return footer;
   }
 
-  refreshProjectsList() {
-    // Re-render body with updated active project
-    const oldBody = this.drawerEl.querySelector(".ag-drawer-body");
-    if (oldBody) {
-      const newBody = this.createBody();
-      this.drawerEl.replaceChild(newBody, oldBody);
+  renderProjectsList() {
+    if (!this.projectSelectContainer) return;
+    this.projectSelectContainer.innerHTML = "";
+
+    this.projects.forEach((proj) => {
+      const projItem = document.createElement("div");
+      projItem.className = `ag-history-item ${proj === this.activeProject ? 'active' : ''}`;
+      projItem.innerHTML = `
+        <span class="ag-item-icon">📁</span>
+        <span style="flex: 1; font-weight: 500;">${proj}</span>
+        ${proj === this.activeProject ? '<span style="color: var(--ag-google-green); font-size: 0.8rem;">●</span>' : ''}
+      `;
+      projItem.onclick = () => {
+        this.activeProject = proj;
+        agentBridge.switchProject(proj);
+        if (this.onProjectSelectCallback) {
+          this.onProjectSelectCallback(proj);
+        }
+        this.close();
+        this.renderProjectsList();
+      };
+      this.projectSelectContainer.appendChild(projItem);
+    });
+  }
+
+  async readDirEntries(path) {
+    if (typeof fsOperation !== "undefined") {
+      try {
+        const fs = fsOperation(path);
+        if (await fs.exists()) {
+          const list = await fs.lsDir();
+          return list.map(item => ({
+            name: item.name,
+            isDirectory: item.isDirectory || item.type === "dir" || !item.isFile,
+          }));
+        }
+      } catch (e) {
+        console.warn("fsOperation failed for path:", path, e);
+      }
     }
+
+    if (typeof window.resolveLocalFileSystemURL === "function") {
+      return new Promise((resolve) => {
+        window.resolveLocalFileSystemURL(
+          path,
+          (dirEntry) => {
+            if (!dirEntry.isDirectory) return resolve([]);
+            const reader = dirEntry.createReader();
+            reader.readEntries(
+              (entries) => {
+                resolve(
+                  entries.map((e) => ({
+                    name: e.name,
+                    isDirectory: e.isDirectory,
+                  }))
+                );
+              },
+              () => resolve([])
+            );
+          },
+          () => resolve([])
+        );
+      });
+    }
+
+    return [];
+  }
+
+  async loadProjectsFromStorage() {
+    const projectsPath = "file:///storage/emulated/0/Projects";
+    const fallbackPath = "file:///sdcard/Projects";
+
+    try {
+      let entries = await this.readDirEntries(projectsPath);
+      if (!entries || !entries.length) {
+        entries = await this.readDirEntries(fallbackPath);
+      }
+      if (!entries || !entries.length) {
+        entries = await this.readDirEntries("/storage/emulated/0/Projects");
+      }
+
+      if (entries && entries.length) {
+        // Filtrar únicamente directorios y excluir ocultos
+        const scanned = entries
+          .filter(e => e.isDirectory && !e.name.startsWith("."))
+          .map(e => e.name);
+        if (scanned.length) {
+          this.projects = scanned;
+        }
+      } else {
+        this.projects = ["calculadora"];
+      }
+    } catch (err) {
+      console.warn("No se pudo leer directorio de proyectos directamente, usando defaults:", err);
+      this.projects = ["calculadora"];
+    }
+
+    if (!this.projects.length) {
+      this.projects = ["calculadora"];
+    }
+
+    // Establecer proyecto activo por defecto si el actual no existe en la lista
+    if (!this.projects.includes(this.activeProject) && this.projects.length > 0) {
+      this.activeProject = this.projects.includes("calculadora") ? "calculadora" : this.projects[0];
+    }
+
+    this.renderProjectsList();
+  }
+
+  refreshProjectsList() {
+    this.renderProjectsList();
   }
 
   open() {
     this.isOpen = true;
+    this.loadProjectsFromStorage();
     this.overlayEl.classList.add("open");
     this.drawerEl.classList.add("open");
   }

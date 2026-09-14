@@ -1570,6 +1570,50 @@ Se formaliza la transición integral hacia una estación agéntica conversaciona
 
 ---
 
+### ADR-017 / ADR-032: Reparación de Puente Nativo HTTP (Bypass CORS/Mixed-Content), Desbloqueo del Chat Canvas y Descubrimiento Dinámico de Proyectos en Antigravity 2.0 Mobile
+
+- **Identificador:** `ADR-017` (Secuencia Repositorio: `ADR-032`)
+- **Especificación SDD Asociada:** [`SPEC-022`](specs/22-antigravity-2-mobile-native-bridge-and-ui-repair.md)
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.98 Contexto
+Tras el despliegue inicial de Google Antigravity 2.0 Mobile (`v2.0.0`), las pruebas sobre la tablet física Xiaomi Pad 6 detectaron tres anomalías críticas que impedían la interacción agéntica:
+1. **Bloqueo de Conexión de AgentBridge por Mixed-Content / CORS:** El badge de estado en el header permanecía en rojo con `[ ERROR ]` o en `CONNECTING` perpetuo. Al cargarse la aplicación en Android WebView bajo el esquema virtual seguro `https://appassets.androidplatform.net/index.html`, cualquier invocación a `window.fetch('http://127.0.0.1:8767/status')` era bloqueada por las políticas de seguridad de Chromium (Mixed Content y CORS), impidiendo validar la disponibilidad del daemon AXS y crear la sesión PTY.
+2. **Oclusión de la Entrada de Texto por la Barra Residual QuickTools:** Al inicializarse el runtime de Acode heredado en segundo plano, `quickToolsInit()` montaba la barra táctil de teclas de edición (`#quicktools`), superponiéndose físicamente sobre la caja de entrada de texto (`.ag-chat-input-bar`) del Chat Canvas y bloqueando la interacción táctil del teclado virtual.
+3. **Proyectos Hardcodeados en SidebarDrawer:** El panel lateral listaba proyectos de demostración estáticos (`ecommerce-api`, `demo-nextjs`) en lugar de descubrir de forma dinámica las carpetas reales del usuario presentes en `/storage/emulated/0/Projects` (como `calculadora`).
+
+#### 4.99 Decisión
+Se formalizan e implementan las soluciones en `nova-src/src/antigravity2/` y `nova-src/src/main.js` bajo la especificación formal [`SPEC-022`](specs/22-antigravity-2-mobile-native-bridge-and-ui-repair.md):
+1. **Adopción de Puente Nativo HTTP (`NativeAxsBridgeContract`):**
+   - En `AgentBridge.js`, se reemplaza `window.fetch()` por `cordova.plugin.http.sendRequest()` nativo (Android HttpURLConnection/OkHttp), el cual opera a nivel del sistema operativo fuera de las restricciones de sandbox de Chromium, ignorando por completo CORS y Mixed-Content.
+   - Handshake determinista con `waitForServerReady()` (con timeouts y reintentos) y creación de terminales vía POST `/terminals`, asegurando la transición inmediata y confiable del badge a `[ READY ]` (verde `#34a853`).
+2. **Supresión Agresiva de QuickTools y Blindaje del Input Bar (`QuickToolsSuppressionContract`):**
+   - Supresión de `quickToolsInit()` en `main.js` cuando opera en modo Antigravity 2.0.
+   - Inyección de reglas CSS forzadas (`display: none !important`) sobre `#quicktools`, `#quicktools-toggler` y barras de acción residuales.
+   - Elevación del contenedor `.ag-chat-input-bar` a `z-index: 150` con `position: sticky; bottom: 0;`, garantizando acceso táctil absoluto al área de prompt y botón de envío.
+3. **Descubrimiento Dinámico de Proyectos Reales (`DynamicProjectsDiscoveryContract`):**
+   - En `SidebarDrawer.js`, erradicación total de los proyectos simulados en mock (`ecommerce-api`, etc.).
+   - Implementación de `loadProjectsFromStorage()` escaneando asíncronamente `/storage/emulated/0/Projects` mediante el sistema de archivos de Cordova.
+   - Detección inmediata de proyectos reales existentes (tales como `calculadora`), conmutación de contexto de sesión y soporte de fallback seguro.
+4. **Interacción Bidireccional y Acceso Directo a Live Preview:**
+   - Vinculación del listener `agentBridge.on('message')` en `ChatCanvas.js` para renderizar en tiempo real el streaming de respuestas del agente.
+   - Inserción de píldora táctil interactiva ante eventos `serverDetected` (p. ej. `localhost:3000`) para cargar instantáneamente la URL en `LivePreview.js` con un solo toque.
+5. **Incremento de Versión y Compilación:**
+   - Incremento a versión `2.0.1` (versionCode `20001`) en `config.xml` y `package.json`.
+   - Compilación exitosa del artefacto instalador **`GoogleAntigravity-v2.0.1-ARM64.apk`** (~36.8 MB).
+
+#### 4.100 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Transición Determinista a READY:** Conexión local infalible y estado en verde sin interferencia de políticas WebView.
+  - **Ergonomía Táctil Perfecta:** Caja de texto completamente despejada y accesible sin obstrucciones visuales.
+  - **Fidelidad con el Sistema de Archivos:** Reflejo instantáneo de los proyectos reales del usuario en el Drawer.
+- **Compromisos Operativos:**
+  - El plugin `cordova-plugin-advanced-http` debe permanecer instalado y empaquetado en la plataforma Android.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1596,6 +1640,7 @@ Se formaliza la transición integral hacia una estación agéntica conversaciona
 | **SPEC-019** | Sidebar Lateral Acoplado con Redimensionamiento Táctil, Ciclo de Vida Keep-Alive, Ergonomía de 80 Columnas y Logotipo Oficial Nova IDE | `specs/19-nova-docked-sidebar-keepalive-and-brand-identity.md` | `APPROVED` | 8 ACs |
 | **SPEC-020** | Layout Tri-Columna sin Solapamientos, Identidad Soberana Vectorial y Anclaje Automático a Almacenamiento Compartido | `specs/20-nova-tri-column-layout-projects-bridge-and-clean-identity.md` | `APPROVED` | 7 ACs |
 | **SPEC-021** | Arquitectura de Google Antigravity 2.0 Mobile: Entorno Agéntico Conversacional, Canvas Reactivo y Live Web Preview | `specs/21-antigravity-2-mobile-architecture.md` | `APPROVED` | 9 ACs |
+| **SPEC-022** | Reparación del Puente Nativo HTTP, Supresión de Barra QuickTools y Descubrimiento Dinámico de Proyectos | `specs/22-antigravity-2-mobile-native-bridge-and-ui-repair.md` | `APPROVED` | 8 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

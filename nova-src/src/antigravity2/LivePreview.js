@@ -145,6 +145,10 @@ export class LivePreview {
     if (this.iframeEl) this.iframeEl.src = fullUrl;
   }
 
+  setUrl(url) {
+    this.navigate(url);
+  }
+
   reload() {
     if (this.iframeEl) {
       this.iframeEl.src = this.activeUrl;

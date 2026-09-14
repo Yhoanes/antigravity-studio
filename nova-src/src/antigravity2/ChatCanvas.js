@@ -17,6 +17,8 @@ export class ChatCanvas {
     this.userProfile = options.userProfile || DEFAULT_USER_PROFILE;
     this.md = new MarkdownIt({ html: false, linkify: true, breaks: true });
     this.activeThinkingAccordion = null;
+    this.currentAgentMessageEl = null;
+    this.currentAgentRawText = "";
 
     this.init();
   }
@@ -128,6 +130,10 @@ export class ChatCanvas {
     const text = this.promptInputEl.value.trim();
     if (!text) return;
 
+    // Reset current agent streaming buffer
+    this.currentAgentMessageEl = null;
+    this.currentAgentRawText = "";
+
     // Add user message bubble
     this.addUserMessage(text);
     this.promptInputEl.value = "";
@@ -142,6 +148,24 @@ export class ChatCanvas {
 
     // Scroll to bottom
     this.scrollToBottom();
+  }
+
+  createAgentMessageContainer() {
+    const msgEl = document.createElement("div");
+    msgEl.className = "ag-chat-message agent";
+
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    msgEl.innerHTML = `
+      <div class="ag-msg-header">
+        <span class="ag-sender-badge" style="color: ${GOOGLE_COLORS.blue}">✦ Google Antigravity (Gemini 2.5 Pro)</span>
+        <span class="ag-msg-time">${timeStr}</span>
+      </div>
+      <div class="ag-msg-bubble"></div>
+    `;
+
+    this.messagesListEl.appendChild(msgEl);
+    this.scrollToBottom();
+    return msgEl;
   }
 
   addUserMessage(text) {
@@ -342,6 +366,28 @@ export class ChatCanvas {
   }
 
   setupAgentBridgeListeners() {
+    // Streaming de respuestas del agente en tiempo real (SPEC-022 §5.1, AC-REP-007)
+    agentBridge.on('message', ({ raw, text }) => {
+      if (!text || !text.trim()) return;
+
+      // Si no hay una burbuja activa de agente para este turno, crear una nueva
+      if (!this.currentAgentMessageEl) {
+        this.currentAgentMessageEl = this.createAgentMessageContainer();
+        this.currentAgentRawText = "";
+      }
+
+      this.currentAgentRawText += text;
+
+      // Renderizar Markdown incremental
+      const renderedHtml = this.md.render(this.currentAgentRawText);
+      const bubbleBody = this.currentAgentMessageEl.querySelector(".ag-msg-bubble");
+      if (bubbleBody) {
+        bubbleBody.innerHTML = renderedHtml;
+      }
+
+      this.scrollToBottom();
+    });
+
     agentBridge.on('thinking', (data) => {
       if (!this.activeThinkingAccordion) {
         this.addThinkingAccordion([data.raw], 2.5);
@@ -362,6 +408,31 @@ export class ChatCanvas {
         { id: "2", description: "Crear componentes y servicios correspondientes", completed: false },
         { id: "3", description: "Verificar con suite de tests y comprobación local", completed: false }
       ], ["package.json", "src/auth.ts"]);
+    });
+
+    // Detección interactiva de servidor web local (SPEC-022 §5.2, AC-REP-008)
+    agentBridge.on('serverDetected', ({ port, url }) => {
+      const pill = document.createElement("div");
+      pill.className = "ag-server-detected-pill";
+      pill.innerHTML = `
+        <span class="ag-pill-icon">🌐</span>
+        <span class="ag-pill-text">Servidor web activo en <strong>${url}</strong></span>
+        <button class="ag-pill-btn-open">Abrir Preview</button>
+      `;
+
+      pill.querySelector(".ag-pill-btn-open").onclick = () => {
+        if (window.antigravityApp?.livePreview) {
+          window.antigravityApp.livePreview.setUrl(url);
+          if (window.antigravityApp.showPreviewTab) {
+            window.antigravityApp.showPreviewTab();
+          } else if (window.antigravityApp.setActiveTab) {
+            window.antigravityApp.setActiveTab("preview");
+          }
+        }
+      };
+
+      this.messagesListEl.appendChild(pill);
+      this.scrollToBottom();
     });
   }
 

@@ -1,7 +1,7 @@
 {
   "name": "io.nova.ide",
   "displayName": "Google Antigravity",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Google Antigravity 2.0 Mobile - Agentic Conversational Software Engineering Studio for Android",
   "scripts": {
     "lang": "node ./utils/lang.js",

@@ -746,7 +746,9 @@ async function loadApp() {
 
 	//#region Add event listeners
 	initModes();
-	quickToolsInit();
+	if (!window.antigravityApp) {
+		quickToolsInit();
+	}
 	sidebarApps.init($sidebar);
 	await sidebarApps.loadApps();
 	editorManager.onupdate = onEditorUpdate;
