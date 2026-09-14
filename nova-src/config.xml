@@ -1,5 +1,5 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="io.nova.ide" android-versionCode="10003" version="1.0.2"
+<widget id="io.nova.ide" android-versionCode="10004" version="1.0.3"
     xmlns="http://www.w3.org/ns/widgets"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:cdv="http://cordova.apache.org/ns/1.0">
@@ -22,6 +22,7 @@
     <allow-intent href="geo:*" />
 
     <platform name="android">
+        <preference name="loadUrlTimeoutValue" value="120000" />
         <allow-intent href="market:*" />
         <preference name="GradlePluginKotlinVersion" value="2.3.0" />
         <preference name="fullscreen" value="false" />

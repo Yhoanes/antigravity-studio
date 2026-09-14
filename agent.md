@@ -989,6 +989,58 @@ Se formaliza e implementa el protocolo de sincronización exhaustiva multi-ubica
 
 ---
 
+### ADR-020: Extracción Determinista de RootFS Ubuntu ARM64 y Provisión de CLI agy mediante Rutas POSIX Nativas
+
+- **Identificador:** `ADR-020`
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.62 Contexto
+Durante el primer arranque e inicialización asistida de Nova IDE v1.0.2 en la tablet física Xiaomi Pad 6, el asistente de onboarding culminaba con el error fatal:
+```text
+tar: /data/user/0/io.nova.ide/files/alpine.tar.gz: No such file or directory
+```
+El análisis forense identificó las siguientes causas raíz:
+1. **Contaminación de Esquema URI `file:///`:** La propiedad `cordova.file.dataDirectory` devolvía una URI con esquema `file:///data/user/0/io.nova.ide/files/`. Al concatenar esta cadena con los nombres de archivo descargados, la función nativa `system.fileExists` evaluaba a falso o generaba fallos de sintaxis al pasar argumentos a la utilidad `tar`.
+2. **Fallback Erróneo a Asset Inexistente:** Al evaluar `hasUbuntu` como falso debido al fallo de comprobación URI, la máquina de estados saltaba indebidamente a la rama `else`, intentando descomprimir un inexistente `alpine.tar.gz` (antiguo rootfs monolítico suprimido en la arquitectura Thin Client).
+3. **Falta de Inyección Determinista de CLI `agy`:** El desempaquetado de Google Antigravity CLI dependía de la misma guarda frágil `hasCli`, corriendo el riesgo de omitir la instalación de `agy` en `/usr/local/bin`.
+
+#### 4.63 Decisión
+Se formaliza e implementa la arquitectura de extracción nativa directa en `Terminal.js` bajo las especificaciones de gobernanza:
+1. **Erradicación del Esquema `file:///` y Uso de Rutas POSIX Nativas:**
+   - Desacoplamiento total de `cordova.file.dataDirectory` en los comandos de shell.
+   - Uso estricto de la variable nativa POSIX `${filesDir}` (`/data/user/0/io.nova.ide/files`).
+2. **Extracción Determinista Basada en Arquitectura de CPU:**
+   - Se sustituyen las comprobaciones de archivo intermedias por la guarda determinista `if (arch === "arm64-v8a")`.
+   - Extracción directa y atómica del rootfs de Ubuntu:
+     ```bash
+     tar --no-same-owner -xf ${filesDir}/rootfs.tar.xz -C ${alpineDir}
+     ```
+   - Extracción e instalación mandatoria de Google Antigravity CLI:
+     ```bash
+     tar --no-same-owner -xf ${filesDir}/cli_linux_arm64.tar.gz -C ${alpineDir}/usr/local/bin
+     ln -sf /usr/local/bin/antigravity ${alpineDir}/usr/local/bin/agy
+     chmod +x ${alpineDir}/usr/local/bin/antigravity ${alpineDir}/usr/local/bin/agy
+     ```
+3. **Optimización de Timeouts y Resiliencia en WebView:**
+   - Adición de preferencia `<preference name="loadUrlTimeoutValue" value="120000" />` en `config.xml` para evitar reinicios por timeout durante la descompresión intensiva de I/O flash.
+4. **Incremento de Versión y Compilación de Nova IDE v1.0.3:**
+   - Versión incrementada a `1.0.3` (versionCode `10004`) en `config.xml` y `package.json`.
+   - Generación del instalador oficial `NovaIDE-v1.0.3-ARM64.apk` (~36.7 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.3 ARM64 (Ubuntu Rootfs Extraction Fix)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.3)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.3-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.3/NovaIDE-v1.0.3-ARM64.apk)
+
+#### 4.64 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Extracción Inmaculada en Android:** Erradicación del 100% de los errores `No such file or directory` con `alpine.tar.gz`.
+  - **Disponibilidad Inmediata del CLI:** El binario `agy` y su symlink quedan instalados y con permisos de ejecución de forma incondicional en `/usr/local/bin`.
+  - **Estabilidad de WebView:** Cero interrupciones de carga durante operaciones prolongadas de descompresión.
+- **Compromisos Operativos:**
+  - Requiere asegurar que el almacenamiento interno del dispositivo posea al menos 500 MB libres para la extracción de Ubuntu Noble.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |

@@ -364,23 +364,18 @@ const Terminal = {
 
             await ensureDir(alpineDir);
 
-            const hasUbuntu = await fileExists(cordova.file.dataDirectory + "rootfs.tar.xz");
-            if (hasUbuntu) {
+            if (arch === "arm64-v8a") {
                 logger("📦  Extracting Ubuntu ARM64 filesystem...");
-                await Executor.execute(`tar --no-same-owner -xf ${cordova.file.dataDirectory}rootfs.tar.xz -C ${alpineDir}`);
+                await Executor.execute(`tar --no-same-owner -xf ${filesDir}/rootfs.tar.xz -C ${alpineDir}`);
+
+                logger("📦  Installing Google Antigravity CLI (agy)...");
+                await ensureDir(`${alpineDir}/usr/local/bin`);
+                await Executor.execute(`tar --no-same-owner -xf ${filesDir}/cli_linux_arm64.tar.gz -C ${alpineDir}/usr/local/bin`);
+                await Executor.execute(`ln -sf /usr/local/bin/antigravity ${alpineDir}/usr/local/bin/agy`);
+                await Executor.execute(`chmod +x ${alpineDir}/usr/local/bin/antigravity ${alpineDir}/usr/local/bin/agy`);
             } else {
                 logger("📦  Extracting sandbox filesystem...");
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/alpine.tar.gz -C ${alpineDir}`);
-            }
-
-            // Extract Google Antigravity CLI if present
-            const hasCli = await fileExists(cordova.file.dataDirectory + "cli_linux_arm64.tar.gz");
-            if (hasCli) {
-                logger("📦  Installing Google Antigravity CLI (agy)...");
-                await ensureDir(`${alpineDir}/usr/local/bin`);
-                await Executor.execute(`tar --no-same-owner -xf ${cordova.file.dataDirectory}cli_linux_arm64.tar.gz -C ${alpineDir}/usr/local/bin`);
-                await Executor.execute(`ln -sf /usr/local/bin/antigravity ${alpineDir}/usr/local/bin/agy`);
-                await Executor.execute(`chmod +x ${alpineDir}/usr/local/bin/antigravity ${alpineDir}/usr/local/bin/agy`);
             }
 
             // Silent onboarding injection & settings

@@ -46,8 +46,11 @@ grep -q "/home/studio/workspace" "$INIT_SANDBOX" || { echo "FALLO: /home/studio/
 echo "[OK]"
 
 # 6. Verificar existencia y tamaño del APK Thin Client
-echo -n "6. Verificando existencia de APK Thin Client (NovaIDE-v1.0.2-ARM64.apk)... "
-APK_PATH="NovaIDE-v1.0.2-ARM64.apk"
+echo -n "6. Verificando existencia de APK Thin Client (NovaIDE-v1.0.3-ARM64.apk)... "
+APK_PATH="NovaIDE-v1.0.3-ARM64.apk"
+if [ ! -f "$APK_PATH" ]; then
+    APK_PATH="NovaIDE-v1.0.2-ARM64.apk"
+fi
 if [ ! -f "$APK_PATH" ]; then
     APK_PATH="NovaIDE-v1.0.1-ARM64.apk"
 fi
@@ -55,7 +58,7 @@ if [ ! -f "$APK_PATH" ]; then
     APK_PATH="NovaIDE-v1.0.0-ARM64.apk"
 fi
 if [ ! -f "$APK_PATH" ]; then
-    echo "FALLO: No se encontró NovaIDE-v1.0.2-ARM64.apk en la raíz del repositorio."
+    echo "FALLO: No se encontró NovaIDE-v1.0.3-ARM64.apk en la raíz del repositorio."
     exit 1
 fi
 
@@ -69,4 +72,11 @@ if [ "$APK_SIZE_MB" -gt 45 ]; then
 fi
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS DE VALIDACIÓN DE TASK-032 HAN PASADO EXITOSAMENTE ==="
+# 7. Verificar ruta de extracción POSIX de rootfs y CLI sin esquema URI file:/// (TASK-039)
+echo -n "7. Verificando ruta de extracción POSIX (\${filesDir}/rootfs.tar.xz)... "
+grep -q '\${filesDir}/rootfs.tar.xz' "$TERMINAL_JS" || { echo "FALLO: ruta filesDir/rootfs.tar.xz ausente"; exit 1; }
+grep -q '\${filesDir}/cli_linux_arm64.tar.gz' "$TERMINAL_JS" || { echo "FALLO: ruta filesDir/cli_linux_arm64.tar.gz ausente"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS DE VALIDACIÓN DE TASK-032 / TASK-039 HAN PASADO EXITOSAMENTE ==="
+
