@@ -952,6 +952,43 @@ Se formaliza e implementa la solución en `Terminal.js`, `terminalManager.js`, `
 
 ---
 
+### ADR-019: Sincronización Multi-Ubicación de Plugins Cordova y Publicación de Nova IDE v1.0.2
+
+- **Identificador:** `ADR-019`
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.59 Contexto
+Tras la formalización de [`ADR-018`](#adr-018-reparación-de-rootfs-ubuntu-2404-noble-arquitectura-dual-terminal-y-onboarding-agéntico-en-nova-ide) para corregir el codename del rootfs de Ubuntu 24.04 Noble ARM64, las pruebas de ejecución en la tablet física Xiaomi Pad 6 continuaban reportando un error HTTP 404 al intentar descargar el rootfs.
+El diagnóstico forense identificó la causa raíz:
+1. **Desincronización de Assets en el Pipeline de Cordova:** Apache Cordova no replica de manera reactiva los cambios introducidos en el código fuente de plugins locales (`nova-src/src/plugins/terminal/www/Terminal.js`) hacia las carpetas de compilación intermedias (`nova-src/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js`) ni hacia los assets nativos de la plataforma Android (`nova-src/platforms/android/app/src/main/assets/www/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js`) si no se ejecuta una reinstalación formal o reemplazo directo de plugin.
+2. **Preservación Residual de la URL Obsoleta:** Como resultado, el binario compilado v1.0.1 empaquetó internamente la copia desactualizada de `Terminal.js` con la URL residual `ubuntu-aarch64-pd-v4.18.0.tar.xz`.
+
+#### 4.60 Decisión
+Se formaliza e implementa el protocolo de sincronización exhaustiva multi-ubicación en el árbol de Cordova:
+1. **Sincronización Total Multi-Ubicación de `Terminal.js`:**
+   - Propagación atómica e idéntica de la URL oficial `https://github.com/termux/proot-distro/releases/download/v4.18.0/ubuntu-noble-aarch64-pd-v4.18.0.tar.xz` en los tres destinos del ecosistema:
+     - `nova-src/src/plugins/terminal/www/Terminal.js` (Fuente de ingeniería)
+     - `nova-src/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js` (Caché de plugins Cordova)
+     - `nova-src/platforms/android/app/src/main/assets/www/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js` (Assets nativos empaquetados en el APK)
+2. **Inspección Binaria Post-Build:**
+   - Extracción y verificación criptográfica/estática directa del asset dentro del archivo APK compilado antes de su aprobación de lanzamiento.
+3. **Incremento de Versión y Compilación de Nova IDE v1.0.2:**
+   - Actualización de versión a `1.0.2` (versionCode `10003`) en `config.xml` y `package.json`.
+   - Generación del instalador oficial `NovaIDE-v1.0.2-ARM64.apk` (~36.7 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.2 ARM64 (Noble Rootfs Plugin Sync)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.2)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.2-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.2/NovaIDE-v1.0.2-ARM64.apk)
+
+#### 4.61 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Descarga Exitosa Garantizada (HTTP 200 OK):** Verificación efectiva de la descarga del paquete de 61.2 MB de Ubuntu 24.04 Noble LTS ARM64.
+  - **Consistencia Absoluta de Artefactos:** Erradicación de discrepancias entre código fuente y bundle empaquetado.
+- **Compromisos Operativos:**
+  - Cualquier modificación futura en plugins locales de Cordova debe sincronizarse mandatoriamente en las 3 ubicaciones antes de compilar.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
