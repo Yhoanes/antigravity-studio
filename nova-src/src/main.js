@@ -648,15 +648,18 @@ async function loadApp() {
 	const $agentToggler = (
 		<button
 			id="agent-toggler"
-			className="agent-toggle-btn"
+			className="header-action-btn agent-toggler-btn"
 			attr-action="toggle-agent"
 			title="Nova Agent (< ✦ >)"
-			aria-label="Toggle Nova Agent"
+			aria-label="Toggle Nova Agent Panel"
 			onclick={() => acode.exec("toggle-agent")}
 		>
-			<span className="agent-logo-bracket">&lt;</span>
-			<span className="agent-logo-star">✦</span>
-			<span className="agent-logo-bracket">&gt;</span>
+			<svg className="agent-toggler-svg" viewBox="0 0 24 24" width="20" height="20">
+				<path d="M6 7L2 12L6 17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+				<path d="M18 7L22 12L18 17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" />
+				<path d="M12 6Q12 12 8 12Q12 12 12 18Q12 12 16 12Q12 12 12 6Z" fill="currentColor" />
+			</svg>
+			<span className="agent-logo-star" style={{ display: "none" }} aria-hidden="true">✦</span>
 		</button>
 	);
 	const $headerTail = (
@@ -795,11 +798,31 @@ async function loadApp() {
 	}
 
 	acode.setLoadingMessage("Loading folders...");
-	if (Array.isArray(folders)) {
+	if (Array.isArray(folders) && folders.length) {
 		for (const folder of folders) {
 			folder.opts.listFiles = !!folder.opts.listFiles;
 			openFolder(folder.url, folder.opts);
 		}
+	} else {
+		// Zero-Click auto-anchor to /storage/emulated/0/Projects (SPEC-020 §5.1, ProjectsWorkspaceBridge)
+		const projectsPath = "/storage/emulated/0/Projects";
+		fsOperation(projectsPath)
+			.exists()
+			.then((exists) => {
+				if (!exists) {
+					return fsOperation("/storage/emulated/0")
+						.createDirectory("Projects")
+						.catch(() => {});
+				}
+			})
+			.catch(() => {})
+			.finally(() => {
+				openFolder(projectsPath, {
+					name: "Projects",
+					saveState: true,
+					listFiles: true,
+				});
+			});
 	}
 
 	if (Array.isArray(files) && files.length) {

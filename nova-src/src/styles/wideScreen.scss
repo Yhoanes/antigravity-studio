@@ -431,11 +431,66 @@
     }
   }
 
-  /* Docked Sidebar Flexbox Architecture (SPEC-019 §3.1) */
+  /* Tri-Column Layout Architecture (SPEC-020 §4) */
+  :root {
+    --sidebar-width: 260px;
+    --agent-panel-width: 380px;
+  }
+
+  /* Desactivación absoluta de la máscara de bloqueo en modo tablet / desktop (SPEC-020 §4.1) */
+  #sidebar + .mask,
+  .mask:has(~ #sidebar),
+  body:has(#sidebar.show) > .mask,
+  body.wide-screen .mask {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+  }
+
+  /* Coexistencia no obstructiva de 3 columnas (#sidebar, #main, #nova-agent-panel) */
+  #sidebar {
+    width: var(--sidebar-width, 260px);
+    max-width: 350px;
+  }
+
+  body.has-docked-sidebar {
+    #root,
+    #main {
+      margin-left: var(--sidebar-width, 260px);
+    }
+  }
+
   body.has-docked-agent {
-    #root {
+    #root,
+    #main {
       margin-right: var(--agent-panel-width, 380px);
+    }
+  }
+
+  body.has-docked-agent.has-docked-sidebar {
+    #root,
+    #main {
+      width: calc(100% - var(--sidebar-width, 260px) - var(--agent-panel-width, 380px)) !important;
+      min-width: 25vw;
+    }
+  }
+
+  body.has-docked-agent:not(.has-docked-sidebar) {
+    #root,
+    #main {
       width: calc(100% - var(--agent-panel-width, 380px)) !important;
+      min-width: 25vw;
+    }
+  }
+
+  body.has-docked-sidebar:not(.has-docked-agent) {
+    #root,
+    #main {
+      width: calc(100% - var(--sidebar-width, 260px)) !important;
+      min-width: 25vw;
     }
   }
 

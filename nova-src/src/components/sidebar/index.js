@@ -331,6 +331,8 @@ function create($container, $toggler) {
 				} else {
 					root.style.removeProperty("margin-left");
 					root.style.removeProperty("width");
+					document.body.classList.remove("has-docked-sidebar");
+					document.documentElement.style.setProperty("--sidebar-width", "0px");
 					$el.style.maxWidth = null;
 					$el.style.transition = null;
 				}
@@ -406,7 +408,14 @@ function create($container, $toggler) {
 		} else if (hideIfTab) {
 			$el.activated = false;
 			root.style.removeProperty("margin-left");
-			root.style.removeProperty("width");
+			document.body.classList.remove("has-docked-sidebar");
+			document.documentElement.style.setProperty("--sidebar-width", "0px");
+			if (document.body.classList.contains("has-docked-agent")) {
+				const agentPanelWidth = parseInt(document.documentElement.style.getPropertyValue("--agent-panel-width")) || 380;
+				root.style.width = `calc(100% - ${agentPanelWidth}px)`;
+			} else {
+				root.style.removeProperty("width");
+			}
 			$el.style.maxWidth = null;
 			$el.style.transition = null;
 			$el.remove();
@@ -419,6 +428,8 @@ function create($container, $toggler) {
 		$el.style.transform = null;
 		$el.classList.remove("show");
 		wasOpenInTab = false;
+		document.body.classList.remove("has-docked-sidebar");
+		document.documentElement.style.setProperty("--sidebar-width", "0px");
 		clearTimeout(hideTimeout);
 		hideTimeout = setTimeout(() => {
 			$el.activated = false;
@@ -641,7 +652,12 @@ function create($container, $toggler) {
 		$el.style.transition = "none";
 		$el.style.maxWidth = width + "px";
 		root.style.marginLeft = width + "px";
-		root.style.width = `calc(100% - ${width}px)`;
+		document.body.classList.add("has-docked-sidebar");
+		document.documentElement.style.setProperty("--sidebar-width", `${width}px`);
+		const agentPanelWidth = document.body.classList.contains("has-docked-agent")
+			? (parseInt(document.documentElement.style.getPropertyValue("--agent-panel-width")) || 380)
+			: 0;
+		root.style.width = `calc(100% - ${width}px - ${agentPanelWidth}px)`;
 		clearTimeout(setWidthTimeout);
 		setWidthTimeout = setTimeout(() => {
 			const editor = editorManager?.editor;

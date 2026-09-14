@@ -899,8 +899,11 @@
 .icon.copyline-down:before {
   content: "\ea0c";
 }
-.icon.acode:before {
-  content: "\ea0d";
+.icon.nova-star:before,
+.icon-nova-star:before {
+  content: "✦";
+  font-family: inherit !important;
+  color: #00f0ff;
 }
 .icon.patreon:before {
   content: "\ea0f";

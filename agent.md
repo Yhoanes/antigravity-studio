@@ -1474,6 +1474,50 @@ Bajo el contrato formal `SPEC-019`, se formaliza e implementa una transformació
 
 ---
 
+### ADR-015 / ADR-030: Identidad Soberana Vectorial, Layout Tri-Columna sin Solapamientos y Anclaje Automático a Almacenamiento Compartido
+
+- **Identificador:** `ADR-015` (Secuencia Repositorio: `ADR-030`)
+- **Especificación SDD Asociada:** [`SPEC-020`](specs/20-nova-tri-column-layout-projects-bridge-and-clean-identity.md)
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.92 Contexto
+Tras el lanzamiento de Nova IDE v1.0.12, las pruebas de ingeniería en la Xiaomi Pad 6 detectaron cuatro inconsistencias críticas que afectaban la identidad visual y la ergonomía multitarea:
+1. **Remanentes Visuales del Logotipo `<A>` de Acode:** La pantalla de carga previa (Splash Screen HTML) y la vista de bienvenida (`welcome.js`, `logo.png`, `about.js`) aún mostraban el isotipo `<A>` del proyecto base Acode, contradiciendo la soberanía de marca de Nova IDE.
+2. **Conflicto y Solapamiento de Paneles:** Al abrir el explorador de archivos lateral izquierdo (`#sidebar`), el layout activaba una máscara modal (`.mask`) con oscurecimiento que bloqueaba la interacción con el editor y cerraba o tapaba el panel del agente derecho (`#agent-panel`), imposibilitando el trabajo simultáneo en tres columnas.
+3. **Botón Modal Innecesario `✕` en el Panel del Agente:** El panel de agente conservaba un botón de cierre modal `✕` redundante, que generaba confusión en lugar de operar como un panel acoplado controlado desde el botón reactivo de la barra de herramientas.
+4. **Falta de Anclaje Automático a `/storage/emulated/0/Projects`:** Al iniciar la app por primera vez, el explorador de archivos arrancaba vacío en lugar de montar automáticamente el directorio compartido de proyectos (`/storage/emulated/0/Projects`), requiriendo navegación manual del usuario para sincronizar con el workspace de Antigravity CLI.
+
+#### 4.93 Decisión
+Bajo el contrato formal `SPEC-020`, se formaliza e implementa la purificación de identidad y la arquitectura tri-columna:
+1. **Purificación Radical de Marca e Identidad Vectorial Soberana:**
+   - Erradicación definitiva de todos los assets de Acode (`logo.png`, referencias `<A>`).
+   - Creación e inyección del nuevo isotipo vectorial oficial en `www/logo.svg`, `src/components/logo/index.js`, `src/components/logo/style.scss` y `src/pages/welcome/welcome.js`, con degradado cibernético cian a púrpura (`#00F0FF` -> `#8B5CF6`) y corchetes angulares esmeralda (`#10B981`).
+2. **Supresión del Botón `✕` y Botón Reactivo `$agentToggler` en Toolbar:**
+   - Eliminación definitiva del botón `✕` (`#agent-close-btn`) del panel de agente.
+   - Rediseño de `$agentToggler` como interruptor bi-estable con iluminación cyan (`color: #00F0FF`, `background: rgba(0,240,255,0.15)`) cuando el agente está visible.
+3. **Arquitectura Tri-Columna sin Solapamientos (Widescreen $\ge 1024$px):**
+   - Desactivación de `.mask` (`display: none !important`) en pantallas tablet/escritorio ($\ge 1024$px).
+   - Coexistencia simultánea y fluida de las 3 áreas de trabajo: `[ Explorador de Archivos (240px) | Editor de Código (Flex auto) | Nova Agent (25vw-75vw) ]`.
+4. **Anclaje Automático de `/storage/emulated/0/Projects`:**
+   - Inyección desatendida en el primer inicio de la carpeta compartida `/storage/emulated/0/Projects` en el explorador de archivos (`addedFolder`), sincronizando 1:1 con `/home/studio/workspace` del contenedor Ubuntu ARM64.
+5. **Compilación y Publicación de Nova IDE v1.0.13:**
+   - Versión incrementada a `1.0.13` (versionCode `10014`) en `config.xml` y `package.json`.
+   - Generación del paquete instalador final `NovaIDE-v1.0.13-ARM64.apk` (38,591,921 bytes ~ 36.8 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.13 ARM64 (Tri-Column Workspace & Sovereign Identity)](https://github.com/Yhoanes/antigravity-studio/releases/tag/v1.0.13)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.13-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/v1.0.13/NovaIDE-v1.0.13-ARM64.apk)
+
+#### 4.94 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Identidad Soberana 100%:** Cero remanentes de marcas previas.
+  - **Productividad Tri-Columna:** Consulta de archivos, edición y asistencia de IA en paralelo sin bloqueos.
+  - **Sincronización OOTB:** Acceso inmediato a los proyectos locales compartidos con Google Antigravity CLI.
+- **Compromisos Operativos:**
+  - En pantallas menores a 1024px, se preserva el comportamiento responsivo adaptado a dispositivos móviles.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1498,6 +1542,7 @@ Bajo el contrato formal `SPEC-019`, se formaliza e implementa una transformació
 | **SPEC-017** | Arquitectura de Nova IDE: Entorno de Desarrollo Táctil y Panel de Agente Inteligente Unificado | `specs/17-nova-ide-architecture-and-ui.md` | `APPROVED` | 10 ACs |
 | **SPEC-018** | Arquitectura Dual-Terminal, Recuperación del Rootfs Ubuntu Noble y Onboarding Agéntico en Nova IDE | `specs/18-nova-agent-split-and-terminal-repair.md` | `APPROVED` | 8 ACs |
 | **SPEC-019** | Sidebar Lateral Acoplado con Redimensionamiento Táctil, Ciclo de Vida Keep-Alive, Ergonomía de 80 Columnas y Logotipo Oficial Nova IDE | `specs/19-nova-docked-sidebar-keepalive-and-brand-identity.md` | `APPROVED` | 8 ACs |
+| **SPEC-020** | Layout Tri-Columna sin Solapamientos, Identidad Soberana Vectorial y Anclaje Automático a Almacenamiento Compartido | `specs/20-nova-tri-column-layout-projects-bridge-and-clean-identity.md` | `APPROVED` | 7 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

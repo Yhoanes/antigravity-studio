@@ -16,7 +16,7 @@ export default function AboutInclude() {
 			<Logo />
 
 			<div className="version-info">
-				<h1 className="version-title">Acode editor</h1>
+				<h1 className="version-title">Nova IDE</h1>
 				<div className="version-number">
 					Version {BuildInfo.version} ({BuildInfo.versionCode})
 				</div>
@@ -43,7 +43,7 @@ export default function AboutInclude() {
 				</a>
 				<a href={config.BASE_URL} className="info-item">
 					<div className="info-item-icon">
-						<span className="icon acode"></span>
+						<span className="icon-nova-star"></span>
 					</div>
 					<div className="info-item-text">
 						Official webpage

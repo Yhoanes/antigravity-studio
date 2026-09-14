@@ -338,10 +338,23 @@ body.agent-resizing {
   }
 }
 
-/* Sovereign Nova Agent Toggler Button (< ✦ >) */
-#agent-toggler.agent-toggle-btn {
+@keyframes pulse-stellar {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(139, 92, 246, 0.4);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 14px rgba(139, 92, 246, 0.8);
+    transform: scale(1.05);
+  }
+}
+
+/* Sovereign Nova Agent Toggler Button (< ✦ >) (SPEC-020 §3.2) */
+#agent-toggler.agent-toggler-btn,
+#agent-toggler.agent-toggle-btn,
+.agent-toggler-btn {
   background: transparent;
-  border: none;
+  border: 1px solid transparent;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -351,7 +364,15 @@ body.agent-resizing {
   font-family: inherit;
   user-select: none;
   margin-right: 6px;
-  transition: background-color 150ms, transform 150ms;
+  color: #94a3b8; /* Slate Gray */
+  opacity: 0.85;
+  transition: all 150ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  .agent-toggler-svg {
+    display: block;
+    color: currentColor;
+    transition: transform 150ms, filter 150ms;
+  }
 
   .agent-logo-bracket {
     color: #94a3b8;
@@ -369,9 +390,15 @@ body.agent-resizing {
     transition: transform 150ms, text-shadow 150ms;
   }
 
-  &:hover, &:active {
-    background-color: rgba(0, 240, 255, 0.1);
+  &:hover {
+    color: #00f0ff;
+    background-color: rgba(0, 240, 255, 0.08);
+    opacity: 1;
     transform: scale(1.05);
+
+    .agent-toggler-svg {
+      filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.6));
+    }
 
     .agent-logo-bracket {
       color: #cbd5e1;
@@ -384,7 +411,15 @@ body.agent-resizing {
   }
 
   &.active {
-    background-color: rgba(0, 240, 255, 0.15);
+    color: #00f0ff; /* Supernova Cyan */
+    background: rgba(0, 240, 255, 0.12);
+    border: 1px solid rgba(0, 240, 255, 0.35);
+    box-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+    opacity: 1;
+
+    .agent-toggler-svg {
+      filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.8));
+    }
 
     .agent-logo-bracket {
       color: #00f0ff;
@@ -392,6 +427,18 @@ body.agent-resizing {
 
     .agent-logo-star {
       animation: pulse-glow 2s infinite ease-in-out;
+    }
+  }
+
+  &.thinking {
+    color: #8b5cf6 !important; /* Stellar Violet */
+    background: rgba(139, 92, 246, 0.15) !important;
+    border: 1px solid rgba(139, 92, 246, 0.4) !important;
+    animation: pulse-stellar 1.5s infinite ease-in-out;
+    opacity: 1;
+
+    .agent-toggler-svg {
+      filter: drop-shadow(0 0 8px rgba(139, 92, 246, 0.9));
     }
   }
 }

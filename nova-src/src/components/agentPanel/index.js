@@ -18,7 +18,6 @@ class NovaAgentPanel {
 	#resizeHandle;
 	#terminalContainer;
 	#maximizeBtn;
-	#closeBtn;
 	#statusBadge;
 	#isMaximized = false;
 	#isVisible = false;
@@ -48,18 +47,6 @@ class NovaAgentPanel {
 				onclick={() => this.toggleMaximize()}
 			>
 				<span className="maximize-icon">⛶</span>
-			</button>
-		);
-
-		this.#closeBtn = (
-			<button
-				id="agent-close-btn"
-				className="agent-action-btn"
-				title="Close Panel"
-				aria-label="Close Panel"
-				onclick={() => this.hide()}
-			>
-				<span className="icon close" style={{ fontSize: "1em" }}>✕</span>
 			</button>
 		);
 
@@ -104,7 +91,6 @@ class NovaAgentPanel {
 					</div>
 					<div className="agent-panel-actions">
 						{this.#maximizeBtn}
-						{this.#closeBtn}
 					</div>
 				</div>
 				{this.#terminalContainer}
@@ -172,12 +158,14 @@ class NovaAgentPanel {
 	#setupResizeHandleEvents() {
 		let startX = 0;
 		let startW = 0;
+		let startTime = 0;
 
 		const onPointerDown = (e) => {
 			if (this.#isMaximized) return;
 			this.#isPointerDragging = true;
 			startX = e.clientX;
 			startW = this.#currentWidth;
+			startTime = Date.now();
 			try {
 				this.#resizeHandle.setPointerCapture(e.pointerId);
 			} catch (_) {}
@@ -210,6 +198,15 @@ class NovaAgentPanel {
 			document.body.classList.remove("agent-resizing");
 			this.#el.style.transition = "";
 
+			// Tactile Swipe-to-Close gesture detection (SPEC-020 §3.3)
+			const swipeRightPx = e.clientX - startX;
+			const elapsedMs = Math.max(1, Date.now() - startTime);
+			const vx = swipeRightPx / elapsedMs;
+			if (swipeRightPx > 100 || (swipeRightPx > 40 && vx > 0.5)) {
+				this.hide();
+				return;
+			}
+
 			this.#savePersistedWidth(this.#currentWidth);
 			this.updateAdaptiveTypography();
 			this.#terminalInstance?.fitAndResizeTerminal?.(true);
@@ -224,6 +221,37 @@ class NovaAgentPanel {
 		this.#resizeHandle.addEventListener("pointermove", onPointerMove);
 		this.#resizeHandle.addEventListener("pointerup", onPointerUp);
 		this.#resizeHandle.addEventListener("pointercancel", onPointerUp);
+
+		// Touch swipe-to-close on panel header (SPEC-020 §3.3)
+		let headerTouchStartX = 0;
+		let headerTouchStartTime = 0;
+		const headerEl = this.#el.querySelector(".agent-panel-header");
+		if (headerEl) {
+			headerEl.addEventListener(
+				"touchstart",
+				(e) => {
+					if (e.touches && e.touches.length > 0) {
+						headerTouchStartX = e.touches[0].clientX;
+						headerTouchStartTime = Date.now();
+					}
+				},
+				{ passive: true },
+			);
+			headerEl.addEventListener(
+				"touchend",
+				(e) => {
+					if (e.changedTouches && e.changedTouches.length > 0) {
+						const swipeX = e.changedTouches[0].clientX - headerTouchStartX;
+						const elapsed = Math.max(1, Date.now() - headerTouchStartTime);
+						const vx = swipeX / elapsed;
+						if (swipeX > 100 || (swipeX > 40 && vx > 0.5)) {
+							this.hide();
+						}
+					}
+				},
+				{ passive: true },
+			);
+		}
 	}
 
 	#setupAdaptiveTypographyObserver() {
@@ -338,7 +366,10 @@ class NovaAgentPanel {
 		this.#el.classList.add("hidden");
 
 		const togglerBtn = document.getElementById("agent-toggler");
-		if (togglerBtn) togglerBtn.classList.remove("active");
+		if (togglerBtn) {
+			togglerBtn.classList.remove("active");
+			togglerBtn.classList.remove("thinking");
+		}
 
 		document.body.classList.remove("has-docked-agent");
 		const rootEl = tag.get("#root");
@@ -421,6 +452,15 @@ class NovaAgentPanel {
 		if (this.#statusBadge) {
 			this.#statusBadge.textContent = status;
 			this.#statusBadge.className = `agent-status-badge ${type}`;
+		}
+
+		const togglerBtn = document.getElementById("agent-toggler");
+		if (togglerBtn && this.#isVisible) {
+			if (type === "thinking") {
+				togglerBtn.classList.add("thinking");
+			} else {
+				togglerBtn.classList.remove("thinking");
+			}
 		}
 	}
 

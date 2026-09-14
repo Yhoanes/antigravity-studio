@@ -62,10 +62,10 @@ grep -q "aid_everybody" "$INIT_ALPINE" || { echo "FALLO: aid_everybody ausente e
 grep -q "/etc/group" "$INIT_ALPINE" || { echo "FALLO: inyección /etc/group ausente en init-alpine.sh"; exit 1; }
 echo "[OK]"
 
-# 7. Verificar version bump v1.0.12 (versionCode 10013)
-echo -n "7. Comprobando version bump a v1.0.12 (versionCode 10013)... "
-grep -q 'version="1.0.12"' "$CONFIG_XML" || { echo "FALLO: versión 1.0.12 ausente en config.xml"; exit 1; }
-grep -q 'android-versionCode="10013"' "$CONFIG_XML" || { echo "FALLO: versionCode 10013 ausente en config.xml"; exit 1; }
+# 7. Verificar version bump v1.0.12+ (versionCode 10013+)
+echo -n "7. Comprobando version bump a v1.0.12+ (versionCode 10013+)... "
+grep -Eq 'version="1.0.1[2-9]"' "$CONFIG_XML" || { echo "FALLO: versión 1.0.12+ ausente en config.xml"; exit 1; }
+grep -Eq 'android-versionCode="1001[3-9]"' "$CONFIG_XML" || { echo "FALLO: versionCode 10013+ ausente en config.xml"; exit 1; }
 echo "[OK]"
 
 # 8. Verificar criterios de aceptación AC-DOCKED-* en SPEC
