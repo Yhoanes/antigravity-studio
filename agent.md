@@ -1126,6 +1126,58 @@ Se formalizan e implementan tres contratos de resiliencia en `Terminal.js` e `in
 
 ---
 
+### ADR-023: Restauración del Wrapper cordova.define en Módulos de Plugins y Certificación Visual de Arranque de Nova IDE
+
+- **Identificador:** `ADR-023`
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.71 Contexto
+Durante las pruebas de despliegue y lanzamiento de la versión v1.0.5 en el emulador de Android y dispositivos físicos, la aplicación experimentaba un fallo crítico en tiempo de ejecución al inicializar la vista web (WebView), quedando la interfaz en blanco con la siguiente excepción fatal en la consola de Chrome DevTools (CDP):
+```text
+Uncaught Error: Module com.foxdebug.acode.rk.exec.terminal.Terminal does not exist.
+    at Object.require (cordova.js:63:19)
+    at index.js:142
+```
+El diagnóstico técnico reveló la causa raíz:
+1. **Pérdida de la Envoltura Modular de Cordova:** En la versión v1.0.5, las sincronizaciones manuales de `Terminal.js` en `platforms/android/app/src/main/assets/www/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js` sobrescribieron el archivo omitiendo la cabecera estándar de modularización de Apache Cordova:
+   ```javascript
+   cordova.define("com.foxdebug.acode.rk.exec.terminal.Terminal", function(require, exports, module) { ... });
+   ```
+2. **Fallo de Registro en la Tabla de Módulos:** Al omitirse dicha función de envoltura, el cargador de módulos de `cordova.js` no registró el símbolo `com.foxdebug.acode.rk.exec.terminal.Terminal` en el diccionario interno de plugins, provocando un error fatal al intentar resolver `require("com.foxdebug.acode.rk.exec.terminal.Terminal")` desde `index.js`.
+
+#### 4.72 Decisión
+Se formaliza e implementa la restauración estricta del encapsulamiento modular y la verificación visual del arranque:
+1. **Restauración Obligatoria de `cordova.define` en Assets Empaquetados:**
+   - Todo módulo de plugin inyectado en `platforms/.../assets/www/plugins/` debe contener la envoltura formal de definición modular de Cordova:
+     ```javascript
+     cordova.define("com.foxdebug.acode.rk.exec.terminal.Terminal", function(require, exports, module) {
+         // Implementación de Terminal
+         module.exports = Terminal;
+     });
+     ```
+2. **Inspección de Runtime en Vivo mediante Chrome DevTools Protocol (CDP):**
+   - Validación automatizada mediante el script `harness/test_terminal_cdp.js` conectándose al puerto de depuración remota (9222) de Android.
+   - Confirmación de que `window.Terminal` está instanciado y que `window.Terminal.isInstalled` existe como función ejecutable sin excepciones.
+3. **Certificación Visual en Emulador Android Tablet:**
+   - Verificación de renderizado completo y sin errores de la interfaz gráfica de Nova IDE, capturando las evidencias `nova_v106_screen.png` y `nova_v106_verified.png`.
+4. **Incremento de Versión y Compilación de Nova IDE v1.0.6:**
+   - Versión incrementada a `1.0.6` (versionCode `10007`) en `config.xml` y `package.json`.
+   - Generación del paquete instalador oficial `NovaIDE-v1.0.6-ARM64.apk` (~36.7 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.6 ARM64 (Cordova Module Wrapper Fix)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.6)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.6-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.6/NovaIDE-v1.0.6-ARM64.apk)
+
+#### 4.73 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Arranque Inmaculado de la UI:** Eliminación definitiva del error `Module ... does not exist` y renderizado instantáneo del IDE.
+  - **Inspección Asistida por CDP:** Procedimiento estandarizado para validar la salud de módulos WebView antes de la publicación.
+  - **Compatibilidad Total:** El subsistema Ubuntu 24.04 Noble ARM64 y el CLI de Antigravity quedan disponibles para el usuario y el agente.
+- **Compromisos Operativos:**
+  - Toda sincronización manual hacia `platforms/.../assets/` debe preservar estrictamente el contenedor `cordova.define`.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
