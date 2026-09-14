@@ -19,6 +19,8 @@ export class ChatCanvas {
     this.activeThinkingAccordion = null;
     this.currentAgentMessageEl = null;
     this.currentAgentRawText = "";
+    this.welcomeHeroEl = null;
+    this.setupCardEl = null;
 
     this.init();
   }
@@ -36,8 +38,8 @@ export class ChatCanvas {
     const inputBar = this.createInputBar();
     this.container.appendChild(inputBar);
 
-    // 3. Render initial welcome conversation
-    this.renderWelcomeConversation();
+    // 3. Render initial Clean Welcome Hero (SPEC-023: CleanHeroContract)
+    this.renderWelcomeHero();
 
     // 4. Hook AgentBridge listeners
     this.setupAgentBridgeListeners();
@@ -130,12 +132,16 @@ export class ChatCanvas {
     const text = this.promptInputEl.value.trim();
     if (!text) return;
 
+    // Retirar Hero de Bienvenida con animacion suave si esta presente
+    this.dismissWelcomeHero();
+
     // Reset current agent streaming buffer
     this.currentAgentMessageEl = null;
     this.currentAgentRawText = "";
 
-    // Add user message bubble
-    this.addUserMessage(text);
+    // Add user message bubble (con indicador de espera si aun no esta conectado)
+    const isPending = !agentBridge.isConnected;
+    this.addUserMessage(text, isPending);
     this.promptInputEl.value = "";
     this.promptInputEl.style.height = "auto";
 
@@ -168,14 +174,20 @@ export class ChatCanvas {
     return msgEl;
   }
 
-  addUserMessage(text) {
+  addUserMessage(text, isPending = false) {
     const msgEl = document.createElement("div");
     msgEl.className = "ag-chat-message user";
 
     const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const userLabel = this.userProfile.email || this.userProfile.displayName || "Invitado";
+    const pendingBadgeHtml = isPending
+      ? `<span class="ag-msg-pending-badge" id="user-prompt-pending-badge">En espera de conexión...</span>`
+      : "";
+
     msgEl.innerHTML = `
       <div class="ag-msg-header">
-        <span class="ag-sender-badge">👤 ${this.userProfile.email}</span>
+        <span class="ag-sender-badge">👤 ${this.escapeHtml(userLabel)}</span>
+        ${pendingBadgeHtml}
         <span class="ag-msg-time">${timeStr}</span>
       </div>
       <div class="ag-msg-bubble">
@@ -345,24 +357,146 @@ export class ChatCanvas {
     return card;
   }
 
-  renderWelcomeConversation() {
-    this.addAgentMessage(`### Bienvenido a Google Antigravity 2.0 Mobile
-**Estación Agéntica Conversacional impulsada por Gemini 2.5 Pro y Ultra**.
+  renderWelcomeHero() {
+    this.messagesListEl.innerHTML = "";
+    this.currentAgentMessageEl = null;
+    this.currentAgentRawText = "";
 
-- **Chat Canvas:** Razonamiento transparente paso a paso (*Thinking Process*).
-- **Control Determinado:** Revisa y aprueba planes arquitectónicos con un solo toque \`[ ✓ Aprobar y Ejecutar ]\`.
-- **Live Web Preview:** Visualización y pruebas interactivas en vivo a 144Hz.
-- **Continuidad Total:** Sesiones persistentes vinculadas a tus proyectos en \`/sdcard/Projects\`.
+    const hero = document.createElement("div");
+    hero.className = "ag-welcome-hero";
+    hero.id = "ag-welcome-hero";
 
-¿Qué proyecto o funcionalidad construiremos hoy?`);
+    hero.innerHTML = `
+      <div class="ag-hero-prism">
+        <svg viewBox="0 0 100 100" class="ag-prism-svg">
+          <polygon points="50,15 85,80 15,80" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="2" />
+          <path d="M50,15 L85,80" stroke="${GOOGLE_COLORS.yellow}" stroke-width="3.5" stroke-linecap="round" />
+          <path d="M85,80 L15,80" stroke="${GOOGLE_COLORS.green}" stroke-width="3.5" stroke-linecap="round" />
+          <path d="M15,80 L50,15" stroke="${GOOGLE_COLORS.blue}" stroke-width="3.5" stroke-linecap="round" />
+          <circle cx="50" cy="15" r="4.5" fill="${GOOGLE_COLORS.red}" />
+          <circle cx="85" cy="80" r="4.5" fill="${GOOGLE_COLORS.yellow}" />
+          <circle cx="15" cy="80" r="4.5" fill="${GOOGLE_COLORS.blue}" />
+          <circle cx="50" cy="52" r="3.5" fill="#ffffff" class="ag-prism-center-sparkle" />
+        </svg>
+      </div>
+      <h1 class="ag-hero-title">Google Antigravity</h1>
+      <p class="ag-hero-subtitle">¿En qué puedo ayudarte hoy?</p>
+      
+      <div class="ag-hero-starters">
+        <div class="ag-starter-card" data-prompt="Elabora un plan de arquitectura detallado paso a paso antes de modificar archivos.">
+          <div class="ag-starter-icon">📋</div>
+          <div class="ag-starter-title">Modo Plan</div>
+          <div class="ag-starter-desc">Diseña la arquitectura antes de codificar.</div>
+        </div>
+        <div class="ag-starter-card" data-prompt="Crea una aplicación web moderna utilizando HTML, CSS y JavaScript con servidor local en Vite.">
+          <div class="ag-starter-icon">⚡</div>
+          <div class="ag-starter-title">Crear App Web</div>
+          <div class="ag-starter-desc">Frontend reactivo con Vite y componentes.</div>
+        </div>
+        <div class="ag-starter-card" data-prompt="Revisa los logs del sistema e inspecciona si hay errores de compilación o runtime.">
+          <div class="ag-starter-icon">🐞</div>
+          <div class="ag-starter-title">Diagnosticar</div>
+          <div class="ag-starter-desc">Inspecciona logs y errores del sistema.</div>
+        </div>
+      </div>
+    `;
 
-    // Add illustrative Thinking Accordion
-    this.addThinkingAccordion([
-      "Entorno PRoot Linux Ubuntu Noble ARM64 activo y verificado.",
-      "Google Antigravity CLI (agy v1.2.2) enlazado con auto-continue flag (-c).",
-      "Detector de servidores locales en escucha en puertos 3000, 5173, 8080.",
-      "Listo para recibir especificaciones y redactar código."
-    ], 1.8, true);
+    hero.querySelectorAll(".ag-starter-card").forEach((card) => {
+      card.onclick = () => {
+        const prompt = card.getAttribute("data-prompt");
+        if (prompt && this.promptInputEl) {
+          this.promptInputEl.value = prompt;
+          this.promptInputEl.focus();
+        }
+      };
+    });
+
+    this.messagesListEl.appendChild(hero);
+    this.welcomeHeroEl = hero;
+  }
+
+  dismissWelcomeHero() {
+    if (!this.welcomeHeroEl) return;
+    const hero = this.welcomeHeroEl;
+    this.welcomeHeroEl = null;
+    hero.style.transition = "opacity 180ms ease, transform 180ms ease";
+    hero.style.opacity = "0";
+    hero.style.transform = "translateY(-8px)";
+    setTimeout(() => {
+      if (hero.parentNode) {
+        hero.parentNode.removeChild(hero);
+      }
+    }, 180);
+  }
+
+  renderSetupCard() {
+    if (this.setupCardEl) return;
+
+    const card = document.createElement("div");
+    card.className = "ag-setup-card";
+    card.id = "ag-setup-card";
+
+    card.innerHTML = `
+      <div class="ag-setup-header">
+        <span class="ag-setup-icon">✦</span>
+        <span class="ag-setup-title">Configuración del Entorno de IA</span>
+      </div>
+      <p class="ag-setup-desc">
+        Para ejecutar Google Antigravity en este dispositivo es necesario inicializar el subsistema Linux Ubuntu ARM64 y el motor agéntico.
+      </p>
+      <div class="ag-setup-progress-bar">
+        <div class="ag-setup-progress-fill" id="setup-progress-fill"></div>
+      </div>
+      <div class="ag-setup-log" id="setup-log-view">Listo para comenzar...</div>
+      <button class="ag-btn-start-setup" id="btn-start-setup">
+        <span>Inicializar Entorno Agéntico</span>
+      </button>
+    `;
+
+    const startBtn = card.querySelector("#btn-start-setup");
+    const progressFill = card.querySelector("#setup-progress-fill");
+    const logView = card.querySelector("#setup-log-view");
+
+    startBtn.onclick = async () => {
+      startBtn.disabled = true;
+      startBtn.innerHTML = "<span>Instalando entorno...</span>";
+      startBtn.style.opacity = "0.7";
+
+      try {
+        await agentBridge.installRuntime(
+          (progress) => {
+            if (progressFill) progressFill.style.width = `${progress}%`;
+          },
+          (logLine) => {
+            if (logView) {
+              logView.textContent = String(logLine).slice(-120);
+            }
+          }
+        );
+      } catch (err) {
+        startBtn.disabled = false;
+        startBtn.innerHTML = "<span>Reintentar Instalación</span>";
+        startBtn.style.opacity = "1";
+        if (logView) logView.textContent = `Error: ${err.message || err}`;
+      }
+    };
+
+    this.messagesListEl.appendChild(card);
+    this.setupCardEl = card;
+    this.scrollToBottom();
+  }
+
+  dismissSetupCard() {
+    if (!this.setupCardEl) return;
+    const card = this.setupCardEl;
+    this.setupCardEl = null;
+    card.style.transition = "opacity 180ms ease";
+    card.style.opacity = "0";
+    setTimeout(() => {
+      if (card.parentNode) {
+        card.parentNode.removeChild(card);
+      }
+    }, 180);
   }
 
   setupAgentBridgeListeners() {
@@ -408,6 +542,28 @@ export class ChatCanvas {
         { id: "2", description: "Crear componentes y servicios correspondientes", completed: false },
         { id: "3", description: "Verificar con suite de tests y comprobación local", completed: false }
       ], ["package.json", "src/auth.ts"]);
+    });
+
+    // Despacho de cola de prompts diferida (SPEC-023 §5, AC-CLN-010)
+    agentBridge.on('promptDispatched', () => {
+      const badge = this.messagesListEl.querySelector("#user-prompt-pending-badge");
+      if (badge) {
+        badge.textContent = "✓ Enviado";
+        badge.style.borderColor = "rgba(52, 168, 83, 0.4)";
+        badge.style.color = "#34a853";
+        setTimeout(() => {
+          if (badge.parentNode) badge.parentNode.removeChild(badge);
+        }, 1200);
+      }
+    });
+
+    // Estado del runtime (SPEC-023 §4.2, AC-CLN-008)
+    agentBridge.on('statusChange', ({ status }) => {
+      if (status === 'SETUP') {
+        this.renderSetupCard();
+      } else if (status === 'READY') {
+        this.dismissSetupCard();
+      }
     });
 
     // Detección interactiva de servidor web local (SPEC-022 §5.2, AC-REP-008)

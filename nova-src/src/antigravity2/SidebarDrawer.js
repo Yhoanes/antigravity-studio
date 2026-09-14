@@ -1,7 +1,7 @@
 /**
  * Google Antigravity 2.0 Mobile - SidebarDrawer Component
- * Session Hub, User Profile (shadrick1212@gmail.com - Google AI Ultra), Project Selector & Chat History
- * SPEC-021: AC-AG2-006, AC-AG2-007
+ * Session Hub, User Profile (Zero-Mock), Project Selector & Chat History
+ * SPEC-023: ZeroMockContract (AC-CLN-001, AC-CLN-002, AC-CLN-003, AC-CLN-004)
  */
 
 import agentBridge from "./AgentBridge";
@@ -11,15 +11,11 @@ import { DEFAULT_USER_PROFILE } from "./types";
 export class SidebarDrawer {
   constructor(options = {}) {
     this.userProfile = options.userProfile || DEFAULT_USER_PROFILE;
-    this.activeProject = options.activeProject || "calculadora";
-    this.projects = options.projects || ["calculadora"];
+    this.activeProject = options.activeProject || "workspace";
+    this.projects = options.projects || [];
     this.projectSelectContainer = null;
-    this.chatHistory = options.chatHistory || [
-      { id: "chat-001", title: "Autenticación JWT y Middleware", group: "Hoy", timestamp: Date.now() - 3600000, count: 14 },
-      { id: "chat-002", title: "Refactorización de Base de Datos", group: "Hoy", timestamp: Date.now() - 7200000, count: 22 },
-      { id: "chat-003", title: "Configuración Inicial con Docker", group: "Ayer", timestamp: Date.now() - 86400000, count: 9 },
-      { id: "chat-004", title: "Corrección de Tests en Jest", group: "Ayer", timestamp: Date.now() - 93600000, count: 16 },
-    ];
+    this.chatHistory = [];
+    this.historyListContainer = null;
 
     this.isOpen = false;
     this.overlayEl = null;
@@ -52,7 +48,7 @@ export class SidebarDrawer {
     const footer = this.createFooter();
     this.drawerEl.appendChild(footer);
 
-    // 4. Initial dynamic project discovery (SPEC-022 §4.2, AC-REP-006)
+    // 4. Initial dynamic project discovery (SPEC-023 §2.2, AC-CLN-003)
     this.loadProjectsFromStorage();
   }
 
@@ -60,18 +56,46 @@ export class SidebarDrawer {
     const header = document.createElement("div");
     header.className = "ag-drawer-header";
 
-    // User Profile Card: shadrick1212@gmail.com - Google AI Ultra
+    // User Profile Card (Zero-Mock: Invitado / Conectado)
     const profileCard = document.createElement("div");
     profileCard.className = "ag-user-profile-card";
-    profileCard.innerHTML = `
-      <div class="ag-avatar-wrapper">
-        <img class="ag-avatar-img" src="./logo.svg" alt="User Avatar" />
-      </div>
-      <div class="ag-user-info">
-        <span class="ag-user-email">${this.userProfile.email}</span>
-        <span class="ag-user-tier">✦ ${this.userProfile.tier}</span>
-      </div>
-    `;
+
+    if (this.userProfile.isAuthenticated && this.userProfile.email) {
+      profileCard.innerHTML = `
+        <div class="ag-avatar-wrapper">
+          <img class="ag-avatar-img" src="${this.userProfile.avatarUrl || './logo.svg'}" alt="User Avatar" />
+        </div>
+        <div class="ag-user-info">
+          <span class="ag-user-email">${this.escapeHtml(this.userProfile.displayName || this.userProfile.email)}</span>
+          <span class="ag-user-tier">✦ ${this.escapeHtml(this.userProfile.tier)}</span>
+        </div>
+      `;
+    } else {
+      profileCard.innerHTML = `
+        <div class="ag-avatar-wrapper">
+          <svg class="ag-avatar-icon" viewBox="0 0 24 24" width="36" height="36" fill="#94a3b8">
+            <path d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+        </div>
+        <div class="ag-user-info">
+          <span class="ag-user-email">Invitado</span>
+          <span class="ag-user-tier">Modo Local / Sin Conexión</span>
+          <button class="ag-btn-link-account" id="btn-link-google" title="Vincular Cuenta Google">
+            <span>🌐 Vincular Cuenta Google</span>
+          </button>
+        </div>
+      `;
+
+      const linkBtn = profileCard.querySelector("#btn-link-google");
+      if (linkBtn) {
+        linkBtn.onclick = (e) => {
+          e.stopPropagation();
+          if (window.acode?.exec) {
+            window.acode.exec("open-settings");
+          }
+        };
+      }
+    }
     header.appendChild(profileCard);
 
     // Button: + Nueva Conversación
@@ -123,6 +147,30 @@ export class SidebarDrawer {
 
     const historyList = document.createElement("div");
     historyList.className = "ag-history-list";
+    this.historyListContainer = historyList;
+    this.renderChatHistory();
+
+    historySection.appendChild(historyList);
+    body.appendChild(historySection);
+
+    return body;
+  }
+
+  renderChatHistory() {
+    if (!this.historyListContainer) return;
+    this.historyListContainer.innerHTML = "";
+
+    if (!this.chatHistory || !this.chatHistory.length) {
+      const emptyHistory = document.createElement("div");
+      emptyHistory.className = "ag-history-empty";
+      emptyHistory.innerHTML = `
+        <span class="ag-empty-icon">💬</span>
+        <span class="ag-empty-title">Sin conversaciones previas</span>
+        <span class="ag-empty-desc">Inicia una nueva sesión agéntica para comenzar a desarrollar.</span>
+      `;
+      this.historyListContainer.appendChild(emptyHistory);
+      return;
+    }
 
     this.chatHistory.forEach((chat) => {
       const chatItem = document.createElement("div");
@@ -130,8 +178,8 @@ export class SidebarDrawer {
       chatItem.innerHTML = `
         <span class="ag-item-icon">💬</span>
         <div style="display: flex; flex-direction: column; flex: 1; overflow: hidden;">
-          <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${chat.title}</span>
-          <span style="font-size: 0.72rem; color: var(--ag-text-secondary);">${chat.group} &bull; ${chat.count} msgs</span>
+          <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${this.escapeHtml(chat.title)}</span>
+          <span style="font-size: 0.72rem; color: var(--ag-text-secondary);">${this.escapeHtml(chat.group || "Reciente")} &bull; ${chat.count || 1} msgs</span>
         </div>
       `;
       chatItem.onclick = () => {
@@ -139,13 +187,8 @@ export class SidebarDrawer {
         agentBridge.activeChatId = chat.id;
         agentBridge.launchAgy();
       };
-      historyList.appendChild(chatItem);
+      this.historyListContainer.appendChild(chatItem);
     });
-
-    historySection.appendChild(historyList);
-    body.appendChild(historySection);
-
-    return body;
   }
 
   createFooter() {
@@ -174,12 +217,30 @@ export class SidebarDrawer {
     if (!this.projectSelectContainer) return;
     this.projectSelectContainer.innerHTML = "";
 
+    if (!this.projects || !this.projects.length) {
+      const emptyItem = document.createElement("div");
+      emptyItem.className = "ag-history-empty";
+      emptyItem.innerHTML = `
+        <span class="ag-empty-icon">📁</span>
+        <span class="ag-empty-title">Sin proyectos activos</span>
+        <button class="ag-chip" style="margin-top: 8px;" id="btn-create-proj">+ Nuevo Proyecto</button>
+      `;
+      const createBtn = emptyItem.querySelector("#btn-create-proj");
+      if (createBtn) {
+        createBtn.onclick = () => {
+          this.createNewProject();
+        };
+      }
+      this.projectSelectContainer.appendChild(emptyItem);
+      return;
+    }
+
     this.projects.forEach((proj) => {
       const projItem = document.createElement("div");
       projItem.className = `ag-history-item ${proj === this.activeProject ? 'active' : ''}`;
       projItem.innerHTML = `
         <span class="ag-item-icon">📁</span>
-        <span style="flex: 1; font-weight: 500;">${proj}</span>
+        <span style="flex: 1; font-weight: 500;">${this.escapeHtml(proj)}</span>
         ${proj === this.activeProject ? '<span style="color: var(--ag-google-green); font-size: 0.8rem;">●</span>' : ''}
       `;
       projItem.onclick = () => {
@@ -193,6 +254,28 @@ export class SidebarDrawer {
       };
       this.projectSelectContainer.appendChild(projItem);
     });
+  }
+
+  async createNewProject() {
+    let name = prompt("Nombre del nuevo proyecto:");
+    if (!name || !name.trim()) return;
+    name = name.trim().replace(/[^a-zA-Z0-9_-]/g, "");
+    if (!name) return;
+
+    try {
+      if (typeof fsOperation !== "undefined") {
+        await fsOperation("/storage/emulated/0/Projects").createDirectory(name);
+      }
+    } catch (e) {
+      console.warn("Error creando directorio de proyecto:", e);
+    }
+    await this.loadProjectsFromStorage();
+    this.activeProject = name;
+    agentBridge.switchProject(name);
+    if (this.onProjectSelectCallback) {
+      this.onProjectSelectCallback(name);
+    }
+    this.close();
   }
 
   async readDirEntries(path) {
@@ -252,28 +335,26 @@ export class SidebarDrawer {
       }
 
       if (entries && entries.length) {
-        // Filtrar únicamente directorios y excluir ocultos
+        // Filtrar únicamente directorios reales y excluir ocultos
         const scanned = entries
           .filter(e => e.isDirectory && !e.name.startsWith("."))
           .map(e => e.name);
-        if (scanned.length) {
-          this.projects = scanned;
-        }
+        this.projects = scanned;
       } else {
-        this.projects = ["calculadora"];
+        this.projects = [];
       }
     } catch (err) {
-      console.warn("No se pudo leer directorio de proyectos directamente, usando defaults:", err);
-      this.projects = ["calculadora"];
+      console.warn("No se pudo leer directorio de proyectos directamente:", err);
+      this.projects = [];
     }
 
-    if (!this.projects.length) {
-      this.projects = ["calculadora"];
-    }
-
-    // Establecer proyecto activo por defecto si el actual no existe en la lista
-    if (!this.projects.includes(this.activeProject) && this.projects.length > 0) {
-      this.activeProject = this.projects.includes("calculadora") ? "calculadora" : this.projects[0];
+    // Establecer proyecto activo: si hay proyectos y el actual no está en la lista, tomar el primero; si no, 'workspace'
+    if (this.projects.length > 0) {
+      if (!this.projects.includes(this.activeProject)) {
+        this.activeProject = this.projects[0];
+      }
+    } else {
+      this.activeProject = "workspace";
     }
 
     this.renderProjectsList();
@@ -307,6 +388,15 @@ export class SidebarDrawer {
   mount(parentEl) {
     parentEl.appendChild(this.overlayEl);
     parentEl.appendChild(this.drawerEl);
+  }
+
+  escapeHtml(str) {
+    return String(str || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#039;");
   }
 }
 

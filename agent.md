@@ -1614,6 +1614,51 @@ Se formalizan e implementan las soluciones en `nova-src/src/antigravity2/` y `no
 
 ---
 
+### ADR-018 / ADR-033: Invariante Zero-Mock, Hero de Bienvenida Oficial y Resiliencia de Arranque de Runtime en Google Antigravity 2.0 Mobile
+
+- **Identificador:** `ADR-018` (Secuencia Repositorio: `ADR-033`)
+- **Especificación SDD Asociada:** [`SPEC-023`](specs/23-antigravity-2-mobile-clean-runtime-and-zero-mock.md)
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.101 Contexto
+Durante las pruebas de campo sobre dispositivos limpios en la tablet física Xiaomi Pad 6, se identificaron cuatro deficiencias graves de integridad y ciclo de vida de runtime:
+1. **Contaminación de Datos Mock y Filtración de Identidad:** La interfaz mostraba hardcodeado el correo personal `shadrick1212@gmail.com`, un proyecto forzado `calculadora` y cuatro conversaciones ficticias pre-grabadas en el historial de chats.
+2. **Conversación Simulada Engañosa en ChatCanvas:** Al abrir la aplicación, el lienzo presentaba una respuesta pre-fabricada con un acordeón de pensamiento falso (`Thinking Process 1.8s`), transmitiendo la impresión de una sesión pre-grabada en lugar de un entorno de producción limpio.
+3. **Falla Silenciosa de Arranque en Instalaciones Limpias:** `AgentBridge.connect()` intentaba conectar inmediatamente al daemon AXS sin verificar si el rootfs de Ubuntu estaba instalado. En instalaciones frescas donde `Terminal.isInstalled()` devolvía `false`, la aplicación caía en `[ ERROR ]` de forma irreversible sin ofrecer mecanismos de auto-reparación o aprovisionamiento guiado.
+4. **Pérdida de Prompts por Carrera de Sockets:** Si el usuario tecleaba un prompt mientras el WebSocket PTY aún negociaba la conexión, el mensaje se descartaba silenciosamente lanzando excepciones en segundo plano.
+
+#### 4.102 Decisión
+Se formaliza e implementa la solución de purificación de datos y resiliencia en `nova-src/src/antigravity2/` bajo la especificación formal [`SPEC-023`](specs/23-antigravity-2-mobile-clean-runtime-and-zero-mock.md):
+1. **Adopción Estricta del Invariante Zero-Mock (`ZeroMockContract`):**
+   - En `types.js`, `SidebarDrawer.js` y `AntigravityApp.js`, erradicación del 100% de correos personales, nombres propios y proyectos fijados.
+   - Perfil de usuario neutral "Invitado" (`guest@antigravity.google`) con botón interactivo de vinculación a cuenta Google.
+   - Historial de chats vacío por defecto ("Sin conversaciones previas") que se puebla única y exclusivamente con sesiones reales recuperadas de `agy`.
+   - Escaneo dinámico real de `/storage/emulated/0/Projects` con fallback limpio a `workspace`.
+2. **Hero de Bienvenida Oficial Google Material 3 (`CleanHeroContract`):**
+   - Supresión definitiva de mensajes y acordeones simulados en `ChatCanvas.js`.
+   - Implementación de un Hero de Bienvenida con el isotipo de prisma de 4 colores Google, tipografía Material 3, el lema "¿En qué puedo ayudarte hoy?" y tarjetas interactivas de inicio rápido (*Prompt Starters*).
+   - Desvanecimiento suave y eliminación del DOM del Hero al enviarse el primer mensaje real del usuario.
+3. **Máquina de Estados de Runtime y Auto-Aprovisionamiento (`RuntimeLifecycleContract`):**
+   - En `AgentBridge.js`, verificación preventiva obligatoria de `Terminal.isInstalled()`. Si el entorno no está presente, conmuta a estado `SETUP_REQUIRED` y despliega la tarjeta de auto-instalación guiada con progreso interactivo.
+   - Comprobación y arranque determinista de AXS mediante `Terminal.isAxsRunning()` y `Terminal.startAxs()`, asegurando la transición limpia a `[ READY ]` (verde `#34a853`).
+4. **Cola Resiliente de Prompts (`ResilientPromptQueueContract`):**
+   - Implementación de `pendingQueue` en `AgentBridge.js`. Si el usuario envía un mensaje mientras la conexión se establece, el prompt se encola en memoria y se despacha automáticamente (*flush*) tan pronto se confirma el handshake del WebSocket PTY, garantizando cero pérdida de interacción.
+5. **Salto de Versión y Compilación Oficial:**
+   - Actualización a versión `2.0.2` (versionCode `20002`) en `config.xml` y `package.json`.
+   - Compilación exitosa del artefacto instalador **`GoogleAntigravity-v2.0.2-ARM64.apk`** (~36.8 MB).
+
+#### 4.103 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Inmaculada Experiencia de Producción:** Entorno 100% limpio y profesional, sin rastros de mocks ni filtración de datos de prueba.
+  - **Arranque Autónomo y Auto-Reparable:** Capacidad de guiar al usuario en la instalación inicial del entorno Linux sin errores de conexión insalvables.
+  - **Receptividad Inmediata:** Despacho garantizado de prompts desde el primer segundo gracias a la cola resiliente.
+- **Compromisos Operativos:**
+  - En el primer inicio en frío, la aplicación requiere conexión a internet para descargar el rootfs si no ha sido aprovisionado previamente.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1641,6 +1686,7 @@ Se formalizan e implementan las soluciones en `nova-src/src/antigravity2/` y `no
 | **SPEC-020** | Layout Tri-Columna sin Solapamientos, Identidad Soberana Vectorial y Anclaje Automático a Almacenamiento Compartido | `specs/20-nova-tri-column-layout-projects-bridge-and-clean-identity.md` | `APPROVED` | 7 ACs |
 | **SPEC-021** | Arquitectura de Google Antigravity 2.0 Mobile: Entorno Agéntico Conversacional, Canvas Reactivo y Live Web Preview | `specs/21-antigravity-2-mobile-architecture.md` | `APPROVED` | 9 ACs |
 | **SPEC-022** | Reparación del Puente Nativo HTTP, Supresión de Barra QuickTools y Descubrimiento Dinámico de Proyectos | `specs/22-antigravity-2-mobile-native-bridge-and-ui-repair.md` | `APPROVED` | 8 ACs |
+| **SPEC-023** | Invariante Zero-Mock, Resiliencia de Arranque de Runtime y Purga de Datos Ficticios | `specs/23-antigravity-2-mobile-clean-runtime-and-zero-mock.md` | `APPROVED` | 10 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

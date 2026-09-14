@@ -260,6 +260,176 @@
       -webkit-overflow-scrolling: touch;
     }
 
+    /* Welcome Hero (SPEC-023 §3.2, CleanHeroContract) */
+    .ag-welcome-hero {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      margin: auto 0;
+      padding: 32px 16px;
+      text-align: center;
+      animation: agFadeInUp 0.3s ease-out;
+      transition: opacity 0.18s ease-out, transform 0.18s ease-out;
+
+      &.fade-out {
+        opacity: 0;
+        transform: translateY(-12px);
+        pointer-events: none;
+      }
+
+      .ag-hero-logo {
+        width: 72px;
+        height: 72px;
+        margin-bottom: 16px;
+      }
+
+      .ag-hero-title {
+        font-family: var(--ag-font-ui);
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        margin-bottom: 6px;
+        letter-spacing: -0.3px;
+      }
+
+      .ag-hero-subtitle {
+        font-size: 0.95rem;
+        color: #94a3b8;
+        margin-bottom: 28px;
+      }
+
+      .ag-hero-starters {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 12px;
+        width: 100%;
+        max-width: 640px;
+
+        .ag-starter-card {
+          background-color: var(--ag-surface-container);
+          border: 1px solid var(--ag-surface-variant);
+          border-radius: 12px;
+          padding: 14px 16px;
+          text-align: left;
+          cursor: pointer;
+          transition: border-color 0.2s, background-color 0.2s, transform 0.1s;
+
+          &:hover {
+            border-color: var(--ag-primary);
+          }
+
+          &:active {
+            transform: scale(0.98);
+            background-color: var(--ag-surface-variant);
+          }
+
+          .ag-starter-header {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: #ffffff;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+          }
+
+          .ag-starter-desc {
+            font-size: 0.78rem;
+            color: var(--ag-text-secondary);
+            line-height: 1.4;
+          }
+        }
+      }
+    }
+
+    /* Setup Card (SPEC-023 §4.2, RuntimeLifecycleContract) */
+    .ag-setup-card {
+      margin: auto;
+      max-width: 520px;
+      width: 100%;
+      background-color: var(--ag-surface-container);
+      border: 1px solid var(--ag-primary);
+      border-radius: 14px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+      animation: agFadeInUp 0.3s ease-out;
+
+      .ag-setup-header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        .ag-setup-icon {
+          font-size: 1.4rem;
+          color: var(--ag-google-blue);
+        }
+
+        .ag-setup-title {
+          font-size: 1.1rem;
+          font-weight: 700;
+          color: #f1f5f9;
+        }
+      }
+
+      .ag-setup-desc {
+        font-size: 0.88rem;
+        color: var(--ag-text-secondary);
+        line-height: 1.5;
+        margin: 0;
+      }
+
+      .ag-setup-progress-bar {
+        width: 100%;
+        height: 6px;
+        background-color: rgba(255, 255, 255, 0.08);
+        border-radius: 3px;
+        overflow: hidden;
+
+        .ag-setup-progress-fill {
+          height: 100%;
+          width: 0%;
+          background: linear-gradient(90deg, var(--ag-google-blue), var(--ag-google-green));
+          transition: width 0.3s ease;
+        }
+      }
+
+      .ag-setup-log {
+        font-family: var(--ag-font-mono);
+        font-size: 0.76rem;
+        color: #94a3b8;
+        background-color: #0b0f19;
+        padding: 10px 12px;
+        border-radius: 8px;
+        border: 1px solid var(--ag-surface-variant);
+        max-height: 100px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+      }
+
+      .ag-btn-start-setup {
+        min-height: 46px;
+        background-color: var(--ag-primary);
+        color: #ffffff;
+        border: none;
+        border-radius: 8px;
+        font-size: 0.92rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+        &:active {
+          background-color: #3b78e7;
+        }
+        &:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+      }
+    }
+
     /* Message Bubbles */
     .ag-chat-message {
       display: flex;
@@ -308,6 +478,16 @@
           align-items: center;
           gap: 4px;
           font-weight: 600;
+        }
+
+        .ag-msg-pending-badge {
+          font-size: 0.7rem;
+          color: var(--ag-google-yellow);
+          background-color: rgba(251, 188, 4, 0.12);
+          border: 1px solid rgba(251, 188, 4, 0.3);
+          border-radius: 4px;
+          padding: 1px 6px;
+          animation: agPulse 1.5s infinite;
         }
       }
 
@@ -902,6 +1082,26 @@
             font-weight: 500;
             color: var(--ag-google-blue);
           }
+
+          .ag-btn-link-account {
+            margin-top: 6px;
+            background-color: rgba(66, 133, 244, 0.12);
+            border: 1px solid var(--ag-primary);
+            color: var(--ag-primary);
+            border-radius: 6px;
+            padding: 4px 10px;
+            font-size: 0.76rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            width: fit-content;
+            &:active {
+              background-color: var(--ag-primary);
+              color: #fff;
+            }
+          }
         }
       }
 
@@ -949,6 +1149,36 @@
         display: flex;
         flex-direction: column;
         gap: 4px;
+
+        .ag-history-empty {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          padding: 20px 10px;
+          text-align: center;
+          gap: 6px;
+          color: var(--ag-text-secondary);
+          border: 1px dashed var(--ag-surface-variant);
+          border-radius: 8px;
+          margin: 4px 0;
+
+          .ag-empty-icon {
+            font-size: 1.5rem;
+            opacity: 0.6;
+          }
+
+          .ag-empty-title {
+            font-size: 0.86rem;
+            font-weight: 600;
+            color: var(--ag-text-primary);
+          }
+
+          .ag-empty-desc {
+            font-size: 0.76rem;
+            line-height: 1.4;
+          }
+        }
 
         .ag-history-item {
           display: flex;

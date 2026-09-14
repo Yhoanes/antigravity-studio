@@ -17,7 +17,7 @@ export class AntigravityApp {
     this.chatCanvas = null;
     this.livePreview = null;
     this.sidebarDrawer = null;
-    this.activeProject = "calculadora";
+    this.activeProject = "workspace";
     this.activeTab = "chat"; // 'chat' | 'preview'
     this.isSplitView = window.innerWidth >= 1024;
     this.statusBadgeEl = null;
@@ -187,7 +187,7 @@ export class AntigravityApp {
 
   onNewChat() {
     this.chatCanvas.messagesListEl.innerHTML = "";
-    this.chatCanvas.renderWelcomeConversation();
+    this.chatCanvas.renderWelcomeHero();
     agentBridge.launchAgy();
   }
 

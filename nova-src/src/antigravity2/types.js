@@ -66,9 +66,11 @@
 
 /**
  * @typedef {Object} UserProfile
- * @property {'shadrick1212@gmail.com'} email
- * @property {'Google AI Ultra'} tier
- * @property {string} avatarUrl
+ * @property {boolean} isAuthenticated
+ * @property {string} displayName
+ * @property {string | null} email
+ * @property {string} tier
+ * @property {string | null} avatarUrl
  */
 
 /**
@@ -97,9 +99,11 @@
  */
 
 export const DEFAULT_USER_PROFILE = {
-  email: 'shadrick1212@gmail.com',
-  tier: 'Google AI Ultra',
-  avatarUrl: 'https://lh3.googleusercontent.com/a/default-user',
+  isAuthenticated: false,
+  displayName: "Invitado",
+  email: null,
+  tier: "Google AI (Modo Invitado)",
+  avatarUrl: null,
 };
 
 export const GOOGLE_COLORS = {

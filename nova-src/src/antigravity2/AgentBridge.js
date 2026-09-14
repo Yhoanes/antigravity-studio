@@ -13,7 +13,8 @@ export class AgentBridge {
     this.isConnecting = false;
     this.autoContinue = options.autoContinue !== false;
     this.activeChatId = options.activeChatId || null;
-    this.activeProject = options.activeProject || "default";
+    this.activeProject = options.activeProject || "workspace";
+    this.pendingQueue = [];
 
     this.listeners = {
       message: [],
@@ -22,6 +23,8 @@ export class AgentBridge {
       planApproval: [],
       statusChange: [],
       serverDetected: [],
+      promptQueued: [],
+      promptDispatched: [],
     };
 
     this.detectedPorts = new Set();
@@ -55,20 +58,31 @@ export class AgentBridge {
     this.emit('statusChange', { status: 'CONNECTING', type: 'thinking' });
 
     try {
-      // 1. Check/Start AXS daemon if on Android with Terminal plugin
+      // 1. Verify if Linux runtime environment is installed (SPEC-023 §4.1, AC-CLN-007)
+      if (typeof Terminal !== "undefined" && typeof Terminal.isInstalled === "function") {
+        const isInstalled = await Terminal.isInstalled();
+        if (!isInstalled) {
+          console.warn("Terminal runtime environment not installed. Transitioning to SETUP.");
+          this.isConnecting = false;
+          this.emit('statusChange', { status: 'SETUP', type: 'thinking' });
+          return;
+        }
+      }
+
+      // 2. Check/Start AXS daemon if on Android with Terminal plugin
       if (typeof Terminal !== "undefined") {
         if (typeof Terminal.isAxsRunning === "function" && !(await Terminal.isAxsRunning())) {
           await Terminal.startAxs(false, () => {}, console.error, false);
         }
       }
 
-      // 2. Wait for AXS ready
+      // 3. Wait for AXS ready
       await this.waitForServerReady();
 
-      // 3. Create Terminal Session
+      // 4. Create Terminal Session
       this.pid = await this.createSession();
 
-      // 4. Open WebSocket
+      // 5. Open WebSocket
       const wsUrl = `ws://127.0.0.1:${this.port}/terminals/${this.pid}`;
       await this.openWebSocket(wsUrl);
 
@@ -76,12 +90,13 @@ export class AgentBridge {
       this.isConnecting = false;
       this.emit('statusChange', { status: 'READY', type: 'ready' });
 
-      // 5. Start agy with auto-continue flag: agy -c
+      // 6. Start agy with auto-continue flag: agy -c and flush pending prompts
       setTimeout(() => {
         this.launchAgy();
+        this.flushPendingQueue();
       }, 300);
 
-      // 6. Start background local port detection
+      // 7. Start background local port detection
       this.startPortScanner();
 
     } catch (err) {
@@ -208,15 +223,77 @@ export class AgentBridge {
   }
 
   /**
-   * Dispatch a user prompt to the PTY
+   * Dispatch a user prompt to the PTY (SPEC-023 §5: ResilientPromptQueueContract)
+   * If disconnected, queues the prompt and auto-reconnects
    * @param {string} promptText
    */
   sendUserPrompt(promptText) {
-    if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
-      throw new Error("Cannot send prompt: AgentBridge is disconnected");
+    if (!promptText || !promptText.trim()) return;
+
+    if (!this.isConnected || !this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+      console.warn("AgentBridge no está conectado aún. Encolando prompt:", promptText);
+      this.pendingQueue.push(promptText);
+      this.emit('promptQueued', { text: promptText, queueLength: this.pendingQueue.length });
+
+      // Si no está conectando, disparar reconexión automática
+      if (!this.isConnecting) {
+        this.connect().catch((e) => console.error("Error en auto-reconexión:", e));
+      }
+      return;
     }
+
     this.emit('statusChange', { status: 'THINKING', type: 'thinking' });
     this.websocket.send(`${promptText}\r`);
+  }
+
+  /**
+   * Flushes all queued prompts to PTY once connected
+   */
+  flushPendingQueue() {
+    if (!this.isConnected || !this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
+    while (this.pendingQueue.length > 0) {
+      const nextPrompt = this.pendingQueue.shift();
+      this.websocket.send(`${nextPrompt}\r`);
+      this.emit('promptDispatched', { text: nextPrompt });
+    }
+  }
+
+  /**
+   * Installs Linux Ubuntu ARM64 runtime and agy CLI (SPEC-023 §4.2)
+   */
+  async installRuntime(onProgress, onLog) {
+    if (typeof Terminal === "undefined" || typeof Terminal.install !== "function") {
+      console.warn("Terminal plugin no disponible");
+      return false;
+    }
+
+    this.emit('statusChange', { status: 'SETUP', type: 'thinking' });
+
+    try {
+      const success = await Terminal.install(
+        (msg) => {
+          if (onLog) onLog(msg);
+          if (onProgress && typeof msg === "string") {
+            if (msg.includes("Downloading") || msg.includes("descargando")) onProgress(35);
+            else if (msg.includes("Extracting") || msg.includes("extrayendo")) onProgress(75);
+            else if (msg.includes("completed") || msg.includes("completado")) onProgress(100);
+          }
+        },
+        (err) => {
+          if (onLog) onLog(`[ERROR] ${err}`);
+        }
+      );
+
+      if (success) {
+        if (onProgress) onProgress(100);
+        await this.connect();
+        return true;
+      }
+      return false;
+    } catch (e) {
+      console.error("Runtime installation failed:", e);
+      throw e;
+    }
   }
 
   /**
