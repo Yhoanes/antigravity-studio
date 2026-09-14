@@ -14,7 +14,7 @@ if [ ! -f "$TERMINAL_JS" ]; then
     echo "FALLO: $TERMINAL_JS no existe."
     exit 1
 fi
-grep -q "https://github.com/termux/proot-distro/releases/download/v4.18.0/ubuntu-noble-aarch64-pd-v4.18.0.tar.xz" "$TERMINAL_JS" || { echo "FALLO: URL de Ubuntu ARM64 ausente"; exit 1; }
+grep -q "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.5-base-arm64.tar.gz" "$TERMINAL_JS" || { echo "FALLO: URL de Ubuntu ARM64 ausente"; exit 1; }
 grep -q "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-arm/cli_linux_arm64.tar.gz" "$TERMINAL_JS" || { echo "FALLO: URL de Google Antigravity CLI ausente"; exit 1; }
 echo "[OK]"
 
@@ -46,8 +46,11 @@ grep -q "/home/studio/workspace" "$INIT_SANDBOX" || { echo "FALLO: /home/studio/
 echo "[OK]"
 
 # 6. Verificar existencia y tamaño del APK Thin Client
-echo -n "6. Verificando existencia de APK Thin Client (NovaIDE-v1.0.7-ARM64.apk)... "
-APK_PATH="NovaIDE-v1.0.7-ARM64.apk"
+echo -n "6. Verificando existencia de APK Thin Client (NovaIDE-v1.0.8-ARM64.apk)... "
+APK_PATH="NovaIDE-v1.0.8-ARM64.apk"
+if [ ! -f "$APK_PATH" ]; then
+    APK_PATH="NovaIDE-v1.0.7-ARM64.apk"
+fi
 if [ ! -f "$APK_PATH" ]; then
     APK_PATH="NovaIDE-v1.0.6-ARM64.apk"
 fi
@@ -70,7 +73,7 @@ if [ ! -f "$APK_PATH" ]; then
     APK_PATH="NovaIDE-v1.0.0-ARM64.apk"
 fi
 if [ ! -f "$APK_PATH" ]; then
-    echo "FALLO: No se encontró NovaIDE-v1.0.7-ARM64.apk en la raíz del repositorio."
+    echo "FALLO: No se encontró NovaIDE-v1.0.8-ARM64.apk en la raíz del repositorio."
     exit 1
 fi
 
@@ -84,11 +87,11 @@ if [ "$APK_SIZE_MB" -gt 45 ]; then
 fi
 echo "[OK]"
 
-# 7. Verificar ruta de extracción POSIX de rootfs y CLI sin esquema URI file:/// (TASK-039)
-echo -n "7. Verificando ruta de extracción POSIX (\${filesDir}/rootfs.tar.xz)... "
-grep -q '\${filesDir}/rootfs.tar.xz' "$TERMINAL_JS" || { echo "FALLO: ruta filesDir/rootfs.tar.xz ausente"; exit 1; }
+# 7. Verificar ruta de extracción POSIX de rootfs y CLI sin esquema URI file:/// (TASK-039 / TASK-049)
+echo -n "7. Verificando ruta de extracción POSIX (\${filesDir}/rootfs.tar.gz)... "
+grep -q '\${filesDir}/rootfs.tar.gz' "$TERMINAL_JS" || { echo "FALLO: ruta filesDir/rootfs.tar.gz ausente"; exit 1; }
 grep -q '\${filesDir}/cli_linux_arm64.tar.gz' "$TERMINAL_JS" || { echo "FALLO: ruta filesDir/cli_linux_arm64.tar.gz ausente"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS DE VALIDACIÓN DE TASK-032 / TASK-039 HAN PASADO EXITOSAMENTE ==="
+echo "=== TODAS LAS COMPUERTAS DE VALIDACIÓN DE TASK-032 / TASK-039 / TASK-049 HAN PASADO EXITOSAMENTE ==="
 

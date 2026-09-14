@@ -1216,6 +1216,55 @@ await Executor.execute(`rm -f "${alpineDir}/etc/resolv.conf" && echo "nameserver
 
 ---
 
+### ADR-025: Migración a Rootfs Canonical Ubuntu Base 24.04.5 en Formato Gzip (.tar.gz) y Mitigación de Protected Hardlinks en Android
+
+- **Identificador:** `ADR-025`
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.77 Contexto
+Durante las pruebas de aprovisionamiento en frío en dispositivos físicos y emuladores, la extracción de la imagen de Ubuntu fallaba silenciosamente impidiendo que el subsistema Linux arrancara.
+El análisis técnico identificó dos causas fundamentales en el entorno Android Bionic:
+1. **Incompatibilidad de Algoritmo XZ con Toybox Tar:** La utilidad `tar` provista por Toybox en Android no incorpora internamente la descompresión del formato `.tar.xz` y depende de la invocación de un ejecutable externo `xz` (`tar: exec xz: No such file or directory`). Al no existir el binario `xz` en el sistema base de Android sin root, la extracción de `rootfs.tar.xz` abortaba instantáneamente sin descomprimir los archivos, provocando que `${alpineDir}/etc` ni siquiera existiera al momento de escribir los servidores DNS.
+2. **Restricción de Hardlinks Protegidos en el Kernel de Android:** El kernel de Android impone `fs.protected_hardlinks = 1` y políticas SELinux que restringen la creación de enlaces duros no privilegiados entre inodos de distintos propietarios, lo que provocaba que comandos `tar` estándar devolvieran códigos de salida de error ante enlaces duros no esenciales presentes en paquetes como `perl` o `gzip/uncompress`.
+
+#### 4.78 Decisión
+Se formaliza e implementa la transición hacia el contenedor oficial Canonical Ubuntu Base y la optimización de descompresión:
+1. **Migración a Canonical Ubuntu Base 24.04.5 LTS ARM64 en Formato Gzip (.tar.gz):**
+   - Se actualiza la URL oficial del rootfs hacia la imagen canónica:
+     `https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.5-base-arm64.tar.gz` (29.9 MB).
+   - El formato Gzip cuenta con soporte nativo completo a través de las utilidades `zcat`/`tar` de Toybox en todas las versiones modernas de Android (API 26+).
+2. **Extracción Resiliente y Mitigación de Enlaces Duros:**
+   - La descompresión valida la presencia del intérprete básico de shell (`/bin/sh`) en caso de códigos de advertencia no fatales producidos por hardlinks restringidos:
+     ```javascript
+     await Executor.execute(`tar --no-same-owner -xf ${filesDir}/rootfs.tar.gz -C ${alpineDir} || [ -f ${alpineDir}/bin/sh ]`);
+     await Executor.execute(`ln -sf perl ${alpineDir}/usr/bin/perl5.38.2 2>/dev/null || true`);
+     await Executor.execute(`ln -sf gunzip ${alpineDir}/usr/bin/uncompress 2>/dev/null || true`);
+     ```
+3. **Pre-creación Preventiva del Directorio `/etc`:**
+   - Se asegura la creación física de `${alpineDir}/etc` antes de aplicar la configuración de DNS:
+     ```javascript
+     await ensureDir(`${alpineDir}/etc`);
+     await Executor.execute(`rm -f "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.8.8" > "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.4.4" >> "${alpineDir}/etc/resolv.conf"`);
+     ```
+4. **Incremento de Versión y Compilación de Nova IDE v1.0.8:**
+   - Versión incrementada a `1.0.8` (versionCode `10009`) en `config.xml` y `package.json`.
+   - Generación del instalador binario `NovaIDE-v1.0.8-ARM64.apk` (38,516,418 bytes ~ 36.7 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.8 ARM64 (Ubuntu Base Gzip & Fast Rootfs)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.8)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.8-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.8/NovaIDE-v1.0.8-ARM64.apk)
+
+#### 4.79 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Descompresión 100% Nativa y Determinista:** Cero dependencias de binarios externos `xz` en Android Bionic.
+  - **Descarga Ultra-rápida:** Reducción del paquete rootfs a 29.9 MB con tiempos de descarga significativamente reducidos.
+  - **Tolerancia a Restricciones de Kernel:** Manejo seguro de enlaces duros sin abortar la secuencia de aprovisionamiento.
+  - **Arranque Inmaculado:** El subsistema Ubuntu 24.04 Noble ARM64 y el CLI `agy` quedan disponibles de manera desatendida.
+- **Compromisos Operativos:**
+  - Toda imagen rootfs adoptada en futuras versiones debe empaquetarse en formato `.tar.gz` para preservar compatibilidad con Toybox.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |

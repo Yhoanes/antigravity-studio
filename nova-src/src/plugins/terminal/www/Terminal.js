@@ -1,6 +1,6 @@
 const Executor = require("./Executor");
 
-const UBUNTU_ARM64_ROOTFS_URL = "https://github.com/termux/proot-distro/releases/download/v4.18.0/ubuntu-noble-aarch64-pd-v4.18.0.tar.xz";
+const UBUNTU_ARM64_ROOTFS_URL = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.5-base-arm64.tar.gz";
 const GOOGLE_ANTIGRAVITY_CLI_URL = "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-arm/cli_linux_arm64.tar.gz";
 
 const Terminal = {
@@ -318,7 +318,7 @@ const Terminal = {
 
                 if (arch === "arm64-v8a") {
                     logger("⬇️  Downloading Ubuntu ARM64 glibc rootfs...");
-                    await downloadFile(UBUNTU_ARM64_ROOTFS_URL, cordova.file.dataDirectory + "rootfs.tar.xz", "Ubuntu ARM64 rootfs");
+                    await downloadFile(UBUNTU_ARM64_ROOTFS_URL, cordova.file.dataDirectory + "rootfs.tar.gz", "Ubuntu ARM64 rootfs");
 
                     logger("⬇️  Downloading Google Antigravity CLI (arm64)...");
                     await downloadFile(GOOGLE_ANTIGRAVITY_CLI_URL, cordova.file.dataDirectory + "cli_linux_arm64.tar.gz", "Google Antigravity CLI");
@@ -372,7 +372,9 @@ const Terminal = {
 
             if (arch === "arm64-v8a") {
                 logger("📦  Extracting Ubuntu ARM64 filesystem...");
-                await Executor.execute(`tar --no-same-owner -xf ${filesDir}/rootfs.tar.xz -C ${alpineDir}`);
+                await Executor.execute(`tar --no-same-owner -xf ${filesDir}/rootfs.tar.gz -C ${alpineDir} || [ -f ${alpineDir}/bin/sh ]`);
+                await Executor.execute(`ln -sf perl ${alpineDir}/usr/bin/perl5.38.2 2>/dev/null || true`);
+                await Executor.execute(`ln -sf gunzip ${alpineDir}/usr/bin/uncompress 2>/dev/null || true`);
 
                 logger("📦  Installing Google Antigravity CLI (agy)...");
                 await ensureDir(`${alpineDir}/usr/local/bin`);
@@ -426,6 +428,7 @@ fi
             await Executor.execute(`ln -sf xdg-open ${alpineDir}/usr/local/bin/x-www-browser`);
 
             logger("⚙️  Applying basic configuration...");
+            await ensureDir(`${alpineDir}/etc`);
             await Executor.execute(`rm -f "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.8.8" > "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.4.4" >> "${alpineDir}/etc/resolv.conf"`);
 
             if (arch !== "arm64-v8a") {
