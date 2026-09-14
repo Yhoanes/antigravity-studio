@@ -60,16 +60,21 @@ export class AgentBridge {
     this.emit('statusChange', { status: 'CONNECTING', type: 'thinking' });
 
     try {
-      // 1. Verify if Linux runtime environment is installed (SPEC-024 §3: ZeroClickBootContract)
+      // 1. Verify if Linux runtime environment is installed (SPEC-024 §3: ZeroClickBootContract, SPEC-025: ZeroLockTransitionContract)
       if (typeof Terminal !== "undefined" && typeof Terminal.isInstalled === "function") {
         const isInstalled = await Terminal.isInstalled();
         if (!isInstalled) {
-          console.log("Zero-Click Auto-Provisioning: Entorno no instalado. Iniciando extracción local inmediata (SETUP / INITIALIZING)...");
-          this.emit('statusChange', { status: 'INITIALIZING', type: 'thinking' }); // SETUP mode
+          console.log("Auto-Provisioning: Entorno no instalado. Iniciando extracción local inmediata...");
+          this.emit('statusChange', { status: 'INITIALIZING', type: 'thinking' });
 
-          // Auto-trigger extraction without waiting for user clicks
-          await this.installRuntime();
-          return;
+          const installed = await this.installRuntime();
+          if (!installed) {
+            throw new Error("No se pudo completar la extracción e instalación del subsistema Linux");
+          }
+
+          console.log("Auto-Provisioning completado con éxito. Continuando secuencia hacia AXS daemon...");
+          this.emit('statusChange', { status: 'CONNECTING', type: 'thinking' });
+          // SPEC-025: Continuación directa secuencial sin return
         }
       }
 
@@ -292,8 +297,8 @@ export class AgentBridge {
 
       if (success) {
         if (onProgress) onProgress(100);
-        this.emit('statusChange', { status: 'CONNECTING', type: 'thinking' });
-        await this.connect();
+        // SPEC-025: PROHIBIDO llamar a this.connect() aquí.
+        // installRuntime se limita a retornar el éxito del aprovisionamiento.
         return true;
       }
       return false;

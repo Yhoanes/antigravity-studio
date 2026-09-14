@@ -584,8 +584,15 @@ export class ChatCanvas {
       } else if (status === 'SETUP') {
         this.renderSetupCard(false);
       } else if (status === 'READY') {
+        // Determinar si la pantalla estaba limpia (solo la tarjeta de setup o vacía)
+        const hadOnlySetupCard = this.messagesListEl.children.length === 0 || 
+          (this.messagesListEl.children.length === 1 && this.setupCardEl);
+
+        // Retirar la tarjeta con animación suave inmediata
         this.dismissSetupCard();
-        if (!this.welcomeHeroEl && (!this.messagesListEl.children.length || (this.messagesListEl.children.length === 1 && this.setupCardEl))) {
+
+        // Desplegar el WelcomeHero de inicio si no hay mensajes de usuario en cola
+        if (!this.welcomeHeroEl && hadOnlySetupCard) {
           this.renderWelcomeHero();
         }
       }

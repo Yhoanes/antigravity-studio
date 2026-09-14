@@ -200,7 +200,7 @@ const Terminal = {
             }
 
             if (arch === "arm64-v8a") {
-                logger("📦  Extrayendo Ubuntu ARM64 glibc rootfs desde assets locales...");
+                logger("📦  Extrayendo Ubuntu ARM64 glibc rootfs desde assets locales canónicos...");
                 await new Promise((resolve, reject) => {
                     system.extractAsset(
                         "antigravity/rootfs/ubuntu_arm64.tar.gz",
@@ -211,20 +211,9 @@ const Terminal = {
                                 "antigravity/rootfs/ubuntu_arm64.tar",
                                 `${filesDir}/rootfs.tar.gz`,
                                 resolve,
-                                () => {
-                                    system.extractAsset(
-                                        "antigravity/ubuntu_arm64.tar.gz",
-                                        `${filesDir}/rootfs.tar.gz`,
-                                        resolve,
-                                        () => {
-                                            system.extractAsset(
-                                                "antigravity/ubuntu_arm64.tar",
-                                                `${filesDir}/rootfs.tar.gz`,
-                                                resolve,
-                                                reject
-                                            );
-                                        }
-                                    );
+                                (err) => {
+                                    console.error("Fallo extrayendo rootfs desde ruta canónica:", err);
+                                    reject(err);
                                 }
                             );
                         }
