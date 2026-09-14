@@ -46,8 +46,11 @@ grep -q "/home/studio/workspace" "$INIT_SANDBOX" || { echo "FALLO: /home/studio/
 echo "[OK]"
 
 # 6. Verificar existencia y tamaño del APK Thin Client
-echo -n "6. Verificando existencia de APK Thin Client (NovaIDE-v1.0.6-ARM64.apk)... "
-APK_PATH="NovaIDE-v1.0.6-ARM64.apk"
+echo -n "6. Verificando existencia de APK Thin Client (NovaIDE-v1.0.7-ARM64.apk)... "
+APK_PATH="NovaIDE-v1.0.7-ARM64.apk"
+if [ ! -f "$APK_PATH" ]; then
+    APK_PATH="NovaIDE-v1.0.6-ARM64.apk"
+fi
 if [ ! -f "$APK_PATH" ]; then
     APK_PATH="NovaIDE-v1.0.5-ARM64.apk"
 fi
@@ -67,7 +70,7 @@ if [ ! -f "$APK_PATH" ]; then
     APK_PATH="NovaIDE-v1.0.0-ARM64.apk"
 fi
 if [ ! -f "$APK_PATH" ]; then
-    echo "FALLO: No se encontró NovaIDE-v1.0.6-ARM64.apk en la raíz del repositorio."
+    echo "FALLO: No se encontró NovaIDE-v1.0.7-ARM64.apk en la raíz del repositorio."
     exit 1
 fi
 

@@ -426,8 +426,7 @@ fi
             await Executor.execute(`ln -sf xdg-open ${alpineDir}/usr/local/bin/x-www-browser`);
 
             logger("⚙️  Applying basic configuration...");
-            await deleteFile(`${alpineDir}/etc/resolv.conf`).catch(() => {});
-            await writeText(`${alpineDir}/etc/resolv.conf`, `nameserver 8.8.8.8\nnameserver 8.8.4.4\n`);
+            await Executor.execute(`rm -f "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.8.8" > "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.4.4" >> "${alpineDir}/etc/resolv.conf"`);
 
             if (arch !== "arm64-v8a") {
                 const rmWrapper = await readAsset("rm-wrapper.sh");

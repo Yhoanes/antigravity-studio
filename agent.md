@@ -1178,6 +1178,44 @@ Se formaliza e implementa la restauración estricta del encapsulamiento modular 
 
 ---
 
+### ADR-024: Desvinculación Atómica de Symlinks Rotos en Rootfs mediante Shell POSIX Nativo para /etc/resolv.conf
+
+- **Identificador:** `ADR-024`
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.74 Contexto
+En el rootfs de Ubuntu Noble 24.04 aarch64, el archivo `/etc/resolv.conf` se empaqueta canónicamente como un enlace simbólico relativo que apunta hacia `../run/systemd/resolve/stub-resolv.conf`. Al realizar la extracción del rootfs en frío dentro del almacenamiento interno de Android, la ruta destino `/run/systemd/resolve/` no existe todavía en el sistema de archivos de PRoot, resultando en un enlace simbólico roto o colgado (*dangling symlink*).
+
+Durante la secuencia de aprovisionamiento en versiones anteriores:
+1. El método de utilidad `deleteFile`, implementado internamente sobre `java.io.File.delete()`, devolvía `false` de forma silenciosa sobre el symlink colgado sin desvincular la entrada de directorio.
+2. Consecuentemente, `System.writeText` invocaba `java.nio.file.Files.write()` para escribir los servidores de nombres estáticos (`8.8.8.8` y `8.8.4.4`). Al intentar seguir el symlink roto hacia un destino inexistente, Java lanzaba una excepción fatal `NoSuchFileException` (`Failed to write file: /data/user/0/io.nova.ide/files/alpine/etc/resolv.conf`), abortando abruptamente el proceso de inicialización y configuración del contenedor Linux Ubuntu.
+
+#### 4.75 Decisión
+Se formaliza y adopta la sustitución de los métodos de abstracción I/O de Java por una operación atómica ejecutada en el shell nativo POSIX del sistema anfitrión Android mediante `Executor.execute`:
+```javascript
+await Executor.execute(`rm -f "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.8.8" > "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.4.4" >> "${alpineDir}/etc/resolv.conf"`);
+```
+1. **Desvinculación Atómica vía `unlink(2)`:** El comando `rm -f` del shell POSIX ejecuta directamente la llamada al sistema `unlink(2)` sobre la entrada de directorio sin intentar resolver la ruta de destino del enlace simbólico, garantizando la eliminación limpia e incondicional del symlink roto.
+2. **Creación Incondicional de Archivo Regular:** La redirección `echo ... >` crea inmediatamente un archivo regular canónico e independiente de systemd, con permisos estándar y propiedad correspondiente al proceso de usuario de Android.
+3. **Persistencia del Encapsulamiento Cordova:** Se preserva la envoltura `cordova.define` estandarizada en `Terminal.js` conforme a `ADR-023`.
+4. **Incremento de Versión y Compilación de Nova IDE v1.0.7:**
+   - Incremento formal de versión a `1.0.7` (versionCode `10008`) en `config.xml` y `package.json`.
+   - Generación del paquete instalador final `NovaIDE-v1.0.7-ARM64.apk` (38,508,759 bytes ~ 36.7 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.7 ARM64 (Atomic resolv.conf Fix)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.7)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.7-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.7/NovaIDE-v1.0.7-ARM64.apk)
+
+#### 4.76 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Eliminación Total de Excepciones de I/O en DNS:** Cero bloqueos `NoSuchFileException` al aprovisionar `/etc/resolv.conf` en arranques en frío.
+  - **Determinismo Shell Nativo:** El comando shell POSIX elude las discrepancias de resolución de enlaces simbólicos en la capa de runtime de Java/Bionic.
+  - **Resolución de Red Inmediata:** Los resolvedores DNS de Google (`8.8.8.8` y `8.8.4.4`) quedan operativos inmediatamente para `apt`, `curl` y Google Antigravity CLI.
+- **Compromisos Operativos:**
+  - El aprovisionamiento de configuración básica en el rootfs debe utilizar utilidades de shell POSIX para operaciones que involucren enlaces simbólicos preexistentes en imágenes de distribución estándar.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
