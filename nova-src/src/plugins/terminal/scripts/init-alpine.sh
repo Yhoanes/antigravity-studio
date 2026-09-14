@@ -27,6 +27,18 @@ while [ $# -gt 0 ]; do
     esac
 done
 
+# Autoreparación de certificados CA Mozilla / Google Trust Services (GTS)
+if [ -f "$PREFIX/cacert.pem" ]; then
+    mkdir -p "$PREFIX/alpine/etc/ssl/certs" "$PREFIX/alpine/etc/pki/tls/certs" /etc/ssl/certs /etc/pki/tls/certs 2>/dev/null || true
+    cp -f "$PREFIX/cacert.pem" "$PREFIX/alpine/etc/ssl/certs/ca-certificates.crt" 2>/dev/null || true
+    cp -f "$PREFIX/cacert.pem" /etc/ssl/certs/ca-certificates.crt 2>/dev/null || true
+    ln -sf certs/ca-certificates.crt "$PREFIX/alpine/etc/ssl/cert.pem" 2>/dev/null || true
+    ln -sf certs/ca-certificates.crt /etc/ssl/cert.pem 2>/dev/null || true
+    cp -f "$PREFIX/cacert.pem" "$PREFIX/alpine/etc/pki/tls/certs/ca-bundle.crt" 2>/dev/null || true
+    cp -f "$PREFIX/cacert.pem" /etc/pki/tls/certs/ca-bundle.crt 2>/dev/null || true
+    chmod 644 "$PREFIX/alpine/etc/ssl/certs/ca-certificates.crt" /etc/ssl/certs/ca-certificates.crt 2>/dev/null || true
+fi
+
 # Ensure workspace exists and switch to it
 mkdir -p /home/studio/workspace
 cd /home/studio/workspace 2>/dev/null || cd "$HOME"

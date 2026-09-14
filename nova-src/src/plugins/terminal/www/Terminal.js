@@ -41,6 +41,23 @@ const Terminal = {
         await writeText(`${filesDir}/init-alpine.sh`, initAlpine);
         await writeText(`${filesDir}/init-sandbox.sh`, initSandbox);
 
+        try {
+            const caCertContent = await readAsset("cacert.pem");
+            if (caCertContent) {
+                await writeText(`${filesDir}/cacert.pem`, caCertContent);
+                if (await fileExists(`${filesDir}/alpine`)) {
+                    await ensureDir(`${filesDir}/alpine/etc/ssl/certs`);
+                    await ensureDir(`${filesDir}/alpine/etc/pki/tls/certs`);
+                    await writeText(`${filesDir}/alpine/etc/ssl/certs/ca-certificates.crt`, caCertContent);
+                    await Executor.execute(`ln -sf certs/ca-certificates.crt "${filesDir}/alpine/etc/ssl/cert.pem" 2>/dev/null || true`);
+                    await Executor.execute(`cp -f "${filesDir}/cacert.pem" "${filesDir}/alpine/etc/pki/tls/certs/ca-bundle.crt" 2>/dev/null || true`);
+                    await Executor.execute(`chmod 644 "${filesDir}/alpine/etc/ssl/certs/ca-certificates.crt" 2>/dev/null || true`);
+                }
+            }
+        } catch (caErr) {
+            console.warn("CA certs startAxs injection warning:", caErr);
+        }
+
         if (arch !== "arm64-v8a") {
             await deleteFile(`${filesDir}/alpine/bin/rm`).catch(() => {});
             await writeText(`${filesDir}/alpine/bin/rm`, rmWrapper);
@@ -429,10 +446,26 @@ fi
 
             logger("⚙️  Applying basic configuration...");
             await ensureDir(`${alpineDir}/etc`);
+            await ensureDir(`${alpineDir}/etc/ssl/certs`);
+            await ensureDir(`${alpineDir}/etc/pki/tls/certs`);
             await Executor.execute(`rm -f "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.8.8" > "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.4.4" >> "${alpineDir}/etc/resolv.conf"`);
             await Executor.execute(`echo "127.0.0.1 localhost" > "${alpineDir}/etc/hosts" && echo "::1 localhost ip6-localhost ip6-loopback" >> "${alpineDir}/etc/hosts"`);
             await Executor.execute(`echo "hosts: files dns" > "${alpineDir}/etc/nsswitch.conf"`);
             await Executor.execute(`echo -e "aid_inet:x:3003:root\naid_everybody:x:9997:root\naid_app:x:20399:root\naid_app2:x:50399:root\naid_isolated:x:99909997:root" >> "${alpineDir}/etc/group"`);
+
+            // Inyección de certificados CA Mozilla / Google Trust Services (GTS)
+            try {
+                const caCertContent = await readAsset("cacert.pem");
+                if (caCertContent) {
+                    await writeText(`${alpineDir}/etc/ssl/certs/ca-certificates.crt`, caCertContent);
+                    await writeText(`${filesDir}/cacert.pem`, caCertContent);
+                    await Executor.execute(`ln -sf certs/ca-certificates.crt "${alpineDir}/etc/ssl/cert.pem"`);
+                    await Executor.execute(`cp -f "${alpineDir}/etc/ssl/certs/ca-certificates.crt" "${alpineDir}/etc/pki/tls/certs/ca-bundle.crt" 2>/dev/null || true`);
+                    await Executor.execute(`chmod 644 "${alpineDir}/etc/ssl/certs/ca-certificates.crt"`);
+                }
+            } catch (caErr) {
+                console.warn("CA certs injection warning:", caErr);
+            }
 
             if (arch !== "arm64-v8a") {
                 const rmWrapper = await readAsset("rm-wrapper.sh");

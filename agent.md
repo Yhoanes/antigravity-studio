@@ -1381,6 +1381,51 @@ Se formaliza e implementa una solución de dos capas para garantizar navegación
 
 ---
 
+### ADR-028: Empaquetado Nativo de Bundle CA Mozilla (cacert.pem con GTS Root R1/R2) y Auto-reparación en Caliente del Almacén SSL para Go Runtime
+
+- **Identificador:** `ADR-028`
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.86 Contexto
+Durante las pruebas del flujo de autenticación de Google Antigravity CLI en Xiaomi Pad 6, tras autorizar la cuenta en el navegador e ingresar el código OAuth en `agy auth`, la solicitud HTTPS hacia `https://oauth2.googleapis.com/token` fallaba con la excepción fatal del runtime de Go `crypto/x509`:
+```text
+tls: failed to verify certificate: x509: certificate signed by unknown authority
+```
+El análisis técnico forense identificó las causas fundamentales:
+1. **Almacén de Certificados CA Incompleto en Ubuntu Base Mínimo:** La imagen oficial Canonical Ubuntu Base 24.04.5 LTS ARM64 se distribuye como un sistema mínimo sin el paquete `ca-certificates` preinstalado o configurado en `/etc/ssl/certs/ca-certificates.crt`, careciendo de las autoridades raíz intermedias y principales de Google Trust Services (GTS Root R1, GTS Root R2, GTS Root R3, GTS Root R4) requeridas para verificar los endpoints de `oauth2.googleapis.com`.
+2. **Rutas Estándar de Go Crypto/X509:** El runtime de Go busca certificados raíz de confianza en rutas fijas de Unix (`/etc/ssl/certs/ca-certificates.crt`, `/etc/pki/tls/certs/ca-bundle.crt`, `/etc/ssl/cert.pem`). Al estar ausentes estos archivos o sin permisos de lectura adecuados, toda conexión TLS originada por `agy` abortaba de inmediato.
+3. **Persistencia en Contenedores Preexistentes:** En dispositivos donde el rootfs ya había sido extraído, una actualización del APK no sobrescribía el sistema de archivos del contenedor, dejando el almacén SSL en un estado roto a menos que el usuario borrara los datos de la aplicación.
+
+#### 4.87 Decisión
+Se formaliza e implementa el empaquetado nativo de certificados y un mecanismo de autorreparación en caliente:
+1. **Empaquetado Nativo del Bundle CA de Mozilla en Assets:**
+   Se incorpora el bundle oficial completo y actualizado de certificados CA de Mozilla (`cacert.pem`, 188 KB) en `nova-src/src/plugins/terminal/assets/cacert.pem` y se registra en `plugin.xml`. Este bundle incluye la cadena de confianza completa de Google Trust Services (GTS Root R1/R2/R3/R4, GlobalSign Root CA, DigiCert).
+2. **Inyección Determinista durante el Aprovisionamiento:**
+   En `Terminal.js`, durante la configuración básica del rootfs, se garantiza la estructura de directorios `/etc/ssl/certs` y `/etc/pki/tls/certs` y se inyecta el bundle en las tres rutas canónicas reconocidas por Go, OpenSSL y curl:
+   - `/etc/ssl/certs/ca-certificates.crt`
+   - `/etc/ssl/cert.pem` (enlace simbólico canónico a `certs/ca-certificates.crt`)
+   - `/etc/pki/tls/certs/ca-bundle.crt`
+   con permisos explícitos `chmod 644`.
+3. **Auto-reparación en Caliente en Cada Arranque (Hot-Refresh):**
+   Tanto en el método `startAxs()` de `Terminal.js` como en el script de arranque `init-alpine.sh`, se implementa una comprobación de existencia y actualización en caliente: si `$PREFIX/cacert.pem` está presente, se sincroniza y refresca inmediatamente el almacén SSL en `/etc/ssl/certs/ca-certificates.crt` antes de ejecutar cualquier comando. Esto garantiza que contenedores creados con versiones anteriores queden reparados automáticamente en el primer inicio sin requerir reinstalación destructiva.
+4. **Incremento de Versión y Compilación de Nova IDE v1.0.11:**
+   - Versión incrementada a `1.0.11` (versionCode `10012`) en `config.xml` y `package.json`.
+   - Generación del paquete instalador final `NovaIDE-v1.0.11-ARM64.apk` (38,632,092 bytes ~ 36.8 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.11 ARM64 (Mozilla CA Bundle & SSL Hot-Fix)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.11)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.11-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.11/NovaIDE-v1.0.11-ARM64.apk)
+
+#### 4.88 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Intercambio OAuth Exitoso:** Validación TLS 100% exitosa contra `oauth2.googleapis.com` y endpoints de Google Cloud.
+  - **Cero Fricción en Actualizaciones:** Autorreparación desatendida del almacén SSL en contenedores existentes sin borrado de datos.
+  - **Compatibilidad Criptográfica Universal:** Soporte completo para herramientas escritas en Go, Python, Node.js y utilidades nativas (`curl`, `apt`, `git`).
+- **Compromisos Operativos:**
+  - El archivo `cacert.pem` empaquetado debe auditarse periódicamente para sincronizar nuevas incorporaciones del almacén raíz de Mozilla.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
