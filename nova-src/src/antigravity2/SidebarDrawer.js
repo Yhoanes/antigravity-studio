@@ -10,7 +10,15 @@ import { DEFAULT_USER_PROFILE } from "./types";
 
 export class SidebarDrawer {
   constructor(options = {}) {
-    this.userProfile = options.userProfile || DEFAULT_USER_PROFILE;
+    let initialProfile = options.userProfile || DEFAULT_USER_PROFILE;
+    try {
+      const stored = localStorage.getItem("ag_user_profile");
+      if (stored) {
+        initialProfile = JSON.parse(stored);
+      }
+    } catch (e) {}
+
+    this.userProfile = initialProfile;
     this.activeProject = options.activeProject || "workspace";
     this.projects = options.projects || [];
     this.projectSelectContainer = null;
@@ -20,10 +28,13 @@ export class SidebarDrawer {
     this.isOpen = false;
     this.overlayEl = null;
     this.drawerEl = null;
+    this.headerEl = null;
+    this.profileCardEl = null;
     this.onProjectSelectCallback = options.onProjectSelect || null;
     this.onNewChatCallback = options.onNewChat || null;
 
     this.init();
+    this.setupAuthListener();
   }
 
   init() {
@@ -44,7 +55,7 @@ export class SidebarDrawer {
     const body = this.createBody();
     this.drawerEl.appendChild(body);
 
-    // 3. Footer
+    // 3. Footer (System & Version)
     const footer = this.createFooter();
     this.drawerEl.appendChild(footer);
 
@@ -52,11 +63,7 @@ export class SidebarDrawer {
     this.loadProjectsFromStorage();
   }
 
-  createHeader() {
-    const header = document.createElement("div");
-    header.className = "ag-drawer-header";
-
-    // User Profile Card (Zero-Mock: Invitado / Conectado)
+  createProfileCard() {
     const profileCard = document.createElement("div");
     profileCard.className = "ag-user-profile-card";
 
@@ -90,13 +97,37 @@ export class SidebarDrawer {
       if (linkBtn) {
         linkBtn.onclick = (e) => {
           e.stopPropagation();
-          if (window.acode?.exec) {
-            window.acode.exec("open-settings");
-          }
+          linkBtn.disabled = true;
+          linkBtn.innerHTML = `<span>⏳ Abriendo navegador Google...</span>`;
+
+          agentBridge.triggerGoogleLogin()
+            .then(() => {
+              if (typeof window.toast === "function") {
+                window.toast("Abriendo inicio de sesión en Google Chrome...");
+              }
+            })
+            .catch((err) => {
+              console.error("Error al iniciar autenticación Google:", err);
+              linkBtn.disabled = false;
+              linkBtn.innerHTML = `<span>🌐 Vincular Cuenta Google</span>`;
+              if (typeof window.toast === "function") {
+                window.toast("Error al conectar con el servicio de autenticación.");
+              }
+            });
         };
       }
     }
-    header.appendChild(profileCard);
+    return profileCard;
+  }
+
+  createHeader() {
+    const header = document.createElement("div");
+    header.className = "ag-drawer-header";
+    this.headerEl = header;
+
+    // User Profile Card (Zero-Mock: Invitado / Conectado)
+    this.profileCardEl = this.createProfileCard();
+    header.appendChild(this.profileCardEl);
 
     // Button: + Nueva Conversación
     const newChatBtn = document.createElement("button");
@@ -113,6 +144,32 @@ export class SidebarDrawer {
     header.appendChild(newChatBtn);
 
     return header;
+  }
+
+  setupAuthListener() {
+    agentBridge.on('authSuccess', ({ email, tier }) => {
+      this.userProfile = {
+        isAuthenticated: true,
+        displayName: email.split('@')[0],
+        email: email,
+        tier: tier || "Google AI Ultra",
+        avatarUrl: null,
+      };
+      try {
+        localStorage.setItem("ag_user_profile", JSON.stringify(this.userProfile));
+      } catch (e) {}
+
+      // Actualizar tarjeta de perfil reactivamente en el Header
+      if (this.headerEl && this.profileCardEl) {
+        const newCard = this.createProfileCard();
+        this.headerEl.replaceChild(newCard, this.profileCardEl);
+        this.profileCardEl = newCard;
+      }
+
+      if (typeof window.toast === "function") {
+        window.toast(`Bienvenido, ${email}`);
+      }
+    });
   }
 
   createBody() {

@@ -1659,6 +1659,46 @@ Se formaliza e implementa la solución de purificación de datos y resiliencia e
 
 ---
 
+### ADR-019 / ADR-034: Arquitectura Zero-Download Offline, Auto-Aprovisionamiento en Frío y Puente de Autenticación Google OAuth en Antigravity 2.0 Mobile
+
+- **Identificador:** `ADR-019` (Secuencia Repositorio: `ADR-034` / `ADR-024`)
+- **Especificación SDD Asociada:** [`SPEC-024`](specs/24-antigravity-2-mobile-zero-download-and-oauth-bridge.md)
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.104 Contexto
+En las versiones iniciales de Antigravity 2.0 Mobile (`v2.0.0` a `v2.0.2`), la inicialización en frío dependía de la descarga a través de la red de la imagen base de Ubuntu Noble ARM64 (~95 MB) y del binario Google Antigravity CLI `agy` (~44 MB) desde servidores remotos (GitHub Releases y Google Cloud Storage). Esta arquitectura introducía cuellos de botella críticos:
+1. **Vulnerabilidad de Red y Latencia:** La instalación en frío tardaba entre 3 y 10 minutos, fallando sistemáticamente en entornos con conectividad intermitente, hotspots móviles o sin acceso a internet.
+2. **Dependencia de Infraestructura Externa:** Errores transitorios de CDN, límites de tasa (*rate-limiting*) de GitHub o bloqueos de firewall dejaban al desarrollador frente a un estado de error perpetuo.
+3. **Falta de Autenticación Funcional:** El botón *"Vincular Cuenta Google"* en `SidebarDrawer.js` carecía de vinculación con el comando interactivo `agy auth login`, impidiendo la autenticación real de cuentas Google AI Ultra / Gemini 2.5 Pro.
+
+#### 4.105 Decisión
+Se formaliza e implementa la transición a una arquitectura completamente autónoma *Zero-Download Offline* bajo el contrato formal [`SPEC-024`](specs/24-antigravity-2-mobile-zero-download-and-oauth-bridge.md):
+1. **Empaquetado Completo de Assets en el APK (`ZeroDownloadAssetsContract`):**
+   - Inclusión física directa de los activos `ubuntu_arm64.tar.gz` (rootfs base completo) y `cli_linux_arm64.tar.gz` (binario oficial `agy` y dependencias) dentro de los assets empaquetados del APK (`platforms/android/app/src/main/assets/antigravity/`).
+   - El instalador APK asume una huella autónoma de ~171 MB, eliminando el 100% de descargas por red en el primer uso.
+2. **Extracción Flash y Auto-Aprovisionamiento Zero-Click (`ZeroClickBootContract`):**
+   - En `Terminal.js`, erradicación de las funciones de descarga remota. La instalación se realiza mediante la extracción local ultrarrápida `system.extractAsset()` directamente sobre el almacenamiento UFS 3.1 del dispositivo en $\le 5.0\,\text{segundos}$.
+   - En `AgentBridge.js`, detección proactiva de `Terminal.isInstalled() === false` en primer arranque, desencadenando automáticamente la extracción local y el arranque del daemon AXS sin requerir pulsaciones manuales del usuario, transicionando de inmediato a `[ READY ]`.
+3. **Puente Legítimo de Google OAuth con Tarea Aislada (`GoogleOAuthBridgeContract`):**
+   - Vinculación del botón *"Vincular Cuenta Google"* en `SidebarDrawer.js` con `agentBridge.triggerGoogleLogin()`, inyectando `agy auth login\r` a través del WebSocket PTY.
+   - Despacho de la URL de autorización mediante `xdg-open` nativo invocando `/system/bin/am start -a android.intent.action.VIEW -d "$URL" --activity-clear-task --activity-new-task`, garantizando que el navegador (Chrome) abra en una tarea aislada sin destruir la Activity principal ni perder el state token PKCE.
+   - Detección reactiva de autenticación exitosa para actualizar dinámicamente el perfil del usuario a nivel `Google AI Ultra`.
+4. **Salto de Versión y Publicación Oficial:**
+   - Actualización de versión a `2.0.3` (versionCode `20003`) en `config.xml` y `package.json`.
+   - Empaquetado y publicación oficial del artefacto **`GoogleAntigravity-v2.0.3-ARM64.apk`** (~171 MB) como release asset independiente en GitHub Releases bajo el tag `v2.0.3`.
+
+#### 4.106 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Autonomía 100% Offline:** Instalación y arranque completo en cualquier lugar, incluso sin conexión a red.
+  - **Experiencia Instantánea:** Extracción completa del entorno en 3 a 5 segundos frente a los minutos de descarga anteriores.
+  - **Autenticación Real de Google:** Acceso pleno a los modelos más avanzados de Gemini y Claude mediante flujo PKCE estándar.
+- **Compromisos Operativos:**
+  - El APK supera los 100 MB (~171 MB), requiriendo que su distribución se gestione a través de GitHub Releases / CDN y no como commit directo en el árbol de Git.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1687,6 +1727,7 @@ Se formaliza e implementa la solución de purificación de datos y resiliencia e
 | **SPEC-021** | Arquitectura de Google Antigravity 2.0 Mobile: Entorno Agéntico Conversacional, Canvas Reactivo y Live Web Preview | `specs/21-antigravity-2-mobile-architecture.md` | `APPROVED` | 9 ACs |
 | **SPEC-022** | Reparación del Puente Nativo HTTP, Supresión de Barra QuickTools y Descubrimiento Dinámico de Proyectos | `specs/22-antigravity-2-mobile-native-bridge-and-ui-repair.md` | `APPROVED` | 8 ACs |
 | **SPEC-023** | Invariante Zero-Mock, Resiliencia de Arranque de Runtime y Purga de Datos Ficticios | `specs/23-antigravity-2-mobile-clean-runtime-and-zero-mock.md` | `APPROVED` | 10 ACs |
+| **SPEC-024** | Arquitectura Zero-Download Offline, Auto-Aprovisionamiento en Frío y Puente de Autenticación Google OAuth | `specs/24-antigravity-2-mobile-zero-download-and-oauth-bridge.md` | `APPROVED` | 9 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

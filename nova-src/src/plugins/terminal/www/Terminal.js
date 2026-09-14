@@ -1,8 +1,5 @@
 const Executor = require("./Executor");
 
-const UBUNTU_ARM64_ROOTFS_URL = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.5-base-arm64.tar.gz";
-const GOOGLE_ANTIGRAVITY_CLI_URL = "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-arm/cli_linux_arm64.tar.gz";
-
 const Terminal = {
     /**
      * Starts the AXS environment by writing init scripts and executing the sandbox.
@@ -202,182 +199,71 @@ const Terminal = {
                 throw new Error(`Unsupported architecture: ${arch}`);
             }
 
-            if(isFdroid === "true") {
-                const buildUrl = (...parts) => parts.join("");
+            if (arch === "arm64-v8a") {
+                logger("📦  Extrayendo Ubuntu ARM64 glibc rootfs desde assets locales...");
+                await new Promise((resolve, reject) => {
+                    system.extractAsset(
+                        "antigravity/rootfs/ubuntu_arm64.tar.gz",
+                        `${filesDir}/rootfs.tar.gz`,
+                        resolve,
+                        () => {
+                            system.extractAsset(
+                                "antigravity/rootfs/ubuntu_arm64.tar",
+                                `${filesDir}/rootfs.tar.gz`,
+                                resolve,
+                                () => {
+                                    system.extractAsset(
+                                        "antigravity/ubuntu_arm64.tar.gz",
+                                        `${filesDir}/rootfs.tar.gz`,
+                                        resolve,
+                                        () => {
+                                            system.extractAsset(
+                                                "antigravity/ubuntu_arm64.tar",
+                                                `${filesDir}/rootfs.tar.gz`,
+                                                resolve,
+                                                reject
+                                            );
+                                        }
+                                    );
+                                }
+                            );
+                        }
+                    );
+                });
 
+                logger("📦  Extrayendo Google Antigravity CLI (arm64) desde assets locales...");
+                await new Promise((resolve, reject) => {
+                    system.extractAsset(
+                        "antigravity/cli_linux_arm64.tar.gz",
+                        `${filesDir}/cli_linux_arm64.tar.gz`,
+                        resolve,
+                        () => {
+                            system.extractAsset(
+                                "antigravity/cli_linux_arm64.tar",
+                                `${filesDir}/cli_linux_arm64.tar.gz`,
+                                resolve,
+                                reject
+                            );
+                        }
+                    );
+                });
 
-            const strings = {
-                protocol: ["ht", "tps", ":", "//"],
-
-                rawGithubDomain: [
-                    "raw",
-                    ".",
-                    "github",
-                    "usercontent",
-                    ".",
-                    "com"
-                ],
-
-                githubDomain: [
-                    "git",
-                    "hub",
-                    ".",
-                    "com"
-                ],
-
-                alpineDomain: [
-                    "dl",
-                    "-",
-                    "cdn",
-                    ".",
-                    "alpine",
-                    "linux",
-                    ".",
-                    "org"
-                ],
-
-                acodeFoundation: [
-                    "Acode",
-                    "-",
-                    "Foundation"
-                ],
-
-                acodeRepo: [
-                    "A",
-                    "code"
-                ],
-
-                bajrangCoder: [
-                    "bajrang",
-                    "Coder"
-                ],
-
-                acodexServer: [
-                    "acodex",
-                    "_",
-                    "server"
-                ],
-
-                libraries: {
-                    proot: ["li", "bp", "root", ".", "so"],
-                    proot32: ["li", "bp", "root", "32", ".", "so"],
-                    talloc: ["li", "bt", "alloc", ".", "so"],
-                    prootXed: ["li", "bp", "root", "-", "xed", ".", "so"]
-                }
-            };
-
-            const rawGithubBase = buildUrl(
-                ...strings.protocol,
-                ...strings.rawGithubDomain,
-                "/",
-                ...strings.acodeFoundation,
-                "/",
-                ...strings.acodeRepo,
-                "/main/src/plugins/proot/libs/"
-            );
-
-            const githubReleaseBase = buildUrl(
-                ...strings.protocol,
-                ...strings.githubDomain,
-                "/",
-                ...strings.bajrangCoder,
-                "/",
-                ...strings.acodexServer,
-                "/releases/latest/download/"
-            );
-
-            const alpineBase = buildUrl(
-                ...strings.protocol,
-                ...strings.alpineDomain,
-                "/alpine/v3.21/releases/"
-            );
-
-            const libraryBaseUrl = buildUrl(
-                rawGithubBase,
-                architecture.libraryDirectory,
-                "/"
-            );
-
-            const libproot = buildUrl(
-                libraryBaseUrl,
-                ...strings.libraries.proot
-            );
-
-            const libTalloc = buildUrl(
-                libraryBaseUrl,
-                ...strings.libraries.talloc
-            );
-
-            const prootUrl = buildUrl(
-                libraryBaseUrl,
-                ...strings.libraries.prootXed
-            );
-
-            const libproot32 = architecture.hasLibproot32
-                ? buildUrl(
-                    libraryBaseUrl,
-                    ...strings.libraries.proot32
-                )
-                : null;
-
-            const axsUrl = buildUrl(
-                githubReleaseBase,
-                "axs-pie-android-",
-                architecture.axsArchitecture
-            );
-
-            const alpineUrl = buildUrl(
-                alpineBase,
-                architecture.alpineDirectory,
-                "/",
-                architecture.alpineFilename
-            );
-
-                if (arch === "arm64-v8a") {
-                    logger("⬇️  Downloading Ubuntu ARM64 glibc rootfs...");
-                    await downloadFile(UBUNTU_ARM64_ROOTFS_URL, cordova.file.dataDirectory + "rootfs.tar.gz", "Ubuntu ARM64 rootfs");
-
-                    logger("⬇️  Downloading Google Antigravity CLI (arm64)...");
-                    await downloadFile(GOOGLE_ANTIGRAVITY_CLI_URL, cordova.file.dataDirectory + "cli_linux_arm64.tar.gz", "Google Antigravity CLI");
-                } else {
-                    logger("⬇️  Downloading sandbox filesystem...");
-                    await downloadFile(alpineUrl, cordova.file.dataDirectory + "alpine.tar.gz", "Sandbox filesystem");
-                }
-
-                logger("⬇️  Downloading axs...");
-                await downloadFile(axsUrl, cordova.file.dataDirectory + "axs", "AXS");
-
-                logger("⬇️  Downloading compatibility layer...");
-                await downloadFile(prootUrl, cordova.file.dataDirectory + "libproot-xed.so", "Compatibility layer");
-
-                logger("⬇️  Downloading supporting library...");
-                await downloadFile(libTalloc, cordova.file.dataDirectory + "libtalloc.so.2", "Supporting library");
-
-                if (libproot != null) {
-                    await downloadFile(libproot, cordova.file.dataDirectory + "libproot.so", "proot loader");
-                }
-
-                if (libproot32 != null) {
-                    await downloadFile(libproot32, cordova.file.dataDirectory + "libproot32.so", "32-bit proot loader");
-                }
-
-                logger("✅  All downloads completed");
-            }else{
-                logger("📦  Extracting assets...");
+                logger("✅  Todos los activos locales fueron extraídos con éxito (CERO descargas de red).");
+            } else {
+                logger("📦  Extrayendo sandbox filesystem...");
                 await new Promise((resolve, reject) => {
                     system.extractAsset(`alpine_assets/${architecture.libraryDirectory}/alpine.rootfs`, `${filesDir}/alpine.tar.gz`, resolve, (e)=>{
                         console.error(`Failed to extract alpine.tar.gz: ${formatError(e)}`);
                         reject(e);
                     });
                 });
-
-                try{
-                    await Executor.execute("rm -f $PREFIX/axs && ln -s $NATIVE_DIR/libaxs.so $PREFIX/axs")
-                }catch(e){
-                    err_logger(`${formatError(e)}`);
-                }
             }
-           
+
+            try {
+                await Executor.execute("rm -f $PREFIX/axs && ln -s $NATIVE_DIR/libaxs.so $PREFIX/axs");
+            } catch(e) {
+                err_logger(`${formatError(e)}`);
+            }
 
             logger("📁  Setting up directories...");
 
@@ -398,9 +284,14 @@ const Terminal = {
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/cli_linux_arm64.tar.gz -C ${alpineDir}/usr/local/bin`);
                 await Executor.execute(`chmod +x ${alpineDir}/usr/local/bin/antigravity`);
                 await Executor.execute(`ln -sf antigravity ${alpineDir}/usr/local/bin/agy`);
+
+                // Cleanup temporary archives to optimize device storage (SPEC-024 §2.3)
+                await deleteFile(`${filesDir}/rootfs.tar.gz`).catch(() => {});
+                await deleteFile(`${filesDir}/cli_linux_arm64.tar.gz`).catch(() => {});
             } else {
                 logger("📦  Extracting sandbox filesystem...");
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/alpine.tar.gz -C ${alpineDir}`);
+                await deleteFile(`${filesDir}/alpine.tar.gz`).catch(() => {});
             }
 
             // Silent onboarding injection & settings
@@ -435,7 +326,7 @@ const Terminal = {
             const xdgOpenScript = `#!/bin/sh
 URL="$1"
 if [ -x /system/bin/am ]; then
-    exec /system/bin/am start -a android.intent.action.VIEW -d "$URL" >/dev/null 2>&1
+    exec /system/bin/am start -a android.intent.action.VIEW --activity-new-task -d "$URL" >/dev/null 2>&1
 else
     echo "Abra en su navegador: $URL"
 fi
@@ -787,16 +678,6 @@ function setExec(path, executable) {
     });
 }
 
-function downloadFile(url, destination, label) {
-    return new Promise((resolve, reject) => {
-        cordova.plugin.http.downloadFile(
-            url, {}, {},
-            destination,
-            resolve,
-            (error) => reject(new Error(`${label} download failed: ${formatError(error)}`))
-        );
-    });
-}
 
 function formatError(error) {
     if (error == null) return "Unknown error";

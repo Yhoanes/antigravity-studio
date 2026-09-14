@@ -25,6 +25,8 @@ export class AgentBridge {
       serverDetected: [],
       promptQueued: [],
       promptDispatched: [],
+      authSuccess: [],
+      installLog: [],
     };
 
     this.detectedPorts = new Set();
@@ -58,13 +60,15 @@ export class AgentBridge {
     this.emit('statusChange', { status: 'CONNECTING', type: 'thinking' });
 
     try {
-      // 1. Verify if Linux runtime environment is installed (SPEC-023 §4.1, AC-CLN-007)
+      // 1. Verify if Linux runtime environment is installed (SPEC-024 §3: ZeroClickBootContract)
       if (typeof Terminal !== "undefined" && typeof Terminal.isInstalled === "function") {
         const isInstalled = await Terminal.isInstalled();
         if (!isInstalled) {
-          console.warn("Terminal runtime environment not installed. Transitioning to SETUP.");
-          this.isConnecting = false;
-          this.emit('statusChange', { status: 'SETUP', type: 'thinking' });
+          console.log("Zero-Click Auto-Provisioning: Entorno no instalado. Iniciando extracción local inmediata (SETUP / INITIALIZING)...");
+          this.emit('statusChange', { status: 'INITIALIZING', type: 'thinking' }); // SETUP mode
+
+          // Auto-trigger extraction without waiting for user clicks
+          await this.installRuntime();
           return;
         }
       }
@@ -259,7 +263,7 @@ export class AgentBridge {
   }
 
   /**
-   * Installs Linux Ubuntu ARM64 runtime and agy CLI (SPEC-023 §4.2)
+   * Installs Linux Ubuntu ARM64 runtime and agy CLI (SPEC-024 §2 & §3)
    */
   async installRuntime(onProgress, onLog) {
     if (typeof Terminal === "undefined" || typeof Terminal.install !== "function") {
@@ -267,33 +271,51 @@ export class AgentBridge {
       return false;
     }
 
-    this.emit('statusChange', { status: 'SETUP', type: 'thinking' });
+    this.emit('statusChange', { status: 'INITIALIZING', type: 'thinking' });
 
     try {
       const success = await Terminal.install(
         (msg) => {
           if (onLog) onLog(msg);
           if (onProgress && typeof msg === "string") {
-            if (msg.includes("Downloading") || msg.includes("descargando")) onProgress(35);
-            else if (msg.includes("Extracting") || msg.includes("extrayendo")) onProgress(75);
-            else if (msg.includes("completed") || msg.includes("completado")) onProgress(100);
+            if (msg.includes("Extrayendo") || msg.includes("Extracting")) onProgress(50);
+            else if (msg.includes("Installing") || msg.includes("Instalando")) onProgress(80);
+            else if (msg.includes("éxito") || msg.includes("completed")) onProgress(100);
           }
+          this.emit('installLog', { message: msg });
         },
         (err) => {
           if (onLog) onLog(`[ERROR] ${err}`);
+          console.error("Installation log error:", err);
         }
       );
 
       if (success) {
         if (onProgress) onProgress(100);
+        this.emit('statusChange', { status: 'CONNECTING', type: 'thinking' });
         await this.connect();
         return true;
       }
       return false;
     } catch (e) {
       console.error("Runtime installation failed:", e);
+      this.emit('statusChange', { status: 'ERROR', type: 'error', error: e.message });
       throw e;
     }
+  }
+
+  /**
+   * Dispara el flujo de autenticación oficial de Google Antigravity (SPEC-024 §4.3, AC-OAUTH-001)
+   * @returns {Promise<void>}
+   */
+  async triggerGoogleLogin() {
+    if (!this.isConnected || !this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
+      throw new Error("No hay conexión con el motor agéntico PTY");
+    }
+
+    // Enviar comando oficial de inicio de sesión
+    this.websocket.send("agy auth login\r");
+    this.emit('statusChange', { status: 'AUTH', type: 'thinking' });
   }
 
   /**
@@ -362,7 +384,15 @@ export class AgentBridge {
       });
     }
 
-    // 4. Emit standard message chunk
+    // 4. Detect Google OAuth login completion (SPEC-024 §4.3, AC-OAUTH-003)
+    if (cleanText.includes("Authentication successful") || cleanText.includes("Logged in as")) {
+      const emailMatch = cleanText.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
+      const email = emailMatch ? emailMatch[0] : "Google Developer";
+      this.emit('authSuccess', { email, tier: 'Google AI Ultra' });
+      this.emit('statusChange', { status: 'READY', type: 'ready' });
+    }
+
+    // 5. Emit standard message chunk
     this.emit('message', { raw: rawData, text: cleanText });
   }
 

@@ -429,12 +429,20 @@ export class ChatCanvas {
     }, 180);
   }
 
-  renderSetupCard() {
+  renderSetupCard(isAuto = false) {
     if (this.setupCardEl) return;
 
     const card = document.createElement("div");
     card.className = "ag-setup-card";
     card.id = "ag-setup-card";
+
+    const buttonHtml = isAuto 
+      ? `<button class="ag-btn-start-setup" id="btn-start-setup" disabled style="opacity: 0.85;">
+           <span>✦ Auto-inicializando entorno ARM64... (~3s)</span>
+         </button>`
+      : `<button class="ag-btn-start-setup" id="btn-start-setup">
+           <span>Inicializar Entorno Agéntico</span>
+         </button>`;
 
     card.innerHTML = `
       <div class="ag-setup-header">
@@ -445,12 +453,10 @@ export class ChatCanvas {
         Para ejecutar Google Antigravity en este dispositivo es necesario inicializar el subsistema Linux Ubuntu ARM64 y el motor agéntico.
       </p>
       <div class="ag-setup-progress-bar">
-        <div class="ag-setup-progress-fill" id="setup-progress-fill"></div>
+        <div class="ag-setup-progress-fill" id="setup-progress-fill" style="width: 25%;"></div>
       </div>
-      <div class="ag-setup-log" id="setup-log-view">Listo para comenzar...</div>
-      <button class="ag-btn-start-setup" id="btn-start-setup">
-        <span>Inicializar Entorno Agéntico</span>
-      </button>
+      <div class="ag-setup-log" id="setup-log-view">Iniciando extracción local de assets...</div>
+      ${buttonHtml}
     `;
 
     const startBtn = card.querySelector("#btn-start-setup");
@@ -557,12 +563,31 @@ export class ChatCanvas {
       }
     });
 
-    // Estado del runtime (SPEC-023 §4.2, AC-CLN-008)
+    // Logs en tiempo real de instalación local (SPEC-024 §3)
+    agentBridge.on('installLog', ({ message }) => {
+      const logView = this.messagesListEl.querySelector("#setup-log-view");
+      if (logView) {
+        logView.textContent = String(message).slice(-120);
+      }
+      const fill = this.messagesListEl.querySelector("#setup-progress-fill");
+      if (fill) {
+        if (message.includes("Extrayendo") || message.includes("Extracting")) fill.style.width = "50%";
+        else if (message.includes("Installing") || message.includes("Instalando")) fill.style.width = "80%";
+        else if (message.includes("éxito") || message.includes("completed")) fill.style.width = "100%";
+      }
+    });
+
+    // Estado del runtime (SPEC-023 §4.2, SPEC-024 §3: ZeroClickBootContract)
     agentBridge.on('statusChange', ({ status }) => {
-      if (status === 'SETUP') {
-        this.renderSetupCard();
+      if (status === 'INITIALIZING') {
+        this.renderSetupCard(true);
+      } else if (status === 'SETUP') {
+        this.renderSetupCard(false);
       } else if (status === 'READY') {
         this.dismissSetupCard();
+        if (!this.welcomeHeroEl && (!this.messagesListEl.children.length || (this.messagesListEl.children.length === 1 && this.setupCardEl))) {
+          this.renderWelcomeHero();
+        }
       }
     });
 

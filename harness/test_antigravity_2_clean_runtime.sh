@@ -102,12 +102,12 @@ grep -q "promptQueued" "$BRIDGE_FILE" || { echo "FALLO: Evento promptQueued ause
 grep -q "promptDispatched" "$BRIDGE_FILE" || { echo "FALLO: Evento promptDispatched ausente en AgentBridge.js"; exit 1; }
 echo "PASÓ"
 
-# 12. Version Bump v2.0.2 y Email Institucional
-echo -n "[AC-CLN-VER] Config & Package: Versión 2.0.2 y soporte institucional... "
-grep -q 'version="2.0.2"' "$CONFIG_FILE" || { echo "FALLO: Versión 2.0.2 ausente en config.xml"; exit 1; }
-grep -q 'android-versionCode="20002"' "$CONFIG_FILE" || { echo "FALLO: versionCode 20002 ausente en config.xml"; exit 1; }
+# 12. Version Bump v2.0.2+ y Email Institucional
+echo -n "[AC-CLN-VER] Config & Package: Versión 2.0.x y soporte institucional... "
+grep -qE 'version="2\.0\.[23]"' "$CONFIG_FILE" || { echo "FALLO: Versión 2.0.x ausente en config.xml"; exit 1; }
+grep -qE 'android-versionCode="2000[23]"' "$CONFIG_FILE" || { echo "FALLO: versionCode 2000x ausente en config.xml"; exit 1; }
 grep -q 'support@antigravity.google' "$CONFIG_FILE" || { echo "FALLO: Correo institucional ausente en config.xml"; exit 1; }
-grep -q '"version": "2.0.2"' "$PACKAGE_FILE" || { echo "FALLO: Versión 2.0.2 ausente en package.json"; exit 1; }
+grep -qE '"version": "2\.0\.[23]"' "$PACKAGE_FILE" || { echo "FALLO: Versión 2.0.x ausente en package.json"; exit 1; }
 echo "PASÓ"
 
 echo "================================================================================"
