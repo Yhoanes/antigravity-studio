@@ -1518,6 +1518,58 @@ Bajo el contrato formal `SPEC-020`, se formaliza e implementa la purificación d
 
 ---
 
+### ADR-016: Lanzamiento Oficial de Google Antigravity 2.0 Mobile — Arquitectura Nativa AI-First, Chat Canvas y Live Web Preview
+
+- **Identificador:** `ADR-016` (Secuencia Repositorio: `ADR-031`)
+- **Especificación SDD Asociada:** [`SPEC-021`](specs/21-antigravity-2-mobile-architecture.md)
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.95 Contexto
+A lo largo de las versiones previas (desde Antigravity Studio sobre Termux hasta las iteraciones de Nova IDE), la interfaz móvil mantuvo como paradigma central el editor de texto tradicional por líneas con números de línea y pestañas múltiples, confinando la asistencia agéntica a un panel lateral o terminal auxiliar.
+Sin embargo, la validación exhaustiva en pantallas táctiles (Xiaomi Pad 6 y teléfonos Android) demostró que:
+1. **Fricción Ergonómica de Edición Táctil:** El usuario en dispositivos móviles y tablets no desea ni requiere editar código carácter por carácter en teclados virtuales imprecisos.
+2. **Inversión de Roles con Modelos de Frontera:** Con agentes autónomos basados en Google Gemini 3.8 Flash y Claude, el desarrollador actúa como arquitecto, supervisor y evaluador: describe requerimientos, inspecciona razonamiento, aprueba planes de acción y valida resultados interactivos.
+3. **Desaprovechamiento de Pantalla:** El editor tradicional acaparaba la mayor parte del viewport con código inerte, dejando el flujo conversacional y la visualización de la aplicación construida en un plano secundario y comprimido.
+4. **Identidad Oficial:** Se requería consolidar la versión móvil oficial definitiva bajo el nombre y la marca canónica **Google Antigravity** (v2.0.0), incorporando el isotipo del prisma gravitacional de cuatro colores de Google (azul `#4285f4`, rojo `#ea4335`, amarillo `#fbbc04`, verde `#34a853`).
+
+#### 4.96 Decisión
+Se formaliza la transición integral hacia una estación agéntica conversacional pura (*Agent-First Mobile Studio*) bajo la especificación formal [`SPEC-021`](specs/21-antigravity-2-mobile-architecture.md):
+1. **Reemplazo del Editor Tradicional por el Módulo Soberano `src/antigravity2/`:**
+   - Se suprime el editor de texto como pantalla de inicio en `nova-src/src/main.js`, montando en su lugar la aplicación unificada `AntigravityApp` (`src/antigravity2/index.js`).
+   - Identidad de aplicación actualizada a **Google Antigravity** (`v2.0.0`, versionCode `20000`, `com.google.antigravity.mobile` en `config.xml` y `package.json`).
+   - Inyección del isotipo del prisma gravitacional de 4 colores Google en drawables Android (`ic_launcher_foreground.xml`, `ic_launcher_background.xml`) y en SVG vectorial (`www/logo.svg`).
+2. **Chat Canvas Reactivo con Ergonomía AI-First (`ChatCanvas.js`):**
+   - Lienzo conversacional central con tema **Material 3 Dark Void** (`#090d16` de fondo, tarjetas `#1a2234`, burbujas de usuario `#1e293b` y burbujas de agente `#131b2e`).
+   - Acordeón de razonamiento transparente (*Thinking... ▾*) que muestra en tiempo real la cadena de pensamiento colapsable con indicador de latencia.
+   - Tarjetas de ejecución de herramientas (*Tool Execution Cards*) formateadas con syntax highlighting y diffs de código.
+   - Tarjeta de Aprobación de Plan (*Plan Approval Card*) con botón táctil prominente `[ ✓ Aprobar y Ejecutar ]` para control humano determinista (*Human-in-the-Loop*).
+3. **Live Web Preview Integrado y Responsivo (`LivePreview.js`):**
+   - Visor web embebido interactivo para probar instantáneamente aplicaciones web generadas por el agente.
+   - En tablets y pantallas panorámicas ($\ge 1024$px), opera en modo **Split-View** lado a lado con el Chat Canvas. En móviles (< 1024px), se despliega como un **Bottom Sheet** deslizable con tirador táctil.
+   - Barra de navegación con botón de refresco `↻`, selector de URL y detección automática de servidores locales (`http://localhost:3000`).
+4. **Sidebar Drawer con Historial Persistente y Selector de Proyectos (`SidebarDrawer.js`):**
+   - Panel lateral deslizante con perfil de usuario autenticado (`shadrick1212@gmail.com`), insignia **Google AI Ultra**, y botón `+ Nueva Conversación`.
+   - Historial cronológico de chats leídos directamente de la base de datos de Antigravity CLI.
+   - Selector visual de espacios de trabajo anclado a `/storage/emulated/0/Projects` (`/sdcard/Projects`).
+5. **Puente Agéntico AgentBridge con `agy -c` (`AgentBridge.js`):**
+   - Conexión vía WebSocket al daemon AXS PTY (`ws://127.0.0.1:8767/pty`).
+   - Ejecución continuada mediante la bandera `agy -c` (*auto-continue*), garantizando persistencia del contexto conversacional entre comandos.
+6. **Compilación y Empaquetado de Google Antigravity 2.0 Mobile:**
+   - Pipeline de compilación optimizado generando el artefacto final **`GoogleAntigravity-v2.0.0-ARM64.apk`** (~36.8 MB) para arquitectura `arm64-v8a` (Android 8.0+ / API 26+).
+
+#### 4.97 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia Móvil Definitiva:** El desarrollador interactúa de forma natural mediante lenguaje natural, supervisando el progreso y aprobando diffs sin la fricción de escribir código en teclados táctiles.
+  - **Feedback Visual Inmediato:** El Live Web Preview permite validar prototipos y aplicaciones web en vivo sin salir del flujo de trabajo agéntico.
+  - **Identidad de Marca Inconfundible:** Logotipo oficial de prisma Google y sistema de diseño Material 3 Dark Void de alta fidelidad.
+  - **Continuidad de Conversación:** Soporte total de historial de sesiones y preservación de estado con `agy -c`.
+- **Compromisos Operativos:**
+  - Requiere que la aplicación web generada por el agente sirva sus assets en puertos locales accesibles por el WebView (`localhost:3000`, `localhost:5173`, etc.).
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1543,6 +1595,7 @@ Bajo el contrato formal `SPEC-020`, se formaliza e implementa la purificación d
 | **SPEC-018** | Arquitectura Dual-Terminal, Recuperación del Rootfs Ubuntu Noble y Onboarding Agéntico en Nova IDE | `specs/18-nova-agent-split-and-terminal-repair.md` | `APPROVED` | 8 ACs |
 | **SPEC-019** | Sidebar Lateral Acoplado con Redimensionamiento Táctil, Ciclo de Vida Keep-Alive, Ergonomía de 80 Columnas y Logotipo Oficial Nova IDE | `specs/19-nova-docked-sidebar-keepalive-and-brand-identity.md` | `APPROVED` | 8 ACs |
 | **SPEC-020** | Layout Tri-Columna sin Solapamientos, Identidad Soberana Vectorial y Anclaje Automático a Almacenamiento Compartido | `specs/20-nova-tri-column-layout-projects-bridge-and-clean-identity.md` | `APPROVED` | 7 ACs |
+| **SPEC-021** | Arquitectura de Google Antigravity 2.0 Mobile: Entorno Agéntico Conversacional, Canvas Reactivo y Live Web Preview | `specs/21-antigravity-2-mobile-architecture.md` | `APPROVED` | 9 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

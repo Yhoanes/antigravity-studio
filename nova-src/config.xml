@@ -1,14 +1,14 @@
 <?xml version='1.0' encoding='utf-8'?>
-<widget id="io.nova.ide" android-versionCode="10014" version="1.0.13"
+<widget id="io.nova.ide" android-versionCode="20000" version="2.0.0"
     xmlns="http://www.w3.org/ns/widgets"
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:cdv="http://cordova.apache.org/ns/1.0">
-    <name>Nova IDE</name>
+    <name>Google Antigravity</name>
     <description>
-        Nova IDE - Agentic Touch-First IDE for Android with Embedded Linux &amp; PRoot
+        Google Antigravity 2.0 Mobile - Agentic Conversational Software Engineering Studio for Android
     </description>
-    <author email="dev@nova.ide" href="https://nova.ide">
-        Nova IDE Team
+    <author email="shadrick1212@gmail.com" href="https://antigravity.google">
+        Google Antigravity Team
     </author>
     <content src="index.html" />
     <access launch-external="yes" origin="*" />

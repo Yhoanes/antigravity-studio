@@ -27,6 +27,7 @@ import {
 import Contextmenu from "components/contextmenu";
 import Sidebar from "components/sidebar";
 import agentPanel from "components/agentPanel";
+import AntigravityApp from "./antigravity2/AntigravityApp";
 import tile from "components/tile";
 import toast from "components/toast";
 import alert from "dialogs/alert";
@@ -735,6 +736,12 @@ async function loadApp() {
 	applySettings.beforeRender();
 	root.appendOuter($header, $main, $floatingNavToggler, $headerToggler);
 	app.append(agentPanel.el);
+
+	// Google Antigravity 2.0 Mobile: AI-First primary UI mounting (SPEC-021)
+	const antigravityApp = new AntigravityApp();
+	window.antigravityApp = antigravityApp;
+	root.innerHTML = "";
+	root.appendOuter(antigravityApp.el);
 	//#endregion
 
 	//#region Add event listeners
@@ -781,12 +788,13 @@ async function loadApp() {
 	notificationManager.init();
 	window.log("info", "Started app and its services...");
 
-	if (!files.length) {
-		const { default: openWelcomeTab } = await import(
-			/* webpackChunkName: "welcome" */ "pages/welcome"
-		);
-		openWelcomeTab();
-	}
+	// Google Antigravity 2.0: Traditional welcome tab is superseded by ChatCanvas (SPEC-021)
+	// if (!files.length) {
+	// 	const { default: openWelcomeTab } = await import(
+	// 		/* webpackChunkName: "welcome" */ "pages/welcome"
+	// 	);
+	// 	openWelcomeTab();
+	// }
 
 	// load theme plugins
 	try {

@@ -1,46 +1,42 @@
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- Sutil resplandor circular de dispersión estelar -->
+    <!-- Sutil resplandor circular de convergencia gravitacional -->
     <path
-        android:fillColor="#2200F0FF"
-        android:pathData="M 54,54 m -18,0 a 18,18 0 1,1 36,0 a 18,18 0 1,1 -36,0" />
+        android:fillColor="#224285F4"
+        android:pathData="M 54,54 m -24,0 a 24,24 0 1,1 48,0 a 24,24 0 1,1 -48,0" />
 
-    <!-- Corchete izquierdo '<' (Supernova Cyan #00f0ff) -->
+    <!-- Faceta Superior (Google Red: #EA4335 - Alertas, Detención, Refinamiento) -->
     <path
-        android:pathData="M 35,36 L 25,54 L 35,72"
-        android:strokeWidth="3.5"
-        android:strokeColor="#00F0FF"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
+        android:pathData="M 54,19 L 75,50 L 54,45 L 33,50 Z"
+        android:fillColor="#EA4335" />
 
-    <!-- Corchete derecho '>' (Supernova Cyan #00f0ff) -->
+    <!-- Faceta Izquierda (Google Blue: #4285F4 - Estructura, Lógica, Herramientas) -->
     <path
-        android:pathData="M 73,36 L 83,54 L 73,72"
-        android:strokeWidth="3.5"
-        android:strokeColor="#00F0FF"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:fillColor="#00000000" />
+        android:pathData="M 33,50 L 54,45 L 54,73 L 29,78 Z"
+        android:fillColor="#4285F4" />
 
-    <!-- Estrella '✦' central en Stellar Violet (#8b5cf6) con puntas armónicas -->
+    <!-- Faceta Derecha (Google Yellow: #FBBC04 - Razonamiento, Thinking, Advertencias) -->
     <path
-        android:pathData="M 54,32 Q 52,52 32,54 Q 52,56 54,76 Q 56,56 76,54 Q 56,52 54,32 Z"
-        android:fillColor="#8B5CF6" />
+        android:pathData="M 75,50 L 54,45 L 54,73 L 79,78 Z"
+        android:fillColor="#FBBC04" />
 
-    <!-- Núcleo brillante en Supernova Cyan (#00f0ff) -->
+    <!-- Faceta Base (Google Green: #34A853 - Aprobación de Plan, Diffs Positivos, Tests OK) -->
     <path
-        android:pathData="M 54,43 Q 53,53 43,54 Q 53,55 54,65 Q 55,55 65,54 Q 55,53 54,43 Z"
-        android:fillColor="#00F0FF" />
+        android:pathData="M 29,78 L 54,73 L 79,78 L 54,89 Z"
+        android:fillColor="#34A853" />
+
+    <!-- Núcleo de Refracción Central (Estrella Gravitacional ✦) -->
+    <path
+        android:pathData="M 54,51 Q 54,58 47,58 Q 54,58 54,65 Q 54,58 61,58 Q 54,58 54,51 Z"
+        android:fillColor="#FFFFFF" />
 
     <!-- Punto central de ignición estelar -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M 54,54 m -2.5,0 a 2.5,2.5 0 1,1 5,0 a 2.5,2.5 0 1,1 -5,0" />
+        android:pathData="M 54,58 m -2,0 a 2,2 0 1,1 4,0 a 2,2 0 1,1 -4,0" />
 
 </vector>
