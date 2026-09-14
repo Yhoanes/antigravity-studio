@@ -371,8 +371,8 @@ const Terminal = {
                 logger("📦  Installing Google Antigravity CLI (agy)...");
                 await ensureDir(`${alpineDir}/usr/local/bin`);
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/cli_linux_arm64.tar.gz -C ${alpineDir}/usr/local/bin`);
-                await Executor.execute(`ln -sf /usr/local/bin/antigravity ${alpineDir}/usr/local/bin/agy`);
-                await Executor.execute(`chmod +x ${alpineDir}/usr/local/bin/antigravity ${alpineDir}/usr/local/bin/agy`);
+                await Executor.execute(`chmod +x ${alpineDir}/usr/local/bin/antigravity`);
+                await Executor.execute(`ln -sf antigravity ${alpineDir}/usr/local/bin/agy`);
             } else {
                 logger("📦  Extracting sandbox filesystem...");
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/alpine.tar.gz -C ${alpineDir}`);
@@ -417,7 +417,7 @@ fi
 `;
             await writeText(`${alpineDir}/usr/local/bin/xdg-open`, xdgOpenScript);
             await setExec(`${alpineDir}/usr/local/bin/xdg-open`, true);
-            await Executor.execute(`ln -sf /usr/local/bin/xdg-open ${alpineDir}/usr/local/bin/x-www-browser`);
+            await Executor.execute(`ln -sf xdg-open ${alpineDir}/usr/local/bin/x-www-browser`);
 
             logger("⚙️  Applying basic configuration...");
             await writeText(`${alpineDir}/etc/resolv.conf`, `nameserver 8.8.4.4 \nnameserver 8.8.8.8`);

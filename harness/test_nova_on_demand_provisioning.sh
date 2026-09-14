@@ -21,7 +21,7 @@ echo "[OK]"
 # 2. Verificar aprovisionamiento del CLI agy y symlinks
 echo -n "2. Verificando instalación del CLI agy y symlink... "
 grep -q "cli_linux_arm64.tar.gz" "$TERMINAL_JS" || { echo "FALLO: Extracción de CLI ausente"; exit 1; }
-grep -q "ln -sf /usr/local/bin/antigravity" "$TERMINAL_JS" || { echo "FALLO: Symlink a agy ausente"; exit 1; }
+grep -q "ln -sf antigravity" "$TERMINAL_JS" || { echo "FALLO: Symlink a agy ausente"; exit 1; }
 echo "[OK]"
 
 # 3. Verificar inyección silenciosa de onboarding.json y settings.json
@@ -46,8 +46,11 @@ grep -q "/home/studio/workspace" "$INIT_SANDBOX" || { echo "FALLO: /home/studio/
 echo "[OK]"
 
 # 6. Verificar existencia y tamaño del APK Thin Client
-echo -n "6. Verificando existencia de APK Thin Client (NovaIDE-v1.0.3-ARM64.apk)... "
-APK_PATH="NovaIDE-v1.0.3-ARM64.apk"
+echo -n "6. Verificando existencia de APK Thin Client (NovaIDE-v1.0.4-ARM64.apk)... "
+APK_PATH="NovaIDE-v1.0.4-ARM64.apk"
+if [ ! -f "$APK_PATH" ]; then
+    APK_PATH="NovaIDE-v1.0.3-ARM64.apk"
+fi
 if [ ! -f "$APK_PATH" ]; then
     APK_PATH="NovaIDE-v1.0.2-ARM64.apk"
 fi
@@ -58,7 +61,7 @@ if [ ! -f "$APK_PATH" ]; then
     APK_PATH="NovaIDE-v1.0.0-ARM64.apk"
 fi
 if [ ! -f "$APK_PATH" ]; then
-    echo "FALLO: No se encontró NovaIDE-v1.0.3-ARM64.apk en la raíz del repositorio."
+    echo "FALLO: No se encontró NovaIDE-v1.0.4-ARM64.apk en la raíz del repositorio."
     exit 1
 fi
 

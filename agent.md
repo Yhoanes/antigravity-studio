@@ -1041,6 +1041,52 @@ Se formaliza e implementa la arquitectura de extracción nativa directa en `Term
 
 ---
 
+### ADR-021: Enlaces Simbólicos Relativos y Chmod Seguro en Aprovisionamiento PRoot de Nova IDE
+
+- **Identificador:** `ADR-021`
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.65 Contexto
+Durante las pruebas de validación de primer inicio en la tablet física Xiaomi Pad 6, tras la extracción del rootfs y del CLI de Antigravity, la ejecución del script de aprovisionamiento en `Terminal.js` falló con el error fatal:
+```text
+chmod: '/data/user/0/io.nova.ide/files/alpine/usr/local/bin/agy' to 120777: No such file or directory
+```
+El análisis técnico identificó la causa raíz:
+1. **Resolución Fallida de Symlinks con Destino Absoluto en el Host:** El comando `ln -sf /usr/local/bin/antigravity ${alpineDir}/usr/local/bin/agy` creaba un enlace simbólico apuntando a la ruta absoluta `/usr/local/bin/antigravity`. Mientras que dicha ruta es válida dentro del espacio de nombres PRoot chroot, en el espacio de nombres de la aplicación Android host no existe `/usr/local/bin/antigravity`.
+2. **Incompatibilidad de Llamadas `chmod` sobre Enlaces Simbólicos:** La utilidad `chmod` desreferencia automáticamente el enlace simbólico para aplicar los permisos al destino físico. Al evaluar el destino `/usr/local/bin/antigravity` en el host Android, el kernel devolvió `ENOENT` (`No such file or directory`), interrumpiendo el flujo de inicialización.
+
+#### 4.66 Decisión
+Se formalizan e implementan dos reglas de arquitectura en `Terminal.js`:
+1. **Adopción Estricta de Enlaces Simbólicos Relativos Locales:**
+   - La creación de enlaces simbólicos dentro del mismo directorio (`/usr/local/bin`) se realiza exclusivamente mediante nombres relativos:
+     ```javascript
+     await Executor.execute(`ln -sf antigravity ${alpineDir}/usr/local/bin/agy`);
+     await Executor.execute(`ln -sf xdg-open ${alpineDir}/usr/local/bin/x-www-browser`);
+     ```
+   - Al ser relativos, el kernel resuelve el destino localmente respecto a su propio directorio contenedor, siendo válidos tanto desde el host Android como desde el entorno PRoot.
+2. **Aplicación Estricta de `chmod` Directo y Seguro:**
+   - La asignación de permisos de ejecución `chmod +x` se aplica única y exclusivamente sobre el archivo binario físico antes de la creación del enlace:
+     ```javascript
+     await Executor.execute(`chmod +x ${alpineDir}/usr/local/bin/antigravity`);
+     ```
+   - Se erradican todas las llamadas de `chmod` dirigidas a enlaces simbólicos.
+3. **Incremento de Versión y Compilación de Nova IDE v1.0.4:**
+   - Versión incrementada a `1.0.4` (versionCode `10005`) en `config.xml` y `package.json`.
+   - Generación del paquete instalador oficial `NovaIDE-v1.0.4-ARM64.apk` (~36.7 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.4 ARM64 (Symlink & Relative Path Hardening)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.4)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.4-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.4/NovaIDE-v1.0.4-ARM64.apk)
+
+#### 4.67 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Inicialización Limpia y Determinista:** Eliminación del 100% de los fallos de `chmod` sobre enlaces simbólicos.
+  - **Compatibilidad Dual Host/Guest:** Los enlaces simbólicos relativos resuelven de forma transparente en el sistema de archivos de Android y dentro de la jaula PRoot.
+- **Compromisos Operativos:**
+  - Todo nuevo script o binario aprovisionado debe recibir permisos sobre su inodo físico original antes de generar symlinks.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
