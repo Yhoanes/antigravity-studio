@@ -1660,6 +1660,7 @@ public class System extends CordovaPlugin {
 
   private void openInBrowser(String src, CallbackContext callback) {
     Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(src));
+    browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
     activity.startActivity(browserIntent);
   }
 

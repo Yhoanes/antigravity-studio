@@ -97,14 +97,14 @@ fi
 
     if [ ! -e "$PREFIX/alpine/etc/acode_motd" ]; then
         cat <<EOF > "$PREFIX/alpine/etc/acode_motd"
-Welcome to Alpine Linux in Acode!
+‹ ✦ › Nova IDE (Ubuntu 24.04 ARM64)
+Google Antigravity CLI (agy) Environment
 
 Working with packages:
-
- - Search:  apk search <query>
- - Install: apk add <package>
- - Uninstall: apk del <package>
- - Upgrade: apk update && apk upgrade
+ - Search:    apt search <query>
+ - Install:   apt install <package>
+ - Uninstall: apt remove <package>
+ - Update:    apt update && apt upgrade
 
 EOF
     fi

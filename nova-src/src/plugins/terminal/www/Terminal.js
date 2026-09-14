@@ -430,6 +430,9 @@ fi
             logger("⚙️  Applying basic configuration...");
             await ensureDir(`${alpineDir}/etc`);
             await Executor.execute(`rm -f "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.8.8" > "${alpineDir}/etc/resolv.conf" && echo "nameserver 8.8.4.4" >> "${alpineDir}/etc/resolv.conf"`);
+            await Executor.execute(`echo "127.0.0.1 localhost" > "${alpineDir}/etc/hosts" && echo "::1 localhost ip6-localhost ip6-loopback" >> "${alpineDir}/etc/hosts"`);
+            await Executor.execute(`echo "hosts: files dns" > "${alpineDir}/etc/nsswitch.conf"`);
+            await Executor.execute(`echo -e "aid_inet:x:3003:root\naid_everybody:x:9997:root\naid_app:x:20399:root\naid_app2:x:50399:root\naid_isolated:x:99909997:root" >> "${alpineDir}/etc/group"`);
 
             if (arch !== "arm64-v8a") {
                 const rmWrapper = await readAsset("rm-wrapper.sh");

@@ -1265,6 +1265,66 @@ Se formaliza e implementa la transición hacia el contenedor oficial Canonical U
 
 ---
 
+### ADR-026: Aislamiento de Tarea en Navegador Externo (FLAG_ACTIVITY_NEW_TASK), Resolución Local de Loopback (/etc/hosts) y Supresión de GIDs en Android
+
+- **Identificador:** `ADR-026`
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.80 Contexto
+Durante las pruebas del flujo de autenticación de Google Antigravity CLI en Xiaomi Pad 6, se presentaron tres fallas críticas de integración entre Android, el navegador y el subsistema Linux:
+1. **Destrucción de la Tarea de la Activity al Abrir el Navegador:** Al invocar el navegador externo para la autorización OAuth vía `xdg-open` / `System.openInBrowser`, el Intent se lanzaba sin banderas de aislamiento de pila. Android incorporaba la Activity del navegador en la misma pila de tareas de `io.nova.ide`. Al alternar de vuelta o pulsar el botón Atrás, el sistema operativo destruía y recreaba la Activity principal (`onCreate`), provocando la recarga completa de `index.html`. Esto destruía la sesión PTY activa y descartaba de la memoria volátil el verificador de código PKCE y el state token del flujo OAuth.
+2. **Fallo en Resolución Local de Loopback para el Callback OAuth:** Al redirigir el navegador hacia `http://localhost:<port>/oauth/callback`, el cliente HTTP y el runtime de Go del CLI consultaban `/etc/resolv.conf` en lugar de resolver localmente, ya que `/etc/hosts` no contenía mapeos para `localhost` y `/etc/nsswitch.conf` no existía. Las consultas a `8.8.8.8` para `localhost` resultaban en error `NXDOMAIN` o timeout, impidiendo que el CLI capturara el token devuelto.
+3. **Advertencias Espurias de GIDs de Android en Linux:** Herramientas y glibc dentro de Ubuntu generaban advertencias persistentes como `groups: cannot find name for group ID 3003` debido a que los GIDs asignados por el sandboxing de Android (p. ej. `aid_inet` 3003 para acceso a sockets de red) no figuraban en `/etc/group`. Además, el banner MOTD predeterminado mostraba referencias obsoletas a Alpine Linux.
+
+#### 4.81 Decisión
+Se formaliza e implementa un conjunto coordinado de medidas de aislamiento, resolución y compatibilidad de entorno:
+1. **Aislamiento Estricto de Pila de Tareas con `FLAG_ACTIVITY_NEW_TASK`:**
+   En `System.java` (`openInBrowser`), se fuerza la bandera `FLAG_ACTIVITY_NEW_TASK`:
+   ```java
+   Intent browserIntent = new Intent(Intent.ACTION_VIEW, Uri.parse(src));
+   browserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+   activity.startActivity(browserIntent);
+   ```
+   Esto garantiza que el navegador abra en su propia pila de tareas independiente. La Activity de Nova IDE permanece en estado pausado (`onPause`/`onResume`) sin ser destruida ni recreada, preservando la sesión WebSocket PTY, la terminal interactiva y el servidor loopback local en escucha.
+2. **Configuración de Resolución Local en `/etc/hosts` y `/etc/nsswitch.conf`:**
+   En `Terminal.js`, durante la inicialización del rootfs, se configuran las entradas canónicas de loopback y prioridad de resolución:
+   ```javascript
+   await Executor.execute(`echo "127.0.0.1 localhost" > "${alpineDir}/etc/hosts" && echo "::1 localhost ip6-localhost ip6-loopback" >> "${alpineDir}/etc/hosts"`);
+   await Executor.execute(`echo "hosts: files dns" > "${alpineDir}/etc/nsswitch.conf"`);
+   ```
+   Esto garantiza que Go y cualquier utilidad de red resuelvan `localhost` de forma inmediata e interna contra archivos locales antes de consultar DNS externos.
+3. **Mapeo de GIDs de Android en `/etc/group`:**
+   Se inyectan los identificadores de grupo canónicos de Android en `/etc/group`:
+   ```javascript
+   await Executor.execute(`echo -e "aid_inet:x:3003:root\naid_everybody:x:9997:root\naid_app:x:20399:root\naid_app2:x:50399:root\naid_isolated:x:99909997:root" >> "${alpineDir}/etc/group"`);
+   ```
+   eliminando las advertencias espurias de grupos no reconocidos.
+4. **Actualización del Banner MOTD:**
+   En `init-alpine.sh`, se actualiza el banner informativo al ecosistema nativo de Nova IDE:
+   ```text
+   ‹ ✦ › Nova IDE (Ubuntu 24.04 ARM64)
+   Google Antigravity CLI (agy) Environment
+   ```
+   con guías de comandos basadas en `apt`.
+5. **Incremento de Versión y Compilación de Nova IDE v1.0.9:**
+   - Versión incrementada a `1.0.9` (versionCode `10010`) en `config.xml` y `package.json`.
+   - Generación del paquete instalador final `NovaIDE-v1.0.9-ARM64.apk` (38,509,031 bytes ~ 36.7 MB).
+   - **Enlace al Release:** [GitHub Release: Nova IDE v1.0.9 ARM64 (OAuth Isolation & Loopback Fix)](https://github.com/Yhoanes/antigravity-studio/releases/tag/nova-v1.0.9)
+   - **Enlace Directo de Descarga del APK:** [`NovaIDE-v1.0.9-ARM64.apk`](https://github.com/Yhoanes/antigravity-studio/releases/download/nova-v1.0.9/NovaIDE-v1.0.9-ARM64.apk)
+
+#### 4.82 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Autenticación OAuth Ininterrumpida:** Cero recargas de la UI o pérdida de sesión PTY al autorizar credenciales en Chrome.
+  - **Captura Exitosa del Token Loopback:** Resolución instantánea de `localhost` en Go/glibc, completando el flujo `agy auth` con éxito.
+  - **Silenciamiento de Advertencias:** Eliminación de advertencias por GIDs no mapeados en utilidades de sistema.
+  - **Identidad Coherente de Consola:** Banner oficial Nova IDE / Ubuntu 24.04 ARM64.
+- **Compromisos Operativos:**
+  - Todo despacho de URLs externas desde plugins nativos hacia el navegador debe emplear `FLAG_ACTIVITY_NEW_TASK` para salvaguardar la tarea del IDE.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
