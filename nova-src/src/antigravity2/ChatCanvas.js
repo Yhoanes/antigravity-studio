@@ -523,6 +523,51 @@ export class ChatCanvas {
       const bubbleBody = this.currentAgentMessageEl.querySelector(".ag-msg-bubble");
       if (bubbleBody) {
         bubbleBody.innerHTML = renderedHtml;
+
+        // Inyección interactiva de botones de autenticación (SPEC-027 §2.3, AC-AUTH-002)
+        if (this.currentAgentRawText.includes("Autenticación Requerida")) {
+          if (!bubbleBody.querySelector(".ag-auth-prompt-actions")) {
+            const actionsContainer = document.createElement("div");
+            actionsContainer.className = "ag-auth-prompt-actions";
+            actionsContainer.style.cssText = "margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap;";
+            actionsContainer.innerHTML = `
+              <button class="ag-btn-action-primary" id="btn-chat-google-login" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.25rem; border-radius: 8px; background: #4285F4; color: #FFFFFF; font-weight: 600; font-size: 0.88rem; border: none; cursor: pointer; box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);">
+                <span>🌐 Iniciar Sesión Google</span>
+              </button>
+              <button class="ag-btn-action-secondary" id="btn-chat-set-apikey" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.65rem 1.25rem; border-radius: 8px; background: rgba(255,255,255,0.08); color: #F8FAFC; border: 1px solid rgba(255,255,255,0.2); font-weight: 600; font-size: 0.88rem; cursor: pointer;">
+                <span>⚡ Configurar API Key</span>
+              </button>
+            `;
+
+            const googleBtn = actionsContainer.querySelector("#btn-chat-google-login");
+            if (googleBtn) {
+              googleBtn.onclick = () => {
+                googleBtn.disabled = true;
+                googleBtn.innerHTML = `<span>⏳ Abriendo Google...</span>`;
+                agentBridge.triggerGoogleLogin().catch((err) => {
+                  console.error("Error al disparar login desde chat:", err);
+                  googleBtn.disabled = false;
+                  googleBtn.innerHTML = `<span>🌐 Iniciar Sesión Google</span>`;
+                });
+              };
+            }
+
+            const apiKeyBtn = actionsContainer.querySelector("#btn-chat-set-apikey");
+            if (apiKeyBtn) {
+              apiKeyBtn.onclick = () => {
+                const key = prompt("Ingresa tu clave de Google Gemini API (AIzaSy...):");
+                if (key && key.trim()) {
+                  agentBridge.setApiKey(key.trim());
+                  if (typeof window.toast === "function") {
+                    window.toast("Clave de Gemini API configurada con éxito");
+                  }
+                }
+              };
+            }
+
+            bubbleBody.appendChild(actionsContainer);
+          }
+        }
       }
 
       this.scrollToBottom();

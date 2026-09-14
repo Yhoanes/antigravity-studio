@@ -1780,6 +1780,46 @@ Se formalizan e implementan los siguientes contratos técnicos bajo la especific
 
 ---
 
+### ADR-022 / ADR-037: Arquitectura de Doble Motor Agéntico (PTY agy Oficial + Gemini Direct API), Prevención de Congelamiento en THINKING y Certificación E2E en Tablet
+
+- **Identificador:** `ADR-022` (Secuencia Repositorio: `ADR-037` / `ADR-027`)
+- **Especificación SDD Asociada:** [`SPEC-027`](specs/27-antigravity-2-mobile-gemini-bridge-and-e2e-testing.md)
+- **Fecha:** 2026-09-14
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.113 Contexto
+En la versión `v2.0.5`, al despachar un prompt de usuario en frío sin haber completado la autenticación previa (`oauth_creds.json` inexistente o sin API key configurada):
+1. **Congelamiento Indefinido en `THINKING`:** `AgentBridge.sendUserPrompt()` emitía `THINKING` y enviaba el texto ciegamente a través de la terminal PTY (`agy -c`). Al no encontrar credenciales OAuth de Google, `agy` detenía su ejecución esperando una consola interactiva inexistente. Como resultado, la interfaz quedaba atascada indefinidamente en el acordeón animado "Pensando...", transmitiendo la impresión de una aplicación colgada o rota.
+2. **Falta de Motor de Contingencia / Pruebas Automatizadas:** La aplicación dependía exclusivamente de la terminal PTY de Linux para procesar prompts. En entornos de integración continua (CI/CD) o pruebas automatizadas en emuladores sin sesión Google iniciada, resultaba imposible validar el streaming conversacional y la reactividad del canvas.
+3. **Ausencia de Validación E2E Automatizada en Tablet:** No se contaba con un arnés determinista que desplegara el paquete en un emulador Android con resolución de tablet ($2560\times 1600$), inyectara interacciones y capturara evidencia visual de alta fidelidad.
+
+#### 4.114 Decisión
+Se formaliza e implementa la solución integral bajo el contrato formal [`SPEC-027`](specs/27-antigravity-2-mobile-gemini-bridge-and-e2e-testing.md):
+1. **Arquitectura de Doble Motor Agéntico (`DualEngineContract`):**
+   - En `AgentBridge.js`, implementación de `ENGINE_MODES`:
+     - `PTY_OFFICIAL`: Motor de producción sobre PRoot Linux y daemon AXS ejecutando la CLI oficial `agy -c` con soporte de herramientas de sistema y planes con confirmación.
+     - `GEMINI_DIRECT`: Motor directo REST + Server-Sent Events (SSE) hacia Google Generative Language API (`gemini-2.5-pro` / `gemini-2.5-flash`), con soporte nativo de streaming incremental de texto y bloques de pensamiento (`thinkingConfig: { includeThoughts: true }`).
+     - `AUTO`: Selector heurístico que prioriza la sesión PTY autorizada, conmuta a Gemini Direct si existe API Key, o activa el estado informativo no autenticado.
+2. **Estado Informativo No Autenticado y Descongelamiento de `THINKING`:**
+   - Si se envía un prompt sin credenciales activas, `AgentBridge` intercepta el flujo antes de enviar datos a la PTY, emite una burbuja conversacional estructurada con explicación clara y dos botones interactivos en `ChatCanvas.js`: `[ 🌐 Iniciar Sesión Google ]` (desencadena `GoogleAuthService.startLoginFlow()`) y `[ ⚡ Configurar API Key ]` (almacena clave en `localStorage`).
+   - El estado de la interfaz se conmuta inmediatamente a `READY`, impidiendo cualquier bloqueo visual.
+3. **Certificación E2E en Tablet Android (`TabletE2ETestContract`):**
+   - Creación del arnés automatizado `harness/test_e2e_tablet_gemini.sh` que interactúa con `emulator-5554` (Pixel Tablet / Medium Tablet, $2560\times 1600$), instala el APK, lanza `io.nova.ide/.MainActivity`, inyecta prompts táctiles y captura la evidencia oficial `harness/evidence/screenshot_e2e_tablet.png`.
+4. **Salto de Versión y Compilación Oficial:**
+   - Incremento a versión `2.0.6` (versionCode `20006`) en `config.xml` y `package.json`.
+   - Generación del artefacto instalador **`GoogleAntigravity-v2.0.6-ARM64.apk`** (~132 MB).
+
+#### 4.115 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Cero Bloqueos Silenciosos:** Erradicación total del estado congelado en `THINKING`; el usuario siempre recibe retroalimentación inmediata con botones de acción directa.
+  - **Resiliencia Agéntica Máxima:** Capacidad de operar tanto en modo completo con herramientas de sistema (PTY Linux) como en modo ultrarrápido con clave directa (Gemini Direct SSE).
+  - **Certificación Determinista en Pantallas Grandes:** Validación gráfica y funcional verificada sobre resoluciones reales de tablet.
+- **Compromisos Operativos:**
+  - Las claves de API configuradas se preservan únicamente de forma local en el dispositivo (`localStorage`) y nunca deben exponerse en el repositorio.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1811,6 +1851,7 @@ Se formalizan e implementan los siguientes contratos técnicos bajo la especific
 | **SPEC-024** | Arquitectura Zero-Download Offline, Auto-Aprovisionamiento en Frío y Puente de Autenticación Google OAuth | `specs/24-antigravity-2-mobile-zero-download-and-oauth-bridge.md` | `APPROVED` | 9 ACs |
 | **SPEC-025** | Auto-Transición Zero-Lock en Ciclo de Vida Agéntico y Optimización de Peso del APK (Slimming) | `specs/25-antigravity-2-mobile-auto-transition-and-apk-slimming.md` | `APPROVED` | 8 ACs |
 | **SPEC-026** | Limpieza de Detección de Puertos (Anti-Falsos Positivos), Flujo Nativo de Google OAuth 2.0 PKCE y Refinamiento UI/UX | `specs/26-antigravity-2-mobile-oauth-cleanup-and-uix.md` | `APPROVED` | 9 ACs |
+| **SPEC-027** | Arquitectura de Doble Motor Agéntico (Google Antigravity PTY & Gemini Direct API), Estado Informativo de Autenticación y Suite de Pruebas E2E en Tablet | `specs/27-antigravity-2-mobile-gemini-bridge-and-e2e-testing.md` | `APPROVED` | 7 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

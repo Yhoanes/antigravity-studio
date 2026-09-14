@@ -1,8 +1,14 @@
 /**
  * Google Antigravity 2.0 Mobile - AgentBridge Service
- * Manages WebSocket PTY communication with PRoot Ubuntu Noble ARM64 and agy CLI
- * SPEC-021: AC-AG2-009 (auto-continue flag agy -c)
+ * Manages WebSocket PTY communication with PRoot Ubuntu Noble ARM64 (agy CLI)
+ * and Direct Gemini REST/SSE Engine (SPEC-027: DualEngineContract)
  */
+
+export const ENGINE_MODES = {
+  AUTO: "AUTO",             // Detección automática (OAuth PTY -> Gemini Direct -> Unauth Info)
+  PTY_OFFICIAL: "PTY",      // Forzar motor PTY oficial de Linux (agy)
+  GEMINI_DIRECT: "DIRECT",  // Forzar conexión REST/SSE directa con Gemini API
+};
 
 export class AgentBridge {
   constructor(options = {}) {
@@ -16,6 +22,10 @@ export class AgentBridge {
     this.activeProject = options.activeProject || "workspace";
     this.pendingQueue = [];
 
+    // Dual Engine Configuration (SPEC-027)
+    this.engineMode = options.engineMode || ENGINE_MODES.AUTO;
+    this.apiKey = options.apiKey || (typeof localStorage !== "undefined" ? localStorage.getItem("ag_gemini_api_key") : null);
+
     this.listeners = {
       message: [],
       thinking: [],
@@ -27,10 +37,40 @@ export class AgentBridge {
       promptDispatched: [],
       authSuccess: [],
       installLog: [],
+      unauthenticatedPrompt: [],
     };
 
     this.detectedPorts = new Set();
     this.portScanInterval = null;
+  }
+
+  setEngineMode(mode) {
+    if (Object.values(ENGINE_MODES).includes(mode)) {
+      this.engineMode = mode;
+      console.log(`AgentBridge EngineMode cambiado a: ${mode}`);
+    }
+  }
+
+  setApiKey(key) {
+    this.apiKey = key;
+    try {
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("ag_gemini_api_key", key);
+      }
+    } catch (e) {}
+  }
+
+  checkIsAuthenticated() {
+    try {
+      if (typeof localStorage !== "undefined") {
+        const stored = localStorage.getItem("ag_user_profile");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          return !!parsed.isAuthenticated;
+        }
+      }
+    } catch (e) {}
+    return false;
   }
 
   on(event, callback) {
@@ -232,15 +272,50 @@ export class AgentBridge {
   }
 
   /**
-   * Dispatch a user prompt to the PTY (SPEC-023 §5: ResilientPromptQueueContract)
-   * If disconnected, queues the prompt and auto-reconnects
+   * Dispatch a user prompt (SPEC-023 §5, SPEC-027 §2: DualEngineContract)
+   * Supports Motor 1 (PTY agy), Motor 2 (Direct Gemini API), or Unauthenticated Info State
    * @param {string} promptText
    */
   sendUserPrompt(promptText) {
     if (!promptText || !promptText.trim()) return;
 
+    // Evaluación del modo de motor (DualEngineContract - SPEC-027)
+    const isAuth = this.checkIsAuthenticated();
+    const effectiveApiKey = this.apiKey || (typeof localStorage !== "undefined" ? localStorage.getItem("ag_gemini_api_key") : null);
+
+    // Motor 2 forzado
+    if (this.engineMode === ENGINE_MODES.GEMINI_DIRECT) {
+      this.streamGeminiDirect(promptText).catch((err) => {
+        console.error("Error en streamGeminiDirect:", err);
+      });
+      return;
+    }
+
+    // Modo AUTO: si no hay sesión OAuth activa en la UI, pero hay clave de API (proporcionada por el usuario o en storage), usar Motor 2
+    if (this.engineMode === ENGINE_MODES.AUTO && !isAuth && effectiveApiKey) {
+      this.streamGeminiDirect(promptText).catch((err) => {
+        console.error("Error en streamGeminiDirect (modo auto con API key):", err);
+      });
+      return;
+    }
+
+    // Modo AUTO: si no hay ni autenticación OAuth ni API key, emitir Estado Informativo No Autenticado
+    if (!isAuth && !effectiveApiKey) {
+      this.emit('unauthenticatedPrompt', { promptText });
+      this.emit('message', {
+        raw: "",
+        text: `### ✦ Autenticación Requerida para Google Antigravity\n\n` +
+              `Para comenzar a programar con **Gemini 2.5 Pro** y ejecutar herramientas agénticas en este dispositivo, selecciona un método de acceso:\n\n` +
+              `* **Cuenta Google (Recomendado):** Vincula tu cuenta personal o corporativa mediante OAuth 2.0 para desbloquear cuotas completas y soporte de planes Google One AI Ultra.\n` +
+              `* **Clave de API Directa:** Utiliza una API Key de Google AI Studio para desarrollo local inmediato.`
+      });
+      this.emit('statusChange', { status: 'READY', type: 'ready' });
+      return;
+    }
+
+    // Motor 1: Oficial Google Antigravity PTY (Producción)
     if (!this.isConnected || !this.websocket || this.websocket.readyState !== WebSocket.OPEN) {
-      console.warn("AgentBridge no está conectado aún. Encolando prompt:", promptText);
+      console.warn("AgentBridge no está conectado aún a la PTY. Encolando prompt:", promptText);
       this.pendingQueue.push(promptText);
       this.emit('promptQueued', { text: promptText, queueLength: this.pendingQueue.length });
 
@@ -253,6 +328,91 @@ export class AgentBridge {
 
     this.emit('statusChange', { status: 'THINKING', type: 'thinking' });
     this.websocket.send(`${promptText}\r`);
+  }
+
+  /**
+   * Streaming Server-Sent Events (SSE) directo con Gemini API (SPEC-027 §2.2)
+   * @param {string} promptText
+   */
+  async streamGeminiDirect(promptText) {
+    this.emit('statusChange', { status: 'THINKING', type: 'thinking' });
+    const apiKey = this.apiKey || (typeof localStorage !== "undefined" ? localStorage.getItem("ag_gemini_api_key") : null);
+    const modelsToTry = ["gemini-2.5-pro", "gemini-3.6-flash", "gemini-2.5-flash"];
+    let lastError = null;
+
+    for (const model of modelsToTry) {
+      try {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?alt=sse&key=${apiKey}`;
+        const response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            contents: [{ role: "user", parts: [{ text: promptText }] }],
+            generationConfig: {
+              temperature: 0.7,
+              thinkingConfig: { includeThoughts: true }
+            }
+          })
+        });
+
+        if (!response.ok) {
+          const errText = await response.text();
+          if (response.status === 404) {
+            lastError = new Error(`Model ${model} not found: ${errText}`);
+            continue;
+          }
+          throw new Error(`Gemini API error (${response.status}): ${errText}`);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder("utf-8");
+        let buffer = "";
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split("\n");
+          buffer = lines.pop();
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (trimmed.startsWith("data: ")) {
+              const jsonStr = trimmed.slice(6);
+              try {
+                const data = JSON.parse(jsonStr);
+                const candidates = data.candidates || [];
+                if (candidates.length > 0 && candidates[0].content?.parts) {
+                  for (const part of candidates[0].content.parts) {
+                    if (part.thought) {
+                      this.emit('thinking', { raw: part.text, isComplete: false });
+                    } else if (part.text) {
+                      this.emit('message', { raw: part.text, text: part.text });
+                    }
+                  }
+                }
+              } catch (parseErr) {
+                // Fragmento JSON en curso
+              }
+            }
+          }
+        }
+
+        this.emit('statusChange', { status: 'READY', type: 'ready' });
+        return;
+      } catch (err) {
+        lastError = err;
+        if (model !== modelsToTry[modelsToTry.length - 1]) continue;
+      }
+    }
+
+    console.error("Gemini Direct streaming failed:", lastError);
+    this.emit('message', {
+      raw: "",
+      text: `⚠️ **Error al conectar con Gemini Direct API**: ${lastError?.message || "Error desconocido"}. Verifica tu conexión a internet o tu clave de API.`
+    });
+    this.emit('statusChange', { status: 'READY', type: 'ready' });
   }
 
   /**
