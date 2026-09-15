@@ -1978,6 +1978,42 @@ Se formaliza e implementa la solución de navegación cuadridireccional bajo el 
 
 ---
 
+### ADR-032: Desplazamiento Táctil Unificado de Chat con Física de Inercia a 144Hz y D-Pad Contextual Inteligente (v2.1.4)
+
+- **Identificador:** `ADR-032` (Secuencia Repositorio: `ADR-042` / `ADR-032`)
+- **Especificación SDD Asociada:** [`SPEC-032`](specs/32-unified-chat-touch-scrolling-and-contextual-dpad.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.128 Contexto
+Tras el despliegue de la versión `v2.1.3` en la tablet Xiaomi Pad 6, el usuario reportó una seria deficiencia ergonómica durante la sesión interactiva con el agente `agy` en modo chat:
+1. **Conflicto Entre Scroll de Búfer y Readline History:** Al intentar deslizar el dedo verticalmente hacia abajo para subir y leer párrafos anteriores de las respuestas generadas por el agente, `TerminalTouchNavigation.js` inyectaba incondicionalmente la secuencia ANSI `ArrowUp` (`\x1b[A`). Al encontrarse en el prompt de comandos (`> `), Readline interpretaba esta secuencia como una orden de recuperar el historial de comandos previos, sobrescribiendo el prompt con comandos pasados en lugar de desplazar el búfer de texto.
+2. **Dependencia Forzada de Scrollbar Minúscula:** Para revisar respuestas largas del agente, el usuario se veía forzado a arrastrar la barra lateral de scroll de 6px en el extremo derecho de la pantalla, lo que resultaba incómodo, lento y ajeno a la experiencia fluida de una aplicación táctil moderna en pantalla de 11 pulgadas a 144Hz.
+
+#### 4.129 Decisión
+Se decide implementar el desacoplamiento de navegación táctil e introducir el motor táctil híbrido bajo el contrato formal [`SPEC-032`](specs/32-unified-chat-touch-scrolling-and-contextual-dpad.md):
+1. **Scroll Táctil Nativo de Mensajes con Física de Inercia (144Hz):** En estado de conversación normal (lectura de chat o cuando el usuario ha subido en el búfer con `viewportY < baseY`), el deslizamiento vertical con 1 dedo ejecuta directamente `terminal.scrollLines(-lines)` sobre el lienzo de Xterm.js con desaceleración exponencial (`friction: 0.92`, `minVelocity: 0.5`), permitiendo recorrer respuestas extensas con un toque fluido y natural sin interferir con el prompt ni emitir bytes a la PTY.
+2. **Detección Contextual Automática de Menús Interactivos (`isInteractiveMenu`):** Cuando el viewport se encuentra al fondo del búfer (`viewportY === baseY`), el motor inspecciona el contenido de las líneas visibles. Si detecta indicadores de menús interactivos de selección (Inquirer/curses: `❯`, `(Use arrow keys)`, `? Select`, `? Choose`, `[y/N]`), conmuta automáticamente a modo D-Pad (`ArrowUp` / `ArrowDown`), preservando la capacidad de navegar menús de configuración sin intervención manual.
+3. **Gesto Dedicado para Historial de Comandos (2 Dedos):** Para recuperar comandos anteriores en el prompt de manera deliberada, el usuario realiza un deslizamiento vertical con **2 dedos**, emitiendo de forma explícita `ArrowUp` (`\x1b[A`) o `ArrowDown` (`\x1b[B`) hacia el socket PTY.
+4. **Preservación de Navegación Horizontal y Portapapeles:** Se preservan intactos el movimiento horizontal del cursor (`ArrowLeft` / `ArrowRight`) con bloqueo cinemático de eje (*axisLock*), el pegado rápido por pulsación prolongada (400ms) o doble toque con vibración háptica, y el auto-bridge de Google OAuth 2.0.
+5. **Empaquetado y Publicación Oficial:** Compilación de **`GoogleAntigravity-v2.1.4-ARM64.apk`** (36.81 MB / 38,597,541 bytes $\le 42\,\text{MB}$), versión `2.1.4` (versionCode `20104`), commit `84cb383`, SHA256 `03a183acd29fd14b7f9f5191515897423ddceb3d10dc8c54c0b09d461dc8fe31`.
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Modificaciones de producción delegadas a `@android-core`.
+   - *SDD-first:* Regido por `SPEC-032` (`AC-CHAT-01` a `AC-CHAT-06`).
+   - *Desacoplamiento Contextual:* Scroll de texto para lectura y D-Pad para menús/historial.
+   - *Terminal Borde a Borde:* Viewport 100% limpio sin botones ni controles flotantes invasivos.
+
+#### 4.130 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia de Lectura Táctil de Primera Clase:** Desplazamiento fluido y con inercia idéntico a una app de mensajería nativa en la Xiaomi Pad 6 a 144Hz.
+  - **Cero Corrupción del Prompt:** Deslizar para leer no altera el texto ni dispara comandos previos de Readline.
+  - **Inteligencia Contextual Transparente:** Conmutación automática entre scroll de búfer y selección en menús interactivos sin botones adicionales.
+- **Compromisos Operativos:**
+  - La navegación intencional del historial de comandos en el prompt requiere ahora el gesto vertical con 2 dedos.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2014,6 +2050,7 @@ Se formaliza e implementa la solución de navegación cuadridireccional bajo el 
 | **SPEC-029** | Arquitectura de Puente OAuth hacia Navegador Externo (FLAG_ACTIVITY_NEW_TASK), Detección Reactiva de Hipervínculos OSC 8 y Barra de Acción Interactiva en Terminal Agéntica | `specs/29-oauth-browser-bridge-and-interactive-auth.md` | `APPROVED` | 8 ACs |
 | **SPEC-030** | Terminal Agéntica Pura de Borde a Borde (Zero-Decoration), Motor Gestual Táctil de Navegación (Arrow Emulation) y Portapapeles por Pulsación Prolongada | `specs/30-pure-clean-terminal-and-gesture-touch-navigation.md` | `APPROVED` | 6 ACs |
 | **SPEC-031** | Navegación Gestual Táctil Cuadridireccional (4-Way D-Pad), Bloqueo Cinemático de Eje (Axis-Locking) y Supresión Definitiva de Paneles Laterales | `specs/31-horizontal-gesture-navigation-4-way-dpad.md` | `APPROVED` | 6 ACs |
+| **SPEC-032** | Desplazamiento Táctil Unificado de Chat con Física de Inercia (Momentum Scrolling) y D-Pad Contextual Inteligente | `specs/32-unified-chat-touch-scrolling-and-contextual-dpad.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
