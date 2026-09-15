@@ -143,8 +143,24 @@ const Terminal = {
      * @param {Function} [err_logger=console.error] - Function to log errors.
      * @returns {Promise<boolean>} - Returns true if installation completes with exit code 0
      */
-    async install(logger = console.log, err_logger = console.error) {
+    async install(onProgress = console.log, err_logger = console.error) {
         if (!(await this.isSupported())) return false;
+
+        const report = (percent, message) => {
+            if (typeof onProgress === "function") {
+                try {
+                    onProgress(percent, message);
+                } catch (e) {
+                    console.warn("Error en onProgress callback:", e);
+                }
+            }
+        };
+
+        const logger = (msg) => {
+            console.log(msg);
+        };
+
+        report(15, "Iniciando aprovisionamiento del entorno...");
 
         const isFdroid = await Executor.execute("echo $FDROID");
 
@@ -200,6 +216,7 @@ const Terminal = {
             }
 
             if (arch === "arm64-v8a") {
+                report(30, "Extrayendo sistema base Linux ARM64...");
                 logger("📦  Extrayendo Ubuntu ARM64 glibc rootfs desde assets locales canónicos...");
                 await new Promise((resolve, reject) => {
                     system.extractAsset(
@@ -220,6 +237,7 @@ const Terminal = {
                     );
                 });
 
+                report(55, "Extrayendo Google Antigravity CLI (agy)...");
                 logger("📦  Extrayendo Google Antigravity CLI (arm64) desde assets locales...");
                 await new Promise((resolve, reject) => {
                     system.extractAsset(
@@ -263,6 +281,7 @@ const Terminal = {
             await ensureDir(alpineDir);
 
             if (arch === "arm64-v8a") {
+                report(75, "Descomprimiendo subsistema e instalando paquetes...");
                 logger("📦  Descomprimiendo sistema base Linux Ubuntu ARM64...");
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/rootfs.tar.gz -C ${alpineDir} || [ -f ${alpineDir}/bin/sh ]`);
                 await Executor.execute(`ln -sf perl ${alpineDir}/usr/bin/perl5.38.2 2>/dev/null || true`);
@@ -278,6 +297,7 @@ const Terminal = {
                 await deleteFile(`${filesDir}/rootfs.tar.gz`).catch(() => {});
                 await deleteFile(`${filesDir}/cli_linux_arm64.tar.gz`).catch(() => {});
             } else {
+                report(75, "Descomprimiendo subsistema e instalando paquetes...");
                 logger("📦  Descomprimiendo sistema sandbox...");
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/alpine.tar.gz -C ${alpineDir}`);
                 await deleteFile(`${filesDir}/alpine.tar.gz`).catch(() => {});
@@ -324,6 +344,7 @@ fi
             await setExec(`${alpineDir}/usr/local/bin/xdg-open`, true);
             await Executor.execute(`ln -sf xdg-open ${alpineDir}/usr/local/bin/x-www-browser`);
 
+            report(90, "Configurando certificados de seguridad TLS y sandbox...");
             logger("⚙️  Aplicando configuración del sistema y certificados TLS...");
             await ensureDir(`${alpineDir}/etc`);
             await ensureDir(`${alpineDir}/etc/ssl/certs`);
@@ -357,11 +378,13 @@ fi
             logger("✅  Descompresión completada");
             await ensureDir(`${filesDir}/.extracted`);
 
+            report(95, "Configurando entorno sandbox...");
             logger("⚙️  Configurando entorno sandbox...");
             const installResult = await this.startAxs(true, logger, err_logger);
             if (!installResult) {
                 throw new Error(this.lastInstallError || "Sandbox configuration failed.");
             }
+            report(100, "¡Listo! Iniciando sesión agéntica...");
             return installResult;
 
         } catch (e) {

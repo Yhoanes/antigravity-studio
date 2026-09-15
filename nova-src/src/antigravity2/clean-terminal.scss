@@ -1,5 +1,5 @@
 // nova-src/src/antigravity2/clean-terminal.scss
-// Google Antigravity 2.1.6: Experiencia Oficial Pura y Erradicación Total de Scrollbars DOM (SPEC-034)
+// Google Antigravity 2.1.7: Experiencia de Splash Pura, Estabilizador OAuth y Loader de Aprovisionamiento (SPEC-035)
 // 4-Way D-Pad Touch Navigation, Zero-Decoration Architecture, Supresión Total de Barras Laterales y Scrollbars
 
 html, body {
@@ -125,4 +125,88 @@ html, body {
             }
         }
     }
+}
+
+// SPEC-035: ProvisioningLoader Overlay & Material 3 Progress Bar
+.provisioning-loader-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #0b0f19;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    transition: opacity 0.3s ease-out;
+
+    &.fade-out {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .provisioning-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 85%;
+        max-width: 420px;
+        padding: 32px;
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+
+        .provisioning-logo {
+            width: 96px;
+            height: 96px;
+            margin-bottom: 20px;
+            animation: pulsePrism 2.5s infinite ease-in-out;
+        }
+
+        .provisioning-title {
+            color: #f8fafc;
+            font-size: 20px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            letter-spacing: -0.02em;
+        }
+
+        .provisioning-subtitle {
+            color: #94a3b8;
+            font-size: 13px;
+            margin: 0 0 24px 0;
+            text-align: center;
+            min-height: 20px;
+        }
+
+        .provisioning-progress-track {
+            width: 100%;
+            height: 8px;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 12px;
+
+            .provisioning-progress-bar {
+                height: 100%;
+                width: 0%;
+                background: linear-gradient(90deg, #4285f4 0%, #34a853 100%);
+                border-radius: 999px;
+                transition: width 0.25s ease;
+            }
+        }
+
+        .provisioning-percentage {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 600;
+            font-family: monospace;
+        }
+    }
+}
+
+@keyframes pulsePrism {
+    0%, 100% { transform: scale(1); opacity: 0.95; }
+    50% { transform: scale(1.04); opacity: 1; }
 }

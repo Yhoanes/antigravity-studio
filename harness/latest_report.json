@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-15T03:55:30.704916+00:00",
+  "timestamp": "2026-09-15T04:22:54.937108+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,20 +7,20 @@
     "passed_suites": 1,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 219.12
+    "total_duration_ms": 216.7
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 218.62,
-      "summary": "35/35 especificaciones SDD válidas | 286 Criterios de Aceptación (AC) verificados",
+      "duration_ms": 216.22,
+      "summary": "36/36 especificaciones SDD válidas | 294 Criterios de Aceptación (AC) verificados",
       "details": {
-        "total_specs": 35,
-        "passed_specs": 35,
+        "total_specs": 36,
+        "passed_specs": 36,
         "failed_specs": 0,
-        "total_acceptance_criteria": 286,
+        "total_acceptance_criteria": 294,
         "reports": [
           {
             "file_path": "specs/00-system-architecture.md",
@@ -2651,6 +2651,80 @@
             ],
             "diagram_count": 2,
             "contract_count": 6,
+            "errors": [],
+            "warnings": []
+          },
+          {
+            "file_path": "specs/35-splash-ux-oauth-stabilizer-and-progress-loader.md",
+            "is_valid": true,
+            "metadata": {
+              "id": "SPEC-035",
+              "title": "Experiencia de Splash Pura, Estabilizador de Stream OAuth Anti-404, Loader Visual de Aprovisionamiento y Discriminador de Gestos",
+              "author": "@spec-architect",
+              "status": "APPROVED FOR IMPLEMENTATION",
+              "target_device": "Xiaomi Pad 6 (Qualcomm Snapdragon 870, ARM64-v8a, 6-8 GB RAM, 11\" 2.8K $2880\\times 1800$, 144Hz, Xiaomi HyperOS / Android 13/14) y Ecosistema Android Móvil (API 26+)",
+              "runtime_target": "Cordova Android WebView / PRoot Linux Sandbox / AXS PTY Daemon (puerto 8767) / Xterm.js v5+ con Discriminador Contextual de Gestos / Google Antigravity CLI (`agy`) / Android Intent System (`FLAG_ACTIVITY_NEW_TASK`)"
+            },
+            "acceptance_criteria": [
+              {
+                "id": "AC-SPLASH-01",
+                "module": "`www/index.html`, `main.js`",
+                "description": "Supresión absoluta de textos de depuración en splash screen (`.splash-version`, `.splash-message`, \"Loading folders...\"). Splash muestra únicamente el prisma oficial 3D centrado sobre `#0b0f19`.",
+                "verification_method": "Inspección del DOM estático de `index.html` y comprobación de reglas CSS forzadas `display: none !important`.",
+                "line_number": 473
+              },
+              {
+                "id": "AC-OAUTH-01",
+                "module": "CleanAgentTerminal.js",
+                "description": "Buffer estabilizador de stream WebSocket con debounce (350ms) y validación estricta de parámetros obligatorios de Google OAuth 2.0 PKCE (`client_id`, `redirect_uri`, `scope`, `code_challenge`, `state`).",
+                "verification_method": "Inspección de código en `validateOAuthUrl` asegurando la comprobación de todos los parámetros requeridos y longitud $\\ge 350$.",
+                "line_number": 474
+              },
+              {
+                "id": "AC-OAUTH-02",
+                "module": "CleanAgentTerminal.js",
+                "description": "Despacho garantizado sin error 404 hacia Google Chrome en tarea aislada (`FLAG_ACTIVITY_NEW_TASK`), prohibiendo la apertura de URLs truncadas.",
+                "verification_method": "Verificación de que `openOAuthUrl` sólo sea invocado tras la validación afirmativa del estabilizador.",
+                "line_number": 475
+              },
+              {
+                "id": "AC-LOADER-01",
+                "module": "ProvisioningLoader.js",
+                "description": "Componente visual `ProvisioningLoader.js` con logotipo 3D, título oficial, barra de progreso con gradiente Material 3 (#4285F4 -> #34A853) y porcentaje animado.",
+                "verification_method": "Inspección de la estructura DOM y estilos del componente en `clean-terminal.scss`.",
+                "line_number": 476
+              },
+              {
+                "id": "AC-LOADER-02",
+                "module": "Terminal.js",
+                "description": "Emisión secuencial de progreso real en `Terminal.install(onProgress)` (0% a 100%) con estados informativos descriptivos en español en cada fase.",
+                "verification_method": "Ejecución de `Terminal.install` verificando que invoque `onProgress(percent, label)` en cada etapa de extracción.",
+                "line_number": 477
+              },
+              {
+                "id": "AC-LOADER-03",
+                "module": "ProvisioningLoader.js",
+                "description": "Transición suave de desvanecimiento (fade-out 300ms) al 100% de la barra de progreso hacia la terminal agéntica limpia.",
+                "verification_method": "Verificación de la clase `fade-out` y el temporizador de retiro del DOM tras 300ms.",
+                "line_number": 478
+              },
+              {
+                "id": "AC-GESTURE-01",
+                "module": "TerminalTouchNavigation.js",
+                "description": "Discriminador contextual inteligente en `isInteractiveMenu()`, diferenciando prompt de entrada `❯ ` de menús reales, con vibración háptica de 25ms en selección.",
+                "verification_method": "Pruebas unitarias de expresión regular con buffers simulados de prompt vs menús Inquirer y verificación de vibración háptica.",
+                "line_number": 479
+              },
+              {
+                "id": "AC-VER-01",
+                "module": "`config.xml`, `package.json`",
+                "description": "Sincronización formal de versión 2.1.7 (versionCode 20107) y peso del APK final $\\le 42.0\\,\\text{MB}$.",
+                "verification_method": "Inspección de archivos de configuración y validación de tamaño de `GoogleAntigravity-v2.1.7-ARM64.apk`.",
+                "line_number": 480
+              }
+            ],
+            "diagram_count": 4,
+            "contract_count": 4,
             "errors": [],
             "warnings": []
           }

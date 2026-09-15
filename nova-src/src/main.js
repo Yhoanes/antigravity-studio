@@ -313,10 +313,6 @@ async function onDeviceReady() {
 	setTimeout(async () => {
 		if (document.body.classList.contains("loading")) {
 			window.log("warn", "App is taking unexpectedly long time!");
-			document.body.setAttribute(
-				"data-small-msg",
-				"This is taking unexpectedly long time!",
-			);
 		}
 	}, 1000 * 10);
 
@@ -564,33 +560,7 @@ async function fetchPromotions() {
 }
 
 async function setDebugInfo() {
-	const { version, versionCode } = BuildInfo;
-
-	const userAgent = navigator.userAgent;
-	const language = navigator.language;
-
-	// Extract Android version
-	const androidMatch = userAgent.match(/Android\s([0-9.]+)/);
-	const androidVersion = androidMatch ? androidMatch[1] : "Unknown";
-
-	// Extract Chrome/WebView version
-	const chromeMatch = userAgent.match(/Chrome\/([0-9.]+)/);
-	const webviewVersion = chromeMatch ? chromeMatch[1] : "Unknown";
-	const webviewMajor = Number.parseInt(webviewVersion, 10);
-	const minWebviewMajor = window.__ACODE_MIN_WEBVIEW_MAJOR__ || 84;
-	const webviewStatus =
-		Number.isFinite(webviewMajor) && webviewMajor < minWebviewMajor
-			? ` (minimum supported: ${minWebviewMajor})`
-			: "";
-
-	const info = [
-		`App: v${version} (${versionCode})`,
-		`Android: ${androidVersion}`,
-		`WebView: ${webviewVersion}${webviewStatus}`,
-		`Language: ${language}`,
-	].join("\n");
-
-	document.body.setAttribute("data-version", info);
+	// SPEC-035 (AC-SPLASH-01): data-version suprimido para mantener pantalla de splash inmaculada
 }
 
 function getUpdateMessage(count) {

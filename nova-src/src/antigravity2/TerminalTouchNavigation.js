@@ -1,6 +1,6 @@
 /**
- * TerminalTouchNavigation - Controlador Gestual Híbrido Cuadridireccional (SPEC-030, SPEC-031 & SPEC-032)
- * Soporta Momentum Scrolling táctil en chat a 144Hz, D-Pad contextual en menús interactivos,
+ * TerminalTouchNavigation - Controlador Gestual Híbrido Cuadridireccional (SPEC-030, SPEC-031, SPEC-032 & SPEC-035)
+ * Soporta Momentum Scrolling táctil en chat a 144Hz, D-Pad contextual inteligente en menús con háptica 25ms,
  * 2 dedos para historial de comandos, y pegado por pulsación prolongada (long-press 400ms) o doble toque.
  */
 
@@ -88,8 +88,9 @@ export class TerminalTouchNavigation {
     }
 
     /**
-     * SPEC-032: AC-CHAT-02 & AC-CHAT-03
-     * Discriminador contextual: determina si la terminal muestra un menú selector interactivo
+     * SPEC-032 & SPEC-035: AC-GESTURE-01
+     * Discriminador contextual inteligente: diferencia estrictamente entre el prompt de entrada
+     * de texto (chat) y un menú interactivo real (Inquirer, curses, selección CLI).
      */
     isInteractiveMenu() {
         if (!this.terminal || !this.terminal.buffer || !this.terminal.buffer.active) {
@@ -97,34 +98,55 @@ export class TerminalTouchNavigation {
         }
         const buffer = this.terminal.buffer.active;
 
-        // Si el usuario no está al fondo del búfer, está leyendo mensajes anteriores -> NO es menú
-        if (buffer.viewportY < buffer.baseY) {
-            return false;
-        }
+        // Buffer alterno siempre corresponde a aplicaciones interactivas (curses/vim/less)
+        if (buffer.type === "alternate") return true;
+
+        // Si el usuario se ha desplazado hacia arriba en el búfer, está leyendo chat
+        if (buffer.viewportY < buffer.baseY) return false;
 
         const startLine = Math.max(0, buffer.baseY);
         const endLine = buffer.baseY + (this.terminal.rows || 24);
-        let visibleText = "";
+        const lines = [];
 
         for (let i = startLine; i < endLine; i++) {
             const line = buffer.getLine(i);
-            if (line) {
-                visibleText += line.translateToString(true) + "\n";
-            }
+            if (line) lines.push(line.translateToString(true));
         }
 
-        // Firmas canónicas de selectores CLI interactivos (Inquirer, Enquirer, Curses, agy)
-        const MENU_PATTERNS = [
-            /❯/,
+        const fullText = lines.join("\n");
+
+        // 1. Patrones explícitos de instrucciones de selección
+        const EXPLICIT_PATTERNS = [
             /\(Use arrow keys\)/i,
+            /\(Press <space> to select\)/i,
             /\? Select/i,
             /\? Choose/i,
             /\[y\/N\]/i,
             /\[Y\/n\]/i,
-            /Instructions:/i
+            /●|○/
         ];
 
-        return MENU_PATTERNS.some(pattern => pattern.test(visibleText));
+        if (EXPLICIT_PATTERNS.some(p => p.test(fullText))) {
+            return true;
+        }
+
+        // 2. Discriminación de prompt de entrada: si ❯ solo aparece al final sin opciones hermanas, es chat
+        const chevronLines = lines.filter(l => l.includes("❯"));
+        if (chevronLines.length === 1) {
+            const lastLine = lines[lines.length - 1] || "";
+            const prevLine = lines[lines.length - 2] || "";
+            // Si el chevron está en la línea de comando y la anterior no es menú, es prompt de texto
+            if (lastLine.includes("❯") && !prevLine.trim().startsWith("  ")) {
+                return false;
+            }
+        }
+
+        // 3. Menú multi-opción: presencia de ❯ en una línea acompañada de opciones con sangría '  '
+        const hasMenuStructure = lines.some((l, idx) => 
+            l.includes("❯") && (lines[idx + 1]?.startsWith("  ") || lines[idx - 1]?.startsWith("  "))
+        );
+
+        return hasMenuStructure;
     }
 
     onTouchStart(e) {
@@ -254,6 +276,9 @@ export class TerminalTouchNavigation {
                 e.preventDefault();
                 this.accumulatedDeltaY += deltaYCurrent;
                 while (Math.abs(this.accumulatedDeltaY) >= this.options.swipeThreshold) {
+                    if (navigator.vibrate) {
+                        try { navigator.vibrate(25); } catch (err) {}
+                    }
                     if (this.accumulatedDeltaY > 0) {
                         this.options.onArrowUp();
                         this.accumulatedDeltaY -= this.options.swipeThreshold;

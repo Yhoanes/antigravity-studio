@@ -729,7 +729,7 @@ class Acode {
 	}
 
 	setLoadingMessage(message) {
-		document.body.setAttribute("data-small-msg", message);
+		// SPEC-035 (AC-SPLASH-01): Suprimido para mantener pantalla de splash inmaculada
 	}
 
 	/**

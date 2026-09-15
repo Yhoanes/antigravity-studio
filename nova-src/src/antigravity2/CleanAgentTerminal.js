@@ -10,6 +10,7 @@ import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import TerminalTouchNavigation from "./TerminalTouchNavigation";
+import { ProvisioningLoader } from "./ProvisioningLoader.js";
 import "@xterm/xterm/css/xterm.css";
 import "./clean-terminal.scss";
 
@@ -33,11 +34,12 @@ export class CleanAgentTerminal {
         this._resizeObserver = null;
         this._cleanupResize = null;
 
-        // Estado de sesión OAuth y sniffer silencioso
+        // Estado de sesión OAuth y sniffer silencioso (SPEC-029 / SPEC-035: Anti-404 Stabilizer)
         this._lastOAuthUrl = null;
         this.activeOAuthUrl = null;
         this._hasAutoOpenedBrowser = false;
         this._streamBuffer = "";
+        this._oauthDebounceTimer = null;
     }
 
     mount(parentEl) {
@@ -225,8 +227,15 @@ export class CleanAgentTerminal {
         const terminalPlugin = typeof Terminal !== "undefined" ? Terminal : (window.Terminal || null);
         if (terminalPlugin) {
             if (typeof terminalPlugin.isInstalled === "function" && !(await terminalPlugin.isInstalled())) {
-                this.terminal?.writeln("\r\n\x1b[33m[SISTEMA]\x1b[0m Extrayendo subsistema Linux inicial...");
-                await terminalPlugin.install();
+                const loader = new ProvisioningLoader();
+                loader.mount(this.containerEl || document.body);
+                try {
+                    await terminalPlugin.install((percent, msg) => {
+                        loader.update(percent, msg);
+                    });
+                } finally {
+                    await loader.finish();
+                }
             }
             if (typeof terminalPlugin.isAxsRunning === "function" && !(await terminalPlugin.isAxsRunning())) {
                 this.terminal?.writeln("\r\n\x1b[33m[SISTEMA]\x1b[0m Iniciando daemon AXS...");
@@ -315,9 +324,20 @@ export class CleanAgentTerminal {
     }
 
     /**
-     * SPEC-029 & SPEC-030: Sniffer silencioso de flujo de datos en el WebSocket.
-     * Detecta patrones de URL Google OAuth y dispara auto-apertura en Chrome (FLAG_ACTIVITY_NEW_TASK).
-     * No inyecta ni muestra barras visuales decorativas (Terminal 100% Pura).
+     * SPEC-035: AC-OAUTH-01 & AC-OAUTH-02 Validador estricto de parámetros PKCE.
+     * Previene despachar fragmentos truncados hacia Google Chrome erradicando el error 404.
+     */
+    validateOAuthUrl(url) {
+        if (!url || url.length < 300) return false;
+        const requiredParams = ["client_id=", "redirect_uri=", "scope=", "code_challenge="];
+        const hasAllRequired = requiredParams.every((param) => url.includes(param));
+        const hasStateOrResponse = url.includes("state=") || url.includes("response_type=code");
+        return hasAllRequired && hasStateOrResponse;
+    }
+
+    /**
+     * SPEC-029, SPEC-030 & SPEC-035: Sniffer silencioso de flujo de datos en el WebSocket.
+     * Acumula fragmentos TCP y utiliza ventana de debounce de 350ms para validar URL completa antes de abrir Chrome.
      */
     detectOAuthUrl(chunk) {
         try {
@@ -327,25 +347,38 @@ export class CleanAgentTerminal {
                     ? new TextDecoder().decode(chunk)
                     : String(chunk || ""));
 
-            this._streamBuffer = (this._streamBuffer || "") + text;
-            if (this._streamBuffer.length > 8192) {
-                this._streamBuffer = this._streamBuffer.slice(-8192);
-            }
-
-            const match = this._streamBuffer.match(OAUTH_REGEX);
-            if (match) {
-                const detectedUrl = match[0];
-                this._lastOAuthUrl = detectedUrl;
-                this.activeOAuthUrl = detectedUrl;
-
-                // Auto-apertura única en Chrome en tarea aislada
-                if (!this._hasAutoOpenedBrowser) {
-                    this._hasAutoOpenedBrowser = true;
-                    this.openInBrowser(detectedUrl);
+            if (text.includes("accounts.google.com") || (this._streamBuffer && !this._hasAutoOpenedBrowser)) {
+                this._streamBuffer = (this._streamBuffer || "") + text;
+                if (this._streamBuffer.length > 16384) {
+                    this._streamBuffer = this._streamBuffer.slice(-16384);
                 }
+
+                if (this._oauthDebounceTimer) {
+                    clearTimeout(this._oauthDebounceTimer);
+                }
+
+                this._oauthDebounceTimer = setTimeout(() => {
+                    this.processOAuthBuffer();
+                }, 350);
             }
         } catch (err) {
             console.warn("Error en detectOAuthUrl:", err);
+        }
+    }
+
+    processOAuthBuffer() {
+        if (!this._streamBuffer) return;
+        const match = this._streamBuffer.match(OAUTH_REGEX);
+        if (match) {
+            const candidateUrl = match[0];
+            if (this.validateOAuthUrl(candidateUrl)) {
+                this._lastOAuthUrl = candidateUrl;
+                this.activeOAuthUrl = candidateUrl;
+                if (!this._hasAutoOpenedBrowser) {
+                    this._hasAutoOpenedBrowser = true;
+                    this.openInBrowser(candidateUrl);
+                }
+            }
         }
     }
 

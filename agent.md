@@ -2053,6 +2053,53 @@ Se formaliza la arquitectura de cero barras de desplazamiento (*Zero-Scrollbar A
 
 ---
 
+### ADR-034: Experiencia Oficial Pura Google Antigravity, Erradicación de Scrollbar DOM de Xterm y Purga Definitiva de Marcas Heredadas v2.1.6
+
+- **Identificador:** `ADR-034` (Secuencia Repositorio: `ADR-044` / `ADR-034`)
+- **Especificación SDD Asociada:** [`SPEC-034`](specs/34-pure-official-antigravity-experience-and-brand-purging.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.134 Contexto
+A partir de las pruebas de campo en la tablet física Xiaomi Pad 6 con evidencias fotográficas directas de la versión `v2.1.5`, se identificaron cuatro anomalías críticas que afectaban la inmersión, identidad corporativa y limpieza visual:
+1. **Deslizador DOM Residual de Xterm.js:** A pesar de la supresión de `::-webkit-scrollbar` en Chromium, las versiones modernas de Xterm.js (v5.5+) inyectan dinámicamente nodos DOM propios en JavaScript (`.scrollbar > .slider`), visibles como una barra vertical gris translúcida en el margen derecho de la tablet.
+2. **Contaminación en el Arranque por MOTD y Prompt de Bash:** Al conectarse la sesión PTY, la parte superior de la terminal mostraba el mensaje `/etc/acode_motd` heredado ("‹ ✦ › Nova IDE (Ubuntu 24.04 ARM64)") y el comando escrito en el prompt interactivo de bash (`root@localhost /h/s/workspace $ agy`), impidiendo el despliegue directo y limpio del banner oficial del agente.
+3. **Toast de Excepción no Controlada y Modal Invasivo:** Durante el arranque en frío, `main.js` arrojaba el toast flotante de error `Cannot read properties of undefined (reading 'exists')` al consultar `fsOperation` antes de tiempo, y la función `promptUpdateCheckConsent` desplegaba un cuadro de diálogo modal de confirmación no deseado.
+4. **Notificación Foreground de Android con Marca Desactualizada:** La bandeja del sistema Android en la tablet mostraba "Acode Service • Executor service" en lugar de la identidad oficial de Google Antigravity.
+
+#### 4.135 Decisión
+Se formaliza la purga integral de marcas heredadas y la experiencia oficial directa bajo el contrato formal [`SPEC-034`](specs/34-pure-official-antigravity-experience-and-brand-purging.md):
+1. **Erradicación del Scrollbar DOM de Xterm:**
+   - Inyección en `clean-terminal.scss` de reglas CSS forzadas sobre `.scrollbar`, `.slider`, `.scra`, `.scrollbar.vertical` con `display: none !important; width: 0 !important; height: 0 !important; opacity: 0 !important; pointer-events: none !important;`.
+   - Configuración de tema Xterm con colores transparentes (`scrollbarSliderBackground: "transparent"`, `scrollbarSliderHoverBackground: "transparent"`, `scrollbarSliderActiveBackground: "transparent"`) y `overviewRulerWidth: 0`.
+   - Función periódica de poda de nodos DOM (`pruneScrollbars`) en `CleanAgentTerminal.js`.
+2. **Arranque Atómico Limpio Oficial (`clear && exec agy`):**
+   - Supresión definitiva de `/etc/acode_motd` en `init-alpine.sh`.
+   - Configuración del auto-comando PTY como `clear && exec agy\r` en `CleanAgentTerminal.js`, limpiando cualquier residuo previo de shell y reemplazando el proceso bash directamente con el ejecutable de Google Antigravity.
+3. **Blindaje de Arranque en Frío y Cero Modales:**
+   - Adición de guardas estrictas de tipo (`typeof fsOperation === "function"`, null-check en `.exists`) en `main.js`, previniendo excepciones no controladas.
+   - Silenciamiento incondicional de `promptUpdateCheckConsent()`, garantizando cero modales invasivos en primer inicio.
+4. **Rebranding Completo en Android Foreground Service:**
+   - Actualización en `TerminalService.java` de las cadenas del servicio: título oficial `"Google Antigravity"`, texto `"Servicio en segundo plano activo"`, botones `"Liberar Wake Lock"` / `"Salir"`, y canal de notificación `"Google Antigravity Service"`.
+5. **Empaquetado y Versionado Oficial v2.1.6:**
+   - Compilación y certificación de **`GoogleAntigravity-v2.1.6-ARM64.apk`** (36.81 MB / 38,597,577 bytes $\le 42\,\text{MB}$), versión `2.1.6` (versionCode `20106`), commit `84cb383`, SHA256 `e32e501d97eb4c5f1c5bc4f200cc89d26627a23c99274d0067cfc3f77e4b95da`.
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Modificaciones de producción delegadas a `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-034` (`AC-BRAND-01` a `AC-BRAND-06`).
+   - *Pureza de Marca Oficial:* Cero rastros de Acode o Nova IDE en UI, logs y notificaciones.
+   - *Terminal Borde a Borde Pura:* Cero elementos DOM flotantes o residuales.
+
+#### 4.136 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia de Producto Oficial y Terminada:** Apertura directa e instantánea en el logotipo de Google Antigravity sin avisos intermedios ni textos ajenos.
+  - **Supresión Absoluta y Real del Scrollbar:** Eliminación integral tanto a nivel de Chromium como de nodos inyectados dinámicamente por Xterm.js.
+  - **Estabilidad de Arranque sin Toasts:** Cero excepciones no capturadas en primer inicio.
+- **Compromisos Operativos:**
+  - `exec agy` reemplaza el proceso bash subyacente; al salir de `agy`, la sesión de terminal finaliza normalmente.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2091,6 +2138,7 @@ Se formaliza la arquitectura de cero barras de desplazamiento (*Zero-Scrollbar A
 | **SPEC-031** | Navegación Gestual Táctil Cuadridireccional (4-Way D-Pad), Bloqueo Cinemático de Eje (Axis-Locking) y Supresión Definitiva de Paneles Laterales | `specs/31-horizontal-gesture-navigation-4-way-dpad.md` | `APPROVED` | 6 ACs |
 | **SPEC-032** | Desplazamiento Táctil Unificado de Chat con Física de Inercia (Momentum Scrolling) y D-Pad Contextual Inteligente | `specs/32-unified-chat-touch-scrolling-and-contextual-dpad.md` | `APPROVED` | 6 ACs |
 | **SPEC-033** | Supresión Total de Scrollbar (Zero-Scrollbar), Expansión de Borde a Borde y Preservación de Navegación Táctil con Inercia | `specs/33-zero-scrollbar-clean-edge-to-edge-terminal.md` | `APPROVED` | 6 ACs |
+| **SPEC-034** | Experiencia Oficial Pura Google Antigravity, Erradicación de Scrollbar DOM de Xterm y Purga Definitiva de Marcas Heredadas | `specs/34-pure-official-antigravity-experience-and-brand-purging.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
