@@ -2315,6 +2315,55 @@ Se formaliza e implementa la solución de aprovisionamiento resiliente bajo el c
 
 ---
 
+### ADR-050: Resolución Determinista de Librerías Nativas del Sistema, Supresión de Degradación a F-Droid y Inicialización Resiliente de PRoot/AXS (Release v2.2.1)
+
+- **Identificador:** `ADR-050`
+- **Especificación SDD Asociada:** [`SPEC-039`](specs/39-fix-native-library-path-and-proot-sandbox-init.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.152 Contexto
+Tras la validación satisfactoria de la descarga de red y la animación cinemática de `v2.2.0` en el dispositivo físico Xiaomi Pad 6 (`arm64-v8a`), en el instante en que la barra de progreso alcanzaba el 100% y se intentaba iniciar el sandbox Linux con PRoot, la aplicación falló con el siguiente error crítico:
+```
+Sandbox configuration failed with exit code 127: chmod: chmod '/data/user/0/io.nova.ide/files/axs' to 0777: Permission denied
+sh: /data/user/0/io.nova.ide/files/init-sandbox.sh[156]: /data/user/0/io.nova.ide/files/libproot-xed.so: inaccessible or not found
+```
+El análisis forense reveló tres causas raíz encadenadas:
+1. **Degradación no Deseada a API 28:** En `hooks/post-process.js`, la función `patchTargetSdkVersion()` forzaba `api = "28"` cuando el archivo `fdroid.bool` no existía (comportamiento estándar en entornos Windows).
+2. **Falso Positivo de F-Droid y Omisión de Symlink:** Al detectar `targetSdkVersion 28`, `ProcessManager.java` evaluaba `isFdroidBuild() == true` e inyectaba `FDROID="true"`, omitiendo la creación del symlink `$PREFIX/axs -> $NATIVE_DIR/libaxs.so`.
+3. **Bifurcación Fallida y Chmod Ciego:** `init-sandbox.sh` asumía un entorno F-Droid y buscaba `libproot-xed.so` en `$PREFIX` (donde no residía, pues se aloja en `$NATIVE_DIR`), ejecutando además `chmod +x $PREFIX/*` sobre enlaces simbólicos protegidos, disparando `Permission denied` (exit code 127).
+
+#### 4.153 Decisión
+Se formaliza e implementa la solución de resolución determinista de librerías nativas bajo el contrato formal [`SPEC-039`](specs/39-fix-native-library-path-and-proot-sandbox-init.md):
+1. **Predeterminación Incondicional de `targetSdkVersion 36`:**
+   - En `nova-src/hooks/post-process.js`, se inicializa incondicionalmente `let api = "36"`. La degradación a `api = "28"` sólo ocurre si `fdroid.bool` existe físicamente y contiene explícitamente `"true"`.
+2. **Detección Prioritaria en `$NATIVE_DIR` y Supresión de `chmod` Ciego:**
+   - En `init-sandbox.sh`, se prioriza la evaluación `if [ -f "$NATIVE_DIR/libproot-xed.so" ]; then` para ejecutar PRoot directamente desde el directorio de librerías nativas del sistema (`/data/app/.../lib/arm64`).
+   - Erradicación total del comando `chmod +x $PREFIX/*`, eliminando excepciones de permisos sobre symlinks de solo lectura.
+3. **Enlace Incondicional de AXS en `ProcessManager.java`:**
+   - En `refreshAxsSymlink()`, se elimina el filtrado por `isFdroidBuild()`, garantizando la creación incondicional del symlink `$PREFIX/axs -> $NATIVE_DIR/libaxs.so`.
+4. **Preservación Inviolable de la UX de Aprovisionamiento:**
+   - Cero modificaciones sobre `ProvisioningLoader.js` ni sobre las rutinas de descarga progresiva de `Terminal.js` consolidadas en `v2.2.0`.
+5. **Empaquetado y Publicación Oficial v2.2.1:**
+   - Actualización formal de versión a `2.2.1` (versionCode `20201`) en `config.xml` y `package.json`.
+   - Generación y certificación de **`GoogleAntigravity-v2.2.1-ARM64.apk`** (36.81 MB / 38,599,969 bytes $\le 42.0\,\text{MB}$, SHA256 `8E1E013CCE23B6537560D0C30B4CC5A07D0514F23EAF42E37EFF1F868E2A47DF`).
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción realizada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-039` (`AC-LIB-01` a `AC-LIB-07`).
+   - *targetSdkVersion 36:* Compatibilidad con las directrices más recientes de la plataforma Android.
+   - *Determinismo de Enlace ELF:* Acceso directo a librerías nativas sin trucos de emulación ni permisos inseguros.
+
+#### 4.154 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Arranque Determinista de PRoot:** Erradicación del error 127 y resolución instantánea de librerías nativas desde `$NATIVE_DIR`.
+  - **Arranque Limpio del Daemon AXS:** Enlace simbólico de `$PREFIX/axs` siempre disponible y funcional.
+  - **Preservación Total de UX:** Experiencia fluida de descarga y animación con transición suave a la terminal.
+- **Compromisos Operativos:**
+  - Las compilaciones dirigidas específicamente a F-Droid deben proveer explícitamente el archivo testigo `fdroid.bool` en el directorio temporal.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2358,6 +2407,7 @@ Se formaliza e implementa la solución de aprovisionamiento resiliente bajo el c
 | **SPEC-036** | Loader Visual Dinámico de Aprovisionamiento, Interpolación Cinemática Continua y Stream Logger Monolínea Anti-NaN | `specs/36-smooth-provisioning-loader-and-stream-logger.md` | `APPROVED` | 5 ACs |
 | **SPEC-037** | Reparación de Envoltura Cordova Terminal, Elevación Visual de Loader y Descarte Incondicional de Splash Screen | `specs/37-fix-cordova-terminal-wrapper-and-splash-dismissal.md` | `APPROVED` | 6 ACs |
 | **SPEC-038** | Reparación de Descarga de Subsistema ARM64, Progreso Progresivo y Resiliencia en CleanAgentTerminal | `specs/38-repair-arm64-subsystem-download-and-smooth-loader.md` | `APPROVED` | 6 ACs |
+| **SPEC-039** | Corrección de Rutas de Librerías Nativas, Inicialización Determinista de PRoot y targetSdkVersion 36 | `specs/39-fix-native-library-path-and-proot-sandbox-init.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
