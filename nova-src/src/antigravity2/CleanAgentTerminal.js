@@ -1,7 +1,7 @@
 /**
  * CleanAgentTerminal - Terminal Agéntica Minimalista para Google Antigravity
- * Conforme a SPEC-028 & SPEC-029: Arquitectura Base sin ChatCanvas, directa a Xterm.js y PTY/AXS,
- * Puente OAuth hacia navegador externo (FLAG_ACTIVITY_NEW_TASK), soporte OSC 8 y barra interactiva.
+ * Conforme a SPEC-028, SPEC-029 & SPEC-030: Terminal Agéntica Pura de Borde a Borde (Zero-Decoration),
+ * Motor Gestual Táctil de Navegación (Arrow Emulation), Pegado por Long-Press y Auto-Bridge OAuth.
  */
 import { Terminal as Xterm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -9,37 +9,31 @@ import { AttachAddon } from "@xterm/addon-attach";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
+import TerminalTouchNavigation from "./TerminalTouchNavigation";
 import "@xterm/xterm/css/xterm.css";
 import "./clean-terminal.scss";
 
-// Google OAuth 2.0 PKCE detection regex (SPEC-029: AC-OAUTH-01): accounts.google.com/o/oauth2/
+// Google OAuth 2.0 PKCE detection regex (SPEC-029 / SPEC-030: AC-CORE-07): accounts.google.com/o/oauth2/
 const OAUTH_REGEX = /https:\/\/accounts\.google\.com\/o\/oauth2\/[^\s"'>\x1b\x00-\x1f\)]+/;
 
 export class CleanAgentTerminal {
     constructor(options = {}) {
         this.port = options.port || 8767;
         this.autoCommand = options.autoCommand !== undefined ? options.autoCommand : "agy\r";
-        this.showTopBar = options.showTopBar !== undefined ? options.showTopBar : true;
         this.terminal = null;
         this.fitAddon = null;
         this.attachAddon = null;
         this.websocket = null;
         this.pid = null;
         this.containerEl = null;
-        this.topBarEl = null;
-        this.oauthBarEl = null;
         this.viewportEl = null;
-        this.badgeEl = null;
-        this.btnRestart = null;
-        this.btnOAuthOpen = null;
-        this.btnPasteCode = null;
-        this.btnDismissOAuth = null;
+        this.touchNav = null;
         this.isConnecting = false;
         this.isConnected = false;
         this._resizeObserver = null;
         this._cleanupResize = null;
 
-        // SPEC-029: Estado de sesión OAuth y sniffer
+        // Estado de sesión OAuth y sniffer silencioso
         this._lastOAuthUrl = null;
         this.activeOAuthUrl = null;
         this._hasAutoOpenedBrowser = false;
@@ -50,79 +44,37 @@ export class CleanAgentTerminal {
         this.containerEl = document.createElement("div");
         this.containerEl.className = "clean-agent-container";
 
-        // 1. Construir TopBar Minimalista si está habilitada
-        if (this.showTopBar) {
-            this.topBarEl = document.createElement("header");
-            this.topBarEl.className = "clean-agent-topbar";
-            this.topBarEl.innerHTML = `
-                <div class="clean-agent-brand">
-                    <span class="brand-dot"></span>
-                    <span class="clean-agent-title">Google Antigravity Agent</span>
-                </div>
-                <div class="clean-agent-actions">
-                    <span class="clean-agent-badge status-connecting" id="agent-status-badge">CONECTANDO...</span>
-                    <button class="clean-agent-btn" id="btn-restart" title="Reiniciar sesión">
-                        <span class="btn-icon">↻</span>
-                        <span class="btn-text">Reiniciar</span>
-                    </button>
-                </div>
-            `;
-            this.containerEl.appendChild(this.topBarEl);
-
-            this.badgeEl = this.topBarEl.querySelector("#agent-status-badge");
-            this.btnRestart = this.topBarEl.querySelector("#btn-restart");
-            this.btnRestart.addEventListener("click", () => this.restartSession());
-        }
-
-        // 2. Construir Barra Contextual Flotante de OAuth (SPEC-029)
-        this.oauthBarEl = document.createElement("div");
-        this.oauthBarEl.className = "clean-agent-oauth-bar";
-        this.oauthBarEl.id = "oauth-action-bar";
-        this.oauthBarEl.innerHTML = `
-            <div class="oauth-bar-info">
-                <span class="oauth-bar-icon">🔐</span>
-                <span class="oauth-badge oauth-bar-label">🔑 Autenticación Requerida</span>
-            </div>
-            <div class="oauth-bar-buttons">
-                <button class="oauth-btn btn-open-chrome btn-oauth-chrome" id="btn-oauth-open" title="Abrir enlace en Google Chrome">
-                    <span class="btn-icon">🌐</span>
-                    <span class="btn-text">Abrir en Google Chrome</span>
-                </button>
-                <button class="oauth-btn btn-paste-code btn-oauth-paste" id="btn-oauth-paste" title="Pegar código del portapapeles">
-                    <span class="btn-icon">📋</span>
-                    <span class="btn-text">Pegar Código</span>
-                </button>
-                <button class="oauth-btn btn-dismiss" id="btn-oauth-dismiss" title="Cerrar barra">✕</button>
-            </div>
-        `;
-        this.containerEl.appendChild(this.oauthBarEl);
-
-        this.btnOAuthOpen = this.oauthBarEl.querySelector("#btn-oauth-open");
-        this.btnPasteCode = this.oauthBarEl.querySelector("#btn-oauth-paste");
-        this.btnDismissOAuth = this.oauthBarEl.querySelector("#btn-oauth-dismiss");
-
-        this.btnOAuthOpen.addEventListener("click", () => {
-            this.openInBrowser(this._lastOAuthUrl || this.activeOAuthUrl);
-        });
-        this.btnPasteCode.addEventListener("click", () => {
-            this.pasteAuthCode();
-        });
-        this.btnDismissOAuth.addEventListener("click", () => {
-            this.hideOAuthBar();
-        });
-
-        // 3. Construir Viewport de Terminal a Pantalla Completa
+        // Viewport de Terminal a Pantalla Completa (SPEC-030: Zero-Decoration Architecture)
         this.viewportEl = document.createElement("main");
-        this.viewportEl.className = "clean-agent-viewport";
+        this.viewportEl.className = "clean-agent-viewport fullscreen";
         this.viewportEl.id = "terminal-viewport";
         this.containerEl.appendChild(this.viewportEl);
 
         parentEl.appendChild(this.containerEl);
 
-        // 4. Inicializar Xterm.js
+        // Inicializar Xterm.js
         this.initTerminal();
 
-        // 5. Iniciar Conexión PTY en segundo plano
+        // Enlazar Motor Gestual Táctil (SPEC-030: AC-TOUCH-01 & AC-TOUCH-03)
+        this.touchNav = new TerminalTouchNavigation(this.viewportEl, {
+            swipeThreshold: 28,
+            longPressMs: 400,
+            onArrowUp: () => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send("\x1b[A");
+                }
+            },
+            onArrowDown: () => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send("\x1b[B");
+                }
+            },
+            onPaste: async () => {
+                await this.pasteFromClipboard();
+            }
+        });
+
+        // Iniciar Conexión PTY en segundo plano
         setTimeout(() => this.connect(), 100);
     }
 
@@ -139,7 +91,7 @@ export class CleanAgentTerminal {
                 selectionBackground: "rgba(96, 165, 250, 0.3)",
             },
             allowProposedApi: true,
-            // SPEC-029: AC-OAUTH-02 (Soporte nativo de hipervínculos OSC 8 para clics/toques táctiles)
+            // SPEC-029 / SPEC-030: Soporte nativo de hipervínculos OSC 8 para clics/toques táctiles
             linkHandler: {
                 activate: (event, uri) => {
                     console.log("OSC 8 Link activado táctilmente:", uri);
@@ -212,7 +164,6 @@ export class CleanAgentTerminal {
     async connect() {
         if (this.isConnecting || this.isConnected) return;
         this.isConnecting = true;
-        this.updateStatus("CONECTANDO...", "connecting");
 
         try {
             await this.ensureAxsRunning();
@@ -222,7 +173,6 @@ export class CleanAgentTerminal {
 
             this.isConnected = true;
             this.isConnecting = false;
-            this.updateStatus("READY", "ready");
 
             // Ejecución automática de agy al establecer la sesión (AC-CORE-04)
             if (this.autoCommand) {
@@ -236,10 +186,8 @@ export class CleanAgentTerminal {
             console.error("Fallo de conexión en CleanAgentTerminal:", error);
             this.isConnecting = false;
             this.isConnected = false;
-            this.updateStatus("ERROR CONEXIÓN", "error");
             if (this.terminal) {
                 this.terminal.writeln(`\r\n\x1b[31m[ERROR]\x1b[0m No se pudo conectar con el daemon AXS: ${error?.message || error}`);
-                this.terminal.writeln(`\x1b[33mPresione 'Reiniciar' en la barra superior para reintentar.\x1b[0m\r\n`);
             }
         }
     }
@@ -307,7 +255,7 @@ export class CleanAgentTerminal {
             const wsUrl = `ws://127.0.0.1:${this.port}/terminals/${pid}`;
             this.websocket = new WebSocket(wsUrl);
 
-            // SPEC-029: AC-OAUTH-01 (Sniffer de flujo WebSocket para detección de URL de OAuth)
+            // SPEC-029 / SPEC-030: Sniffer silencioso de WebSocket para detección de URL OAuth
             this.websocket.addEventListener("message", (event) => {
                 this.detectOAuthUrl(event.data);
             });
@@ -327,7 +275,6 @@ export class CleanAgentTerminal {
             this.websocket.onclose = () => {
                 this.isConnected = false;
                 this.isConnecting = false;
-                this.updateStatus("DESCONECTADO", "error");
                 this.terminal?.writeln("\r\n\x1b[33m[SESIÓN TERMINADA]\x1b[0m Conexión WebSocket con la terminal cerrada.");
             };
 
@@ -339,9 +286,9 @@ export class CleanAgentTerminal {
     }
 
     /**
-     * SPEC-029: AC-OAUTH-01 Sniffer de flujo de datos en el WebSocket.
-     * Acumula chunks en un buffer circular, detecta patrones de URL Google OAuth,
-     * muestra la barra contextual y dispara auto-apertura la primera vez.
+     * SPEC-029 & SPEC-030: Sniffer silencioso de flujo de datos en el WebSocket.
+     * Detecta patrones de URL Google OAuth y dispara auto-apertura en Chrome (FLAG_ACTIVITY_NEW_TASK).
+     * No inyecta ni muestra barras visuales decorativas (Terminal 100% Pura).
      */
     detectOAuthUrl(chunk) {
         try {
@@ -362,10 +309,7 @@ export class CleanAgentTerminal {
                 this._lastOAuthUrl = detectedUrl;
                 this.activeOAuthUrl = detectedUrl;
 
-                // Muestra la barra contextual clean-agent-oauth-bar
-                this.showOAuthBar(detectedUrl);
-
-                // Lanza automáticamente this.openInBrowser la primera vez
+                // Auto-apertura única en Chrome en tarea aislada
                 if (!this._hasAutoOpenedBrowser) {
                     this._hasAutoOpenedBrowser = true;
                     this.openInBrowser(detectedUrl);
@@ -393,73 +337,35 @@ export class CleanAgentTerminal {
         this.openInBrowser(url);
     }
 
-    showOAuthBar(url) {
-        if (!this.oauthBarEl) return;
-        this.oauthBarEl.classList.add("visible");
-        // Refit para ajustar geometría de terminal ante la barra visible
-        if (this.fitAddon) {
-            setTimeout(() => {
-                try { this.fitAddon.fit(); } catch (e) {}
-            }, 50);
-        }
-    }
-
-    hideOAuthBar() {
-        if (!this.oauthBarEl) return;
-        this.oauthBarEl.classList.remove("visible");
-        // Refit al ocultar la barra contextual
-        if (this.fitAddon) {
-            setTimeout(() => {
-                try { this.fitAddon.fit(); } catch (e) {}
-            }, 50);
-        }
-    }
-
     /**
-     * SPEC-029: AC-OAUTH-03 Manejo de pegado de código de autorización
-     * Lee portapapeles (navigator o cordova), fallback prompt, inyecta con \r a PTY y oculta la barra.
+     * SPEC-030: AC-TOUCH-03 Pegado directo desde el portapapeles
+     * Invocado por gestos de pulsación prolongada (long-press 400ms) o doble toque.
      */
-    async pasteAuthCode() {
-        let code = "";
+    async pasteFromClipboard() {
+        let text = "";
         try {
-            if (window.cordova?.plugins?.clipboard?.paste) {
-                code = await new Promise((resolve) => {
-                    cordova.plugins.clipboard.paste((text) => resolve(text || ""), () => resolve(""));
+            if (window.cordova?.plugins?.clipboard) {
+                text = await new Promise((resolve) => {
+                    cordova.plugins.clipboard.paste((t) => resolve(t || ""), () => resolve(""));
                 });
             } else if (navigator.clipboard?.readText) {
-                code = await navigator.clipboard.readText().catch(() => "");
+                text = await navigator.clipboard.readText().catch(() => "");
             }
         } catch (err) {
-            console.warn("Error leyendo portapapeles:", err);
+            console.warn("Fallo leyendo portapapeles:", err);
         }
 
-        if (!code || !code.trim()) {
-            code = window.prompt("Pega el código de autorización de Google aquí:") || "";
+        if (text && text.trim() && this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            this.websocket.send(`${text.trim()}\r`);
         }
+    }
 
-        if (code && code.trim()) {
-            const cleanCode = code.trim();
-            if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                this.websocket.send(`${cleanCode}\r`);
-            }
-
-            if (this.btnPasteCode) {
-                const origHtml = this.btnPasteCode.innerHTML;
-                this.btnPasteCode.innerHTML = `<span class="btn-icon">✓</span><span class="btn-text">¡Código Pegado!</span>`;
-                setTimeout(() => {
-                    if (this.btnPasteCode) {
-                        this.btnPasteCode.innerHTML = origHtml;
-                    }
-                    this.hideOAuthBar();
-                }, 1200);
-            } else {
-                this.hideOAuthBar();
-            }
-        }
+    async pasteAuthCode() {
+        return this.pasteFromClipboard();
     }
 
     async handlePasteOAuthCode() {
-        return this.pasteAuthCode();
+        return this.pasteFromClipboard();
     }
 
     notifyServerResize(cols, rows) {
@@ -473,10 +379,7 @@ export class CleanAgentTerminal {
     }
 
     updateStatus(text, type) {
-        if (this.badgeEl) {
-            this.badgeEl.textContent = text;
-            this.badgeEl.className = `clean-agent-badge status-${type}`;
-        }
+        // En SPEC-030 no hay barra ni badge visual para mantener terminal 100% pura
     }
 
     async restartSession() {
@@ -496,11 +399,14 @@ export class CleanAgentTerminal {
         this.pid = null;
         this._hasAutoOpenedBrowser = false;
         this._streamBuffer = "";
-        this.hideOAuthBar();
         await this.connect();
     }
 
     destroy() {
+        if (this.touchNav) {
+            this.touchNav.destroy();
+            this.touchNav = null;
+        }
         if (this._cleanupResize) {
             this._cleanupResize();
             this._cleanupResize = null;

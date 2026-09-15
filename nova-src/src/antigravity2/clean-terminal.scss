@@ -1,6 +1,15 @@
 // nova-src/src/antigravity2/clean-terminal.scss
-// Google Antigravity 2.1: CleanAgentTerminal Minimalist Styles (SPEC-028 & SPEC-029)
-// Ergonomic Cyber-Obsidian / Material 3 styling for Xiaomi Pad 6 & mobile devices
+// Google Antigravity 2.1.2: Terminal Agéntica Pura Borde a Borde (SPEC-030)
+// Zero-Decoration Architecture: 100vw x 100vh, fondo #0b0f19, touch-action: none
+
+html, body {
+    margin: 0;
+    padding: 0;
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #0b0f19;
+}
 
 .clean-agent-container {
     display: flex;
@@ -8,6 +17,8 @@
     width: 100vw;
     height: 100vh;
     height: 100dvh;
+    margin: 0;
+    padding: 0;
     overflow: hidden;
     background-color: #0b0f19;
     box-sizing: border-box;
@@ -15,331 +26,54 @@
     top: 0;
     left: 0;
     z-index: 999;
-    margin: 0;
-    padding: 0;
-    user-select: none;
-    touch-action: manipulation;
-}
-
-.clean-agent-topbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 38px;
-    min-height: 38px;
-    max-height: 38px;
-    padding: 0 12px;
-    background: rgba(15, 23, 42, 0.95);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    z-index: 100;
-    box-sizing: border-box;
     user-select: none;
 
-    .clean-agent-brand {
-        display: flex;
-        align-items: center;
-        gap: 8px;
-
-        .brand-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #4285f4, #a855f7);
-            box-shadow: 0 0 8px rgba(66, 133, 244, 0.6);
-            flex-shrink: 0;
-        }
-
-        .clean-agent-title {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            font-size: 13px;
-            font-weight: 600;
-            color: #f8fafc;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-        }
+    // Supresión garantizada de cualquier barra o elemento decorativo residual
+    .clean-agent-topbar,
+    .clean-agent-oauth-bar {
+        display: none !important;
     }
 
-    .clean-agent-actions {
-        display: flex;
-        align-items: center;
-        gap: 10px;
+    .clean-agent-viewport {
+        flex: 1;
+        width: 100vw;
+        height: 100vh;
+        height: 100dvh;
+        margin: 0;
+        padding: 0;
+        position: relative;
+        overflow: hidden;
+        background-color: #0b0f19;
+        box-sizing: border-box;
 
-        .clean-agent-badge {
-            font-family: "JetBrains Mono", "Fira Code", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 11px;
-            font-weight: 700;
-            padding: 2px 8px;
-            border-radius: 4px;
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            transition: all 0.25s ease;
+        .xterm {
+            width: 100%;
+            height: 100%;
+            padding: 2px 4px;
+            margin: 0;
             box-sizing: border-box;
 
-            &.status-connecting {
-                color: #fbbc04;
-                background: rgba(251, 188, 4, 0.15);
-                border: 1px solid rgba(251, 188, 4, 0.3);
-                animation: badgePulse 1.8s infinite ease-in-out;
-            }
+            .xterm-viewport {
+                background-color: #0b0f19 !important;
 
-            &.status-ready {
-                color: #34a853;
-                background: rgba(52, 168, 83, 0.15);
-                border: 1px solid rgba(52, 168, 83, 0.3);
-                box-shadow: 0 0 6px rgba(52, 168, 83, 0.2);
-            }
+                &::-webkit-scrollbar {
+                    width: 6px;
+                    height: 6px;
+                }
 
-            &.status-error {
-                color: #ea4335;
-                background: rgba(234, 67, 53, 0.15);
-                border: 1px solid rgba(234, 67, 53, 0.3);
-                box-shadow: 0 0 6px rgba(234, 67, 53, 0.2);
-            }
-        }
+                &::-webkit-scrollbar-thumb {
+                    background: rgba(255, 255, 255, 0.15);
+                    border-radius: 3px;
+                }
 
-        .clean-agent-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 5px;
-            height: 26px;
-            padding: 0 10px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            border-radius: 4px;
-            color: #cbd5e1;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            font-size: 11px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.2s ease;
-            outline: none;
-            -webkit-tap-highlight-color: transparent;
-
-            &:hover {
-                background: rgba(255, 255, 255, 0.12);
-                color: #ffffff;
-                border-color: rgba(255, 255, 255, 0.25);
-            }
-
-            &:active {
-                background: rgba(255, 255, 255, 0.18);
-                color: #ffffff;
-                border-color: rgba(255, 255, 255, 0.35);
-
-                .btn-icon {
-                    transform: rotate(180deg);
+                &::-webkit-scrollbar-thumb:hover {
+                    background: rgba(255, 255, 255, 0.25);
                 }
             }
 
-            .btn-icon {
-                font-size: 13px;
-                line-height: 1;
-                transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            }
-
-            .btn-text {
-                letter-spacing: 0.2px;
+            .xterm-screen {
+                touch-action: none; // Control gestual total por TerminalTouchNavigation (SPEC-030)
             }
         }
-    }
-}
-
-// Barra contextual flotante de OAuth (SPEC-029: AC-OAUTH-03)
-.clean-agent-oauth-bar {
-    display: none;
-    align-items: center;
-    justify-content: space-between;
-    background: linear-gradient(90deg, #1e293b 0%, #0f172a 100%);
-    border-bottom: 1px solid rgba(96, 165, 250, 0.3);
-    padding: 8px 16px;
-    z-index: 90;
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
-    animation: slideDown 0.25s ease-out forwards;
-    box-sizing: border-box;
-    width: 100%;
-    flex-shrink: 0;
-
-    &.visible {
-        display: flex;
-    }
-
-    .oauth-bar-info {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        font-size: 13px;
-        color: #e2e8f0;
-        font-weight: 500;
-
-        .oauth-bar-icon {
-            font-size: 18px;
-            line-height: 1;
-        }
-
-        .oauth-badge {
-            background: rgba(251, 188, 4, 0.18);
-            border: 1px solid rgba(251, 188, 4, 0.4);
-            color: #fde047;
-            font-family: "JetBrains Mono", monospace;
-            font-size: 12px;
-            font-weight: 700;
-            border-radius: 6px;
-            padding: 4px 10px;
-            letter-spacing: 0.3px;
-            white-space: nowrap;
-        }
-    }
-
-    .oauth-bar-buttons {
-        display: flex;
-        align-items: center;
-        gap: 12px;
-
-        .oauth-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            height: 44px;
-            min-height: 44px;
-            padding: 0 16px;
-            border-radius: 8px;
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            font-size: 13px;
-            font-weight: 600;
-            cursor: pointer;
-            border: 1px solid transparent;
-            transition: all 0.15s ease;
-            user-select: none;
-            -webkit-tap-highlight-color: transparent;
-            white-space: nowrap;
-
-            &.btn-oauth-chrome,
-            &.btn-open-chrome {
-                background: #2563eb;
-                color: #ffffff;
-                border-color: #3b82f6;
-                box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
-
-                &:hover {
-                    background: #1d4ed8;
-                }
-
-                &:active {
-                    background: #1e40af;
-                    transform: scale(0.98);
-                }
-            }
-
-            &.btn-oauth-paste,
-            &.btn-paste-code {
-                background: #059669;
-                color: #ffffff;
-                border-color: #10b981;
-                box-shadow: 0 2px 6px rgba(5, 150, 105, 0.3);
-
-                &:hover {
-                    background: #047857;
-                }
-
-                &:active {
-                    background: #065f46;
-                    transform: scale(0.98);
-                }
-            }
-
-            &.btn-dismiss {
-                background: transparent;
-                color: #94a3b8;
-                padding: 0 10px;
-                min-width: 44px;
-                font-size: 18px;
-                line-height: 1;
-
-                &:hover {
-                    color: #ffffff;
-                    background: rgba(255, 255, 255, 0.08);
-                }
-
-                &:active {
-                    transform: scale(0.95);
-                }
-            }
-
-            .btn-icon {
-                font-size: 16px;
-                line-height: 1;
-            }
-
-            .btn-text {
-                letter-spacing: 0.2px;
-            }
-        }
-    }
-}
-
-.clean-agent-viewport {
-    flex: 1;
-    width: 100%;
-    min-height: 0;
-    position: relative;
-    overflow: hidden;
-    background: #0b0f19;
-    box-sizing: border-box;
-
-    .xterm {
-        height: 100%;
-        padding: 4px 6px 0 6px;
-        box-sizing: border-box;
-    }
-
-    .xterm-viewport {
-        background-color: #0b0f19 !important;
-
-        &::-webkit-scrollbar {
-            width: 6px;
-            height: 6px;
-        }
-
-        &::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.15);
-            border-radius: 3px;
-        }
-
-        &::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.25);
-        }
-    }
-
-    .xterm-screen {
-        touch-action: pan-y;
-    }
-}
-
-@keyframes badgePulse {
-    0%, 100% {
-        opacity: 1;
-        transform: scale(1);
-    }
-    50% {
-        opacity: 0.65;
-        transform: scale(0.98);
-    }
-}
-
-@keyframes slideDown {
-    from {
-        opacity: 0;
-        transform: translateY(-8px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
     }
 }

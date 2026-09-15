@@ -1859,6 +1859,46 @@ Se decide adoptar la directriz arquitectónica de retorno a la terminal agéntic
 
 ---
 
+### ADR-029: Google OAuth Auto-Bridge, OSC 8 LinkHandler y Barra Contextual de Autenticación v2.1.1 (OAuthBridge)
+
+- **Identificador:** `ADR-029` (Secuencia Repositorio: `ADR-039` / `ADR-029`)
+- **Especificación SDD Asociada:** [`SPEC-029`](specs/29-oauth-browser-bridge-and-interactive-auth.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.119 Contexto
+Durante la validación de campo de la versión `v2.1.0` en la Xiaomi Pad 6, al inicializar una sesión limpia de la CLI oficial de Google Antigravity (`agy`), se requirió autenticación Google OAuth 2.0 PKCE (`Please visit this URL to authenticate... -> Click here to authenticate`). Sin embargo, el desarrollador experimentó un bloqueo operativo total:
+1. **Falta de Soporte OSC 8 en Xterm.js:** La terminal carecía de `linkHandler` configurado en `new Xterm(...)`. Tocar el enlace formateado con secuencias ANSI OSC 8 (`-> Click here to authenticate`) no generaba ninguna respuesta ni disparaba la apertura del navegador.
+2. **Aislamiento de PRoot Linux sin Binder:** El contenedor Linux de usuario carece de acceso a Binder de Android o servicios de `ActivityManager`; cualquier comando de apertura (`xdg-open`, `webbrowser.open`) fallaba en silencio.
+3. **Fricción Ergonómica en el Portapapeles:** Al presionar Enter, `agy` pasaba a solicitar `Enter auth code:`. El usuario debía lidiar manualmente con el teclado táctil de Android para copiar la URL, salir de la app, autenticarse en Chrome, copiar el código de autorización e intentar pegarlo en la terminal sin botones contextuales dedicados.
+
+#### 4.120 Decisión
+Se formaliza e implementa la solución integral bajo el contrato formal [`SPEC-029`](specs/29-oauth-browser-bridge-and-interactive-auth.md):
+1. **Sniffer Reactivo de Flujo WebSocket (`detectOAuthUrl` / `sniffWebSocketMessage`):** En `CleanAgentTerminal.js`, se implementa un listener de mensajes WebSocket que inspecciona frames entrantes en busca de URLs canónicas de Google OAuth (`https://accounts.google.com/o/oauth2/...`). Al detectarse por primera vez, dispara de forma automática la apertura del navegador del sistema y despliega la barra interactiva.
+2. **Controlador Nativo de Hipervínculos OSC 8 en Xterm.js:** Se registra `linkHandler: { activate: (e, uri) => this.openOAuthUrl(uri) }` en las opciones nucleares de `new Xterm(...)`, habilitando respuesta inmediata al toque táctil sobre enlaces interactivos en la terminal.
+3. **Barra de Acción Contextual Flotante (`.clean-agent-oauth-bar`):** Componente flotante superior diseñado específicamente para la tablet de 11 pulgadas con botones táctiles de 44px:
+   - `[ 🌐 Abrir en Google Chrome ]`: Relanza la URL de consentimiento en Chrome en caso de requerirse.
+   - `[ 📋 Pegar Código ]`: Lee asíncronamente el portapapeles (`navigator.clipboard` / `cordova.plugins.clipboard`), inyecta atómicamente el código seguido de `\r` en el socket PTY (`websocket.send(code + '\r')`), muestra retroalimentación visual `✓ ¡Código Enviado!` y oculta la barra automáticamente.
+   - `[ ✕ ]`: Botón de cierre manual.
+4. **Blindaje de Tarea Aislada con `FLAG_ACTIVITY_NEW_TASK` (ADR-026):** Invocación de `window.system?.openInBrowser(uri)` que despacha el Intent con bandera `FLAG_ACTIVITY_NEW_TASK`. Esto sitúa a Google Chrome en una tarea independiente de Android, garantizando que `MainActivity` de Antigravity permanezca en segundo plano preservando intactos el WebView, el WebSocket local en el puerto 8767 y los subprocesos de Linux PRoot (`agy`).
+5. **Empaquetado Ligero y Verificado (36.81 MB):** Se compila el artefacto instalador **`GoogleAntigravity-v2.1.1-ARM64.apk`** con un tamaño exacto de **38,598,273 bytes** (36.81 MB $\le 42\,\text{MB}$) y suma criptográfica SHA256 `9ab94f9f14cb89a5d090362a2aac9f61f02278b29b93154b546910b72079932f`.
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Modificaciones de producción delegadas a `@android-core`.
+   - *SDD-first:* Regido por `SPEC-029` y validado por arnés automatizado.
+   - *FLAG_ACTIVITY_NEW_TASK:* Preservación ininterrumpida de ciclo de vida del proceso en Android.
+   - *Ergonomía Tablet Xiaomi Pad 6:* Interacciones táctiles directas de 1 toque para abrir y pegar tokens.
+
+#### 4.121 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Autenticación sin Fricciones:** El flujo de login de Google OAuth se abre automáticamente en Chrome y se resuelve con un solo toque en `Pegar Código`.
+  - **Soporte Completo de Hipervínculos:** La terminal responde nativamente tanto a secuencias OSC 8 como a enlaces WebLinks en texto plano.
+  - **Estabilidad de Sesión:** La navegación externa no reinicia ni destruye la sesión PTY en ejecución.
+- **Compromisos Operativos:**
+  - El usuario debe permitir el acceso al portapapeles cuando el navegador o el sistema Android lo requieran.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1892,6 +1932,7 @@ Se decide adoptar la directriz arquitectónica de retorno a la terminal agéntic
 | **SPEC-026** | Limpieza de Detección de Puertos (Anti-Falsos Positivos), Flujo Nativo de Google OAuth 2.0 PKCE y Refinamiento UI/UX | `specs/26-antigravity-2-mobile-oauth-cleanup-and-uix.md` | `APPROVED` | 9 ACs |
 | **SPEC-027** | Arquitectura de Doble Motor Agéntico (Google Antigravity PTY & Gemini Direct API), Estado Informativo de Autenticación y Suite de Pruebas E2E en Tablet | `specs/27-antigravity-2-mobile-gemini-bridge-and-e2e-testing.md` | `APPROVED` | 7 ACs |
 | **SPEC-028** | Arquitectura de Terminal Agéntica Minimalista (CleanAgentTerminal), Desmantelamiento de ChatCanvas y Empaquetado de APK Ultra-Ligero (~38 MB) | `specs/28-minimal-agent-terminal-clean-apk.md` | `APPROVED` | 9 ACs |
+| **SPEC-029** | Arquitectura de Puente OAuth hacia Navegador Externo (FLAG_ACTIVITY_NEW_TASK), Detección Reactiva de Hipervínculos OSC 8 y Barra de Acción Interactiva en Terminal Agéntica | `specs/29-oauth-browser-bridge-and-interactive-auth.md` | `APPROVED` | 8 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

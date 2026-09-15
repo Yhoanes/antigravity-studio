@@ -77,9 +77,9 @@ sequenceDiagram
 
 | Factor | Causa Raíz Técnica | Impacto en el Dispositivo | Solución Arquitectónica SDD |
 | :--- | :--- | :--- | :--- |
-| **1. Disparo de Navegador** | El sandbox de Linux PRoot no puede comunicarse con el sistema de Intents de Android vía Binder. `xdg-open` muere silenciosamente. | El usuario nunca es redirigido a Google Chrome de manera automática. | **`WebSocketStreamSniffer` (AC-OAUTH-01):** Interceptor a nivel de JavaScript que detecta la URL de OAuth en los bytes del socket y dispara proactivamente `system.openInBrowser(url)` vía Cordova. |
-| **2. Hipervínculos en Terminal** | `CleanAgentTerminal.js` omitió la propiedad `linkHandler` en el constructor de `Xterm`. | Tocar el enlace formateado con secuencias OSC 8 no genera ninguna acción ni evento. | **`OSC 8 Link Handler` (AC-OAUTH-02):** Registro formal de `linkHandler: { activate: (e, uri) => system.openInBrowser(uri) }` en las opciones nucleares de `Xterm`. |
-| **3. Ergonomía de Autenticación** | Carencia de controles táctiles para gestionar el flujo OAuth y pegar el token de retorno sin fricción de teclado. | El desarrollador no puede transferir fácilmente el código de autorización desde el portapapeles hacia la PTY. | **Barra de Acción Contextual `oauth-action-bar` (AC-OAUTH-03):** Barra flotante superior con botones táctiles grandes: `[ 🌐 Abrir en Google Chrome ]` y `[ 📋 Pegar Código ]`. |
+| **1. Disparo de Navegador** | El sandbox de Linux PRoot no puede comunicarse con el sistema de Intents de Android vía Binder. `xdg-open` muere silenciosamente. | El usuario nunca es redirigido a Google Chrome de manera automática. | **`WebSocketStreamSniffer`:** Interceptor a nivel de JavaScript que detecta la URL de OAuth en los bytes del socket y dispara proactivamente `system.openInBrowser(url)` vía Cordova. |
+| **2. Hipervínculos en Terminal** | `CleanAgentTerminal.js` omitió la propiedad `linkHandler` en el constructor de `Xterm`. | Tocar el enlace formateado con secuencias OSC 8 no genera ninguna acción ni evento. | **`OSC 8 Link Handler`:** Registro formal de `linkHandler: { activate: (e, uri) => system.openInBrowser(uri) }` en las opciones nucleares de `Xterm`. |
+| **3. Ergonomía de Autenticación** | Carencia de controles táctiles para gestionar el flujo OAuth y pegar el token de retorno sin fricción de teclado. | El desarrollador no puede transferir fácilmente el código de autorización desde el portapapeles hacia la PTY. | **Barra de Acción Contextual `oauth-action-bar`:** Barra flotante superior con botones táctiles grandes: `[ 🌐 Abrir en Google Chrome ]` y `[ 📋 Pegar Código ]`. |
 
 ---
 
@@ -153,7 +153,7 @@ this.terminal = new Xterm({
         selectionBackground: "rgba(96, 165, 250, 0.3)",
     },
     allowProposedApi: true,
-    // Soporte nativo para enlaces OSC 8 (SPEC-029: AC-OAUTH-02)
+    // Soporte nativo para enlaces OSC 8 (SPEC-029)
     linkHandler: {
         activate: (event, uri) => {
             console.log("OSC 8 Link activado táctilmente:", uri);
@@ -289,7 +289,7 @@ initTerminal() {
             selectionBackground: "rgba(96, 165, 250, 0.3)",
         },
         allowProposedApi: true,
-        // SPEC-029: AC-OAUTH-02 (Soporte nativo de hipervínculos OSC 8)
+        // SPEC-029: Soporte nativo de hipervínculos OSC 8
         linkHandler: {
             activate: (event, uri) => {
                 this.openOAuthUrl(uri);
@@ -313,7 +313,7 @@ openWebSocket(pid) {
         const wsUrl = `ws://127.0.0.1:${this.port}/terminals/${pid}`;
         this.websocket = new WebSocket(wsUrl);
 
-        // SPEC-029: AC-OAUTH-01 (Sniffer de flujo WebSocket para detección de URL de OAuth)
+        // SPEC-029: Sniffer de flujo WebSocket para detección de URL de OAuth
         this.websocket.addEventListener("message", (event) => {
             this.sniffWebSocketMessage(event.data);
         });
