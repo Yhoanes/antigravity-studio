@@ -2230,6 +2230,38 @@ Se formaliza e implementa la solución de arranque resiliente bajo el contrato f
 
 ---
 
+### ADR-048: Saneamiento Integral del Repositorio, Purga de Binarios Obsoletos y Desacoplamiento de ChatCanvas
+
+- **Identificador:** `ADR-048`
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Arquitectura), `@android-core` (Limpieza e Implementación), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.146 Contexto
+Tras múltiples iteraciones de desarrollo continuo que abarcaron la evolución desde las fases iniciales v1.x (arquitectura Termux fork, Kotlin/Compose y scripts monolíticos) hasta la consolidación de la versión de producción `v2.1.9` (Cordova Android WebView, terminal minimalista `CleanAgentTerminal`, interpolador cinemático y aprovisionamiento dinámico), el repositorio acumuló más de 4.5 GB de artefactos residuales y deuda técnica de almacenamiento:
+1. **Proliferación de Artefactos Binarios en la Raíz:** 32 instaladores APK de versiones intermedias y deprecated residían en la raíz del repositorio, saturando el seguimiento de Git y consumiendo varios gigabytes innecesariamente.
+2. **Subárboles y Binarios Huérfanos:** Permanencia del directorio legacy `termux-src/` y el binario `/antigravity`, totalmente obsoletos tras la adopción definitiva del runtime de producción `nova-src`.
+3. **Archivos Desacoplados de ChatCanvas:** A pesar del desmantelamiento formal del lienzo decorativo en `ADR-028` (`SPEC-028`), 7 archivos fuente huérfanos (`ChatCanvas.js`, `AntigravityApp.js`, `AgentBridge.js`, `SidebarDrawer.js`, `LivePreview.js`, `GoogleAuthService.js`, `style.scss`) permanecían físicamente en `nova-src/src/antigravity2/`, manteniendo exportaciones deprecadas en `index.js`.
+4. **Dispersión de Evidencias Gráficas y Scripts Históricos:** 9 capturas de pantalla PNG de validaciones pasadas saturaban la raíz, mientras que scripts de prueba obsoletos de hitos anteriores generaban ruido operativo.
+
+#### 4.147 Decisión
+Se formaliza e implementa el saneamiento integral de la raíz y la arquitectura canónica del repositorio:
+1. **Purga Física de Artefactos Binarios Obsoletos:** Se eliminan de la raíz los 32 APKs obsoletos precedentes, conservando de manera exclusiva y estricta el instalador canónico oficial de producción: **`GoogleAntigravity-v2.1.9-ARM64.apk`** (36.81 MB / 38,599,541 bytes, SHA256 `D0069A290D8EDF08F1EAE19CF1A352168542DAD2B7E2BE78933B396153828470`).
+2. **Erradicación de Subárboles Legacy:** Eliminación definitiva y purga del sistema de archivos de `/antigravity` y `termux-src/`.
+3. **Desacoplamiento Definitivo de ChatCanvas:** Ejecución de `git rm` sobre los 7 archivos obsoletos en `nova-src/src/antigravity2/` (`ChatCanvas.js`, `AntigravityApp.js`, `AgentBridge.js`, `SidebarDrawer.js`, `LivePreview.js`, `GoogleAuthService.js`, `style.scss`). Actualización de `nova-src/src/antigravity2/index.js` para exportar exclusivamente la tríada oficial activa: `CleanAgentTerminal`, `ProvisioningLoader` y `TerminalTouchNavigation`.
+4. **Reorganización Estructurada de Evidencias y Scripts:** Reubicación sistemática de las 9 imágenes PNG de validación hacia `harness/evidence/`, traslado de scripts de prueba de especificaciones archivadas a `harness/archive/`, y desvinculación/bloqueo de `.kotlin/` en `.gitignore`.
+5. **Certificación del Arnés de Calidad (`.antigravity/harness.ps1`):** Ejecución rigurosa del arnés corporativo verificando que el 100% de las compuertas de aseguramiento (Gate 1 SDD, Gate 2 Build, Gate 3 Seguridad) permanezcan en estado PASS.
+
+#### 4.148 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Liberación Masiva de Almacenamiento:** Liberación neta certificada de **4.56 GB** de espacio en disco, reduciendo drásticamente la huella del repositorio.
+  - **Claridad Arquitectónica Absoluta:** Árbol de directorios 100% canónico y alineado a la arquitectura moderna de producción; erradicación total de código zombi o desacoplado.
+  - **Optimización de Operaciones Git y CI:** Clonaciones, transferencias de red y análisis estáticos sustancialmente más veloces y limpios.
+- **Compromisos Operativos:**
+  - Los artefactos binarios históricos de releases pasadas quedan preservados en los tags y GitHub Releases del repositorio remoto, no en el árbol de trabajo local.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |

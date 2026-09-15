@@ -28,4 +28,4 @@ nova-src/plugins/
 nova-src/.gradle/
 nova-src/www/build/
 nova-src/build/
-
+.kotlin/

@@ -1,14 +1,11 @@
 /**
- * Google Antigravity 2.0 Mobile Module Entry Point
- * SPEC-021: Agent-First Mobile Studio Architecture
+ * Google Antigravity 2.0 Mobile - Agentic Clean Terminal Module
+ * Active components: CleanAgentTerminal, ProvisioningLoader, TerminalTouchNavigation
  */
 
-export { AntigravityApp } from "./AntigravityApp";
-export { ChatCanvas } from "./ChatCanvas";
-export { LivePreview } from "./LivePreview";
-export { SidebarDrawer } from "./SidebarDrawer";
-export { AgentBridge } from "./AgentBridge";
-export * from "./types";
+export { CleanAgentTerminal } from "./CleanAgentTerminal";
+export { ProvisioningLoader } from "./ProvisioningLoader";
+export { TerminalTouchNavigation } from "./TerminalTouchNavigation";
 
-import AntigravityApp from "./AntigravityApp";
-export default AntigravityApp;
+import CleanAgentTerminal from "./CleanAgentTerminal";
+export default CleanAgentTerminal;
