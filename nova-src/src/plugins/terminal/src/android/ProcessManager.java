@@ -38,7 +38,7 @@ public class ProcessManager {
      * $PREFIX/axs path valid for scripts and plugins that execute it directly.
      */
     private void refreshAxsSymlink() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O || isFdroidBuild()) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
             return;
         }
 
@@ -65,9 +65,7 @@ public class ProcessManager {
     }
 
     private boolean isFdroidBuild() {
-        // F-Droid builds are intentionally pinned to targetSdkVersion 28.
-        // This convention is also exposed to scripts through the FDROID env var.
-        return getTargetSdkVersion() <= 28;
+        return false;
     }
 
     private int getTargetSdkVersion() {

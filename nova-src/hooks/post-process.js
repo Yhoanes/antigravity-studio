@@ -124,36 +124,23 @@ function patchTargetSdkVersion() {
   const sdkRegex = /targetSdkVersion\s+(cordovaConfig\.SDK_VERSION|\d+)/;
 
   if (sdkRegex.test(content)) {
-    let api = "36";
+    let api = "36"; // Predeterminado moderno para Google Antigravity Mobile
     const tmp = getTmpDir();
-    if (tmp == null) {
-      console.warn("---------------------------------------------------------------------------------\n\n\n\n");
-      console.warn(`⚠️ fdroid.bool not found`);
-      console.warn("⚠️ Fdroid flavour will be built");
-      api = "28";
-      console.warn("\n\n\n\n---------------------------------------------------------------------------------");
-    } else {
-      const froidFlag = path.join(getTmpDir(), 'fdroid.bool');
 
-      if (fs.existsSync(froidFlag)) {
-        const fdroid = fs.readFileSync(froidFlag, 'utf-8').trim();
-        if (fdroid == "true") {
+    if (tmp != null) {
+      const fdroidFlag = path.join(tmp, 'fdroid.bool');
+      if (fs.existsSync(fdroidFlag)) {
+        const fdroid = fs.readFileSync(fdroidFlag, 'utf-8').trim();
+        if (fdroid === "true") {
+          console.warn("[Cordova Hook] ⚠️ Modo F-Droid detectado explícitamente. Pinned to API 28.");
           api = "28";
         }
-      } else {
-        console.warn("---------------------------------------------------------------------------------\n\n\n\n");
-        console.warn(`⚠️ fdroid.bool not found`);
-        console.warn("⚠️ Fdroid flavour will be built");
-        api = "28";
-        console.warn("\n\n\n\n---------------------------------------------------------------------------------");
-        //process.exit(1);
       }
     }
 
-
-    content = content.replace(sdkRegex, 'targetSdkVersion ' + api);
+    console.log(`[Cordova Hook] 🎯 Configurando targetSdkVersion a ${api}`);
+    content = content.replace(sdkRegex, `targetSdkVersion ${api}`);
     fs.writeFileSync(gradleFile, content, 'utf-8');
-    console.log('[Cordova Hook] ✅ Patched targetSdkVersion to ' + api);
   } else {
     console.warn('[Cordova Hook] ⚠️ targetSdkVersion not found');
   }

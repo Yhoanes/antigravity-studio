@@ -62,12 +62,8 @@ const Terminal = {
 
         await this.migrateLegacyHome();
 
-        const isFdroid = await Executor.execute("echo $FDROID");
-
-        if(isFdroid !== "true"){
-//the symlink must be updated everytime because the symlinks to native libs can break after app updates
-        await Executor.execute("rm -f $PREFIX/axs && ln -s $NATIVE_DIR/libaxs.so $PREFIX/axs")
-}
+        // The symlink must be updated unconditionally because symlinks to native libs can break after app updates
+        await Executor.execute("rm -f $PREFIX/axs && ln -s $NATIVE_DIR/libaxs.so $PREFIX/axs");
         
 
         await writeText(`${filesDir}/init-alpine.sh`, initAlpine);

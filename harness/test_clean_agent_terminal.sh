@@ -7,6 +7,7 @@ set -e
 SPEC_FILE_036="specs/36-smooth-provisioning-loader-and-stream-logger.md"
 SPEC_FILE_037="specs/37-fix-cordova-terminal-wrapper-and-splash-dismissal.md"
 SPEC_FILE_038="specs/38-repair-arm64-subsystem-download-and-smooth-loader.md"
+SPEC_FILE_039="specs/39-fix-native-library-path-and-proot-sandbox-init.md"
 PROV_LOADER_JS="nova-src/src/antigravity2/ProvisioningLoader.js"
 SCSS_FILE="nova-src/src/antigravity2/clean-terminal.scss"
 TERM_SRC="nova-src/src/plugins/terminal/www/Terminal.js"
@@ -15,16 +16,20 @@ TERM_PLATFORM="nova-src/platforms/android/platform_www/plugins/com.foxdebug.acod
 TERM_ASSETS="nova-src/platforms/android/app/src/main/assets/www/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js"
 CLEAN_TERM_JS="nova-src/src/antigravity2/CleanAgentTerminal.js"
 MAIN_JS="nova-src/src/main.js"
+POST_PROCESS_JS="nova-src/hooks/post-process.js"
+INIT_SANDBOX_SH="nova-src/src/plugins/terminal/scripts/init-sandbox.sh"
+PROCESS_MANAGER_JAVA="nova-src/src/plugins/terminal/src/android/ProcessManager.java"
 CONFIG_XML="nova-src/config.xml"
 PACKAGE_JSON="nova-src/package.json"
 
-echo "=== INICIANDO VALIDACIÓN FORMAL DE TERMINAL Y BOOTSTRAP (SPEC-036 / SPEC-037 / SPEC-038) ==="
+echo "=== INICIANDO VALIDACIÓN FORMAL DE TERMINAL Y BOOTSTRAP (SPEC-036 / SPEC-037 / SPEC-038 / SPEC-039) ==="
 
 # 1. Verificar documentos SPEC
 echo -n "1. Verificando documentos de especificación... "
 [ -f "$SPEC_FILE_036" ] || { echo "FALLO: No existe $SPEC_FILE_036"; exit 1; }
 [ -f "$SPEC_FILE_037" ] || { echo "FALLO: No existe $SPEC_FILE_037"; exit 1; }
 [ -f "$SPEC_FILE_038" ] || { echo "FALLO: No existe $SPEC_FILE_038"; exit 1; }
+[ -f "$SPEC_FILE_039" ] || { echo "FALLO: No existe $SPEC_FILE_039"; exit 1; }
 echo "[OK]"
 
 # 2. Verificar API polimórfica y anti-NaN en ProvisioningLoader (Criterio LOADER-01)
@@ -103,11 +108,33 @@ echo -n "12. Verificando formateador anti-[object Object] en CleanAgentTerminal.
 grep -q "formatErrorMessage" "$CLEAN_TERM_JS" || { echo "FALLO: formatErrorMessage ausente en CleanAgentTerminal.js"; exit 1; }
 echo "[OK]"
 
-# 13. Verificar versionado v2.2.0 y android-versionCode 20200 en configuración (Criterio REPAIR-06)
-echo -n "13. Verificando versión 2.2.0 y versionCode 20200 en configuración... "
-grep -q 'version="2.2.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.2.0"; exit 1; }
-grep -q 'android-versionCode="20200"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20200"; exit 1; }
-grep -q '"version": "2.2.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.2.0"; exit 1; }
+# 13. Verificar predeterminación de API 36 en post-process.js (Criterio LIB-01)
+echo -n "13. Verificando default api = 36 en post-process.js... "
+grep -q 'let api = "36"' "$POST_PROCESS_JS" || { echo "FALLO: post-process.js no inicializa api en 36"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036, SPEC-037 Y SPEC-038 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 14. Verificar detección en NATIVE_DIR y ausencia de chmod ciego (Criterios LIB-02 y LIB-03)
+echo -n "14. Verificando detección en NATIVE_DIR y ausencia de chmod +x PREFIX/*... "
+grep -q 'if \[ -f "\$NATIVE_DIR/libproot-xed.so" \]' "$INIT_SANDBOX_SH" || {
+    echo "FALLO: init-sandbox.sh no prioriza $NATIVE_DIR/libproot-xed.so"; exit 1;
+}
+grep -q 'chmod +x \$PREFIX/\*' "$INIT_SANDBOX_SH" && {
+    echo "FALLO: init-sandbox.sh todavía contiene chmod +x $PREFIX/* ciego"; exit 1;
+}
+echo "[OK]"
+
+# 15. Verificar symlink incondicional en ProcessManager.java (Criterio LIB-04)
+echo -n "15. Verificando symlink incondicional en ProcessManager.java... "
+grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()" && {
+    echo "FALLO: refreshAxsSymlink sigue filtrando por isFdroidBuild()"; exit 1;
+}
+echo "[OK]"
+
+# 16. Verificar versionado v2.2.1 y android-versionCode 20201 en configuración (Criterio LIB-07)
+echo -n "16. Verificando versión 2.2.1 y versionCode 20201 en configuración... "
+grep -q 'version="2.2.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.2.1"; exit 1; }
+grep -q 'android-versionCode="20201"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20201"; exit 1; }
+grep -q '"version": "2.2.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.2.1"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036, SPEC-037, SPEC-038 Y SPEC-039 HAN SIDO SUPERADAS EXITOSAMENTE ==="
