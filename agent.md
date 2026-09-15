@@ -2413,6 +2413,57 @@ Se formaliza e implementa la arquitectura de experiencia premium bajo el contrat
 
 ---
 
+### ADR-052: Tarjeta Nativa de Autenticación Google (GoogleAuthCard Material 3), Transición Suave Post-Login y Estado Persistente de Cuenta (Release v2.3.0)
+
+- **Identificador:** `ADR-052`
+- **Especificación SDD Asociada:** [`SPEC-041`](specs/41-native-google-auth-card-and-session-state.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.158 Contexto
+Tras estabilizar la terminal limpia y la persistencia de sesión en `v2.2.2`, el flujo de inicio de sesión de Google Antigravity dependía todavía de la salida en texto plano del binario CLI `agy`:
+1. **Exposición de URLs Crudas y Fricción Táctil:** Al solicitar consentimiento OAuth 2.0 PKCE, `agy` emitía en la terminal enlaces de más de 400 caracteres (`https://accounts.google.com/o/oauth2/v2/auth?...`), saturando el área visible en la tablet Xiaomi Pad 6 y obligando a lidiar con el portapapeles.
+2. **Ausencia de Interfaz Gráfica Institucional de Login:** Un producto comercial oficial de Google requiere una experiencia visual de bienvenida con isotipo oficial, diseño Material 3 y botón interactivo prominente `[ Continuar con Google ]`.
+3. **Falta de Reconocimiento y Gestión de Sesión Activa:** Cuando el desarrollador ya se encuentra autenticado, la interfaz carecía de un indicador de identidad activa (`shadrick1212@gmail.com • Google AI Ultra`) y de un control accesible para cerrar sesión o alternar cuentas.
+
+#### 4.159 Decisión
+Se formaliza e implementa la arquitectura de autenticación gráfica nativa y estado persistente bajo el contrato formal [`SPEC-041`](specs/41-native-google-auth-card-and-session-state.md):
+1. **Componente Visual Nativo `GoogleAuthCard.js` (Material 3):**
+   - Overlay flotante con prioridad visual $z\text{-index} = 1000002$, centrado en pantalla sobre fondo Obsidian Glass semi-transparente.
+   - Isotipo vectorial SVG oficial de Google multicolor (`#4285F4`, `#EA4335`, `#FBBC05`, `#34A853`).
+   - Copy institucional: *"Conéctate para programar con Gemini 3.8 Flash y Google AI Ultra"*.
+   - Botón interactivo táctil de alto relieve `[ Continuar con Google ]`.
+2. **Detección Reactiva en `CleanAgentTerminal.js`:**
+   - Intercepción de stream WebSocket: al detectar la URL de Google OAuth y constatar que el usuario no está autenticado, se monta inmediatamente `GoogleAuthCard` ocultando por completo la terminal cruda.
+   - Al pulsar `[ Continuar con Google ]`, se invoca de manera transparente `openInBrowser(url)` despachando Chrome en tarea independiente (`FLAG_ACTIVITY_NEW_TASK`) con URL estabilizada (anti-404).
+3. **Transición Suave Post-Login (*Fade-Out* 250ms a 144Hz):**
+   - Al recibir la confirmación de autenticación de `agy`, la tarjeta ejecuta una animación fluida de desvanecimiento (*fade-out* de 250ms) revelando directamente la terminal con el agente listo.
+4. **Account Badge Superior Persistente e Interactivo:**
+   - Indicador sutil fijado en la esquina superior (`.clean-agent-account-badge`) con dot verde activo y texto `shadrick1212@gmail.com • Google AI Ultra`.
+   - Si el usuario ya está autenticado, la tarjeta de login jamás se muestra.
+   - Al tocar el badge, se despliega un diálogo contextual interactivo con opción de cierre de sesión (`Logout`) que purga credenciales de forma limpia.
+5. **Preservación Inviolable del Ecosistema:**
+   - Cero regresiones sobre las descargas progresivas de `v2.2.0`, enlaces nativos de `v2.2.1` y cortina Zero-Leak de `v2.2.2`.
+6. **Empaquetado y Certificación Oficial v2.3.0:**
+   - Actualización formal a versión `2.3.0` (versionCode `20300`) en `config.xml` y `package.json`.
+   - Compilación del instalador **`GoogleAntigravity-v2.3.0-ARM64.apk`** (36.81 MB / 38,602,665 bytes $\le 42.0\,\text{MB}$, SHA256 `D3C1387134EBD6DB48379B235BC4E7A639986E44AF8B652E87DD3138904360D4`).
+7. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-041` (`AC-AUTH-01` a `AC-AUTH-06`).
+   - *Material 3 First:* Cero exposición de URLs kilométricas en consola; interfaz visual pulida.
+   - *Transparencia de Cuenta:* Visibilidad permanente de la identidad Google y del modelo Gemini activo.
+
+#### 4.160 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia de Inicio de Sesión de Clase Mundial:** Inicio de sesión con un solo toque sin copiar enlaces ni códigos de autorización.
+  - **Transición Fluida a 144Hz:** Desvanecimiento imperceptible de la tarjeta post-login sobre pantalla 2.8K de Xiaomi Pad 6.
+  - **Control Total de Identidad:** El desarrollador conoce en todo momento la cuenta en uso y puede alternar sesiones a voluntad.
+- **Compromisos Operativos:**
+  - Si el usuario revoca permisos desde la consola web de Google, `CleanAgentTerminal` detecta la expiración de token y relanza automáticamente la tarjeta gráfica de autenticación.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2458,6 +2509,7 @@ Se formaliza e implementa la arquitectura de experiencia premium bajo el contrat
 | **SPEC-038** | Reparación de Descarga de Subsistema ARM64, Progreso Progresivo y Resiliencia en CleanAgentTerminal | `specs/38-repair-arm64-subsystem-download-and-smooth-loader.md` | `APPROVED` | 6 ACs |
 | **SPEC-039** | Corrección de Rutas de Librerías Nativas, Inicialización Determinista de PRoot y targetSdkVersion 36 | `specs/39-fix-native-library-path-and-proot-sandbox-init.md` | `APPROVED` | 6 ACs |
 | **SPEC-040** | Transición Atómica Zero-Leak, Persistencia Inteligente de Sesión y Notificación Interactiva | `specs/40-premium-zero-leak-transition-and-session-persistence.md` | `APPROVED` | 6 ACs |
+| **SPEC-041** | Tarjeta Gráfica de Autenticación Google, Transición Suave Post-Login y Estado de Cuenta | `specs/41-native-google-auth-card-and-session-state.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
