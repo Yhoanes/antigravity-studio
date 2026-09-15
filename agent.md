@@ -2364,6 +2364,55 @@ Se formaliza e implementa la solución de resolución determinista de librerías
 
 ---
 
+### ADR-051: Experiencia Premium: Transición Atómica Zero-Leak, Persistencia Inteligente de Sesión y Notificación Interactiva (Release v2.2.2)
+
+- **Identificador:** `ADR-051`
+- **Especificación SDD Asociada:** [`SPEC-040`](specs/40-premium-zero-leak-transition-and-session-persistence.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.155 Contexto
+Tras verificar que la descarga por red del subsistema y la inicialización de PRoot operan con total solidez en el dispositivo físico Xiaomi Pad 6, el usuario solicitó eliminar asperezas visuales y funcionales remanentes para alcanzar un estándar comercial premium:
+1. **Fuga Visual de Comandos y Prompt Bash (*Visual Leak*):** Durante el arranque en frío o reconexión, la pantalla de carga se desvanecía prematuramente (~1s antes de tiempo), dejando al descubierto trazas crudas del sistema (`[SISTEMA] Iniciando daemon AXS...`), el prompt de bash (`root@localhost /home/studio/workspace $ `) y la inyección parpadeante del comando `clear && exec agy`.
+2. **Pérdida Innecesaria de Estado y Contexto Conversacional:** Al salir a otra app o cerrar la ventana en la multitarea de Android, la reapertura forzaba la creación de un nuevo proceso PTY en AXS, descartando el proceso previo y perdiendo el historial de conversación con `agy`.
+3. **Notificación Foreground Estática:** La notificación permanente de `TerminalService.java` carecía de `PendingIntent`, impidiendo al usuario regresar a la interfaz tocando la notificación en el panel de Android.
+
+#### 4.156 Decisión
+Se formaliza e implementa la arquitectura de experiencia premium bajo el contrato formal [`SPEC-040`](specs/40-premium-zero-leak-transition-and-session-persistence.md):
+1. **Cortina Atómica Zero-Leak (`ProvisioningLoader.js` y `CleanAgentTerminal.js`):**
+   - La cortina de carga cubre el 100% del viewport con prioridad visual $z\text{-index} = 1000001$ y el texto sobrio *"Iniciando Google Antigravity..."*.
+   - Todas las trazas intermedias de arranque, negociación WebSocket y prompts de shell permanecen 100% ocultas.
+   - El desvanecimiento (*fade-out* suave de 250ms) se desencadena única y deterministamente cuando el socket WebSocket está conectado y el descriptor PTY de `agy` está listo para interacción del usuario.
+2. **Persistencia Inteligente de Sesión en `CleanAgentTerminal.js`:**
+   - Almacenamiento local del identificador de proceso activo en `localStorage["antigravity_active_session_pid"]`.
+   - Al abrir la aplicación, el cliente intenta reconectarse de inmediato al WebSocket del PID guardado (`ws://127.0.0.1:8767/terminals/{savedPid}`). Si la sesión sigue viva, se conecta directamente **sin reenviar `clear && exec agy`**, preservando intacto el búfer de texto, el chat agéntico y el contexto de trabajo.
+   - Si el proceso ya no responde o fue terminado, se realiza un fallback transparente a `createSession()` y se actualiza el PID.
+3. **Reinicio Atómico Limpio (`restartSession`):**
+   - El botón interactivo `↻ Reiniciar` en la cabecera purga la clave en `localStorage`, cierra el socket anterior y genera una sesión fresca de `agy` bajo la cortina protectora sin artefactos visuales.
+4. **Notificación Interactiva con `setContentIntent`:**
+   - En `TerminalService.java`, se vincula un `PendingIntent` apuntando a `MainActivity` con la bandera `FLAG_ACTIVITY_SINGLE_TOP`, habilitando el retorno instantáneo a la terminal agéntica con un solo toque desde la bandeja del sistema.
+5. **Preservación Estricta de Núcleo:**
+   - Cero regresiones sobre las descargas de red de `v2.2.0` y la resolución determinista de `$NATIVE_DIR` de `v2.2.1`.
+6. **Empaquetado y Publicación Oficial v2.2.2:**
+   - Actualización formal a versión `2.2.2` (versionCode `20202`) en `config.xml` y `package.json`.
+   - Generación del APK **`GoogleAntigravity-v2.2.2-ARM64.apk`** (36.81 MB / 38,600,493 bytes $\le 42.0\,\text{MB}$, SHA256 `14AD22257DEEC7E999EEAD4F3C42B8B20CAC14B4B7B1C6FEA7151259F2C9AB2A`).
+7. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-040` (`AC-PREM-01` a `AC-PREM-06`).
+   - *Zero-Leak UX:* Ocultamiento determinista de toda traza técnica de inicialización.
+   - *Persistencia Agéntica:* Retención del estado conversacional en el ciclo de vida móvil.
+
+#### 4.157 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia Visual Pulida y Comercial:** Cero parpadeos, cero comandos visibles y cero prompts bash expuestos en el arranque.
+  - **Continuidad de Flujo Conversacional:** El desarrollador puede alternar libremente entre aplicaciones sin perder las respuestas o el contexto del agente `agy`.
+  - **Navegación Móvil de Primer Nivel:** Acceso inmediato a la aplicación desde la notificación persistente de Android.
+- **Compromisos Operativos:**
+  - La persistencia de sesión mantiene vivo el proceso `agy` en el subsistema Linux mientras el servicio en segundo plano esté activo; para forzar un reinicio limpio del agente se debe utilizar el botón `↻ Reiniciar`.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2408,6 +2457,7 @@ Se formaliza e implementa la solución de resolución determinista de librerías
 | **SPEC-037** | Reparación de Envoltura Cordova Terminal, Elevación Visual de Loader y Descarte Incondicional de Splash Screen | `specs/37-fix-cordova-terminal-wrapper-and-splash-dismissal.md` | `APPROVED` | 6 ACs |
 | **SPEC-038** | Reparación de Descarga de Subsistema ARM64, Progreso Progresivo y Resiliencia en CleanAgentTerminal | `specs/38-repair-arm64-subsystem-download-and-smooth-loader.md` | `APPROVED` | 6 ACs |
 | **SPEC-039** | Corrección de Rutas de Librerías Nativas, Inicialización Determinista de PRoot y targetSdkVersion 36 | `specs/39-fix-native-library-path-and-proot-sandbox-init.md` | `APPROVED` | 6 ACs |
+| **SPEC-040** | Transición Atómica Zero-Leak, Persistencia Inteligente de Sesión y Notificación Interactiva | `specs/40-premium-zero-leak-transition-and-session-persistence.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
