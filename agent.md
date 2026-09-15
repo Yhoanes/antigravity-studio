@@ -2464,6 +2464,63 @@ Se formaliza e implementa la arquitectura de autenticación gráfica nativa y es
 
 ---
 
+### ADR-053: WebSocket Stream Auto-Responder Silencioso y Auto-Inyección de Token OAuth desde Portapapeles (Release v2.3.1)
+
+- **Identificador:** `ADR-053`
+- **Especificación SDD Asociada:** [`SPEC-042`](specs/42-stream-auto-responder-and-auto-clipboard-oauth.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.161 Contexto
+Durante el primer arranque o tras un ciclo de limpieza del binario oficial de Google Antigravity (`agy`), la terminal interactiva presenta una secuencia de asistentes de bienvenida (*onboarding wizard*):
+1. **Selección de Método de Autenticación:** `Select login method: 1. Google OAuth / 2. Service Account`.
+2. **Personalización de Esquema de Colores:** `Choose your color scheme`.
+3. **Validación de Confianza de Espacio de Trabajo:** `Do you trust this folder?`.
+4. **Consentimiento de Términos y Condiciones:** `Terms of Service [Done]`.
+5. **Recepción Manual de Código OAuth 2.0 PKCE:** Tras completar el flujo en Google Chrome, el navegador exhibe un token de autorización alfanumérico (`4/0AQ...`) que el CLI requiere pegar manualmente en la consola PTY para intercambiarlo por credenciales persistentes.
+
+El enfoque tradicional de manipular previamente el sistema de archivos del sandbox Linux mediante archivos de configuración JSON estáticos (`~/.config/antigravity/config.json`) se descarta categóricamente debido a la volatilidad de rutas entre revisiones de `agy`, riesgo de desajuste de esquema y potencial corrupción de perfil de usuario. Asimismo, exigir interacción manual con teclado virtual y portapapeles en pantalla táctil rompe la inmersión y la ergonomía móvil en tablets como la Xiaomi Pad 6.
+
+#### 4.162 Decisión
+Se diseña e implementa una arquitectura reactiva no intrusiva gobernada por [`SPEC-042`](specs/42-stream-auto-responder-and-auto-clipboard-oauth.md):
+1. **Descarte Categórico de Manipulación de Filesystem:**
+   - La inicialización y configuración del CLI `agy` se gestiona en tiempo real exclusivamente mediante el flujo bidireccional de datos del socket WebSocket de la pseudo-terminal (`:8767`), garantizando resiliencia absoluta ante cualquier estructura interna de directorios del binario.
+2. **Auto-Respondedor Reactivo de Stream en `CleanAgentTerminal.js`:**
+   - Despacho sub-milisegundo ($\le 5\,\text{ms}$) ante la detección de patrones interactivos de texto en el stream de salida:
+     - Selección inmediata de Google OAuth enviando `\r` al detectar `/Select login method:/i`.
+     - Confirmación de tema por defecto enviando `\r` ante `/(?:Choose your color scheme|color scheme)/i`.
+     - Confirmación de confianza de directorio enviando `\r` ante `/(?:trust this folder|Do you trust)/i`.
+     - Validación de términos y condiciones enviando `\r` o `\t\r` ante `/(?:Terms of Service|\[Done\])/i`.
+3. **Inyector Automático de Token OAuth desde Portapapeles:**
+   - Escuchador reactivo a los eventos globales del ciclo de vida móvil `window.addEventListener("focus")` y `document.addEventListener("resume")`.
+   - Consulta transparente del portapapeles del sistema (`navigator.clipboard.readText()` con respaldo en `cordova.plugins.clipboard.paste()`).
+   - Validación estricta con expresión regular `/^4\/[a-zA-Z0-9_-]+/`: si el contenido es un código de autorización OAuth de Google, se inyecta de forma atómica e inmediata al socket WebSocket (`token.trim() + "\r"`).
+4. **Actualización Dinámica de Estado en `GoogleAuthCard.js`:**
+   - Invocación de `setAuthenticating()` al inyectar el código, transformando la tarjeta gráfica en un estado visual de espera (*"Autenticando con Google..."*).
+   - Al detectarse en el stream la confirmación de sesión activa (`Logged in as...`), la tarjeta ejecuta `dismiss()` disolviéndose suavemente (*fade-out* de 250ms a 144Hz) y montando el Account Badge superior interactivo.
+5. **Neutralización Universal de Copys Institucionales:**
+   - Sustitución de menciones a modelos efímeros por el mensaje oficial sobrio: *"Inicia sesión para sincronizar tus proyectos y asistencia de desarrollo"*, preservando el isotipo tetracolor Material 3 y la identidad corporativa.
+6. **Aislamiento e Idempotencia con Banderas One-Shot:**
+   - Banderas booleanas dedicadas (`_hasAutoSelectedLogin`, `_hasAutoConfirmedTheme`, `_hasAutoConfirmedTrust`, `_hasAutoConfirmedTerms`, `_hasInjectedOAuthCode`) garantizan que las auto-respuestas jamás se disparen erróneamente durante la interacción regular de desarrollo tras el arranque.
+7. **Certificación y Empaquetado v2.3.1:**
+   - VersionCode `20301`, targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.3.1-ARM64.apk`** (36.81 MB / 38,603,797 bytes $\le 42.0\,\text{MB}$, SHA256 `ecbc927f05e7bd0774ead461abf4a1a5b83fe067c52b5ce98745f5b12ad26a52`).
+8. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-042` (`AC-AUTO-01` a `AC-AUTO-06`).
+   - *Zero-filesystem-manipulation:* Automatización 100% reactiva en stream PTY.
+   - *Zero-friction UX:* Eliminación absoluta del copiado y pegado manual de tokens en dispositivos táctiles.
+
+#### 4.163 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia de Incorporación Cero-Fricción:** El desarrollador avanza fluidamente desde el lanzamiento de la app hasta el agente listo sin lidiar con menús de texto ni pegar tokens en consola.
+  - **Resiliencia de Ecosistema:** Independencia total de rutas o esquemas de configuración interna del CLI `agy`.
+  - **Identidad Visual Atemporal:** Copys neutros y elegantes compatibles con cualquier modelo de lenguaje de Google presente o futuro.
+- **Compromisos Operativos:**
+  - El auto-pegado de token depende de la autorización de acceso al portapapeles otorgada por el entorno Android/Cordova en el evento de foco; si el usuario no tiene el token en el portapapeles, la tarjeta permanece en espera sin inyectar datos inválidos.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2510,6 +2567,7 @@ Se formaliza e implementa la arquitectura de autenticación gráfica nativa y es
 | **SPEC-039** | Corrección de Rutas de Librerías Nativas, Inicialización Determinista de PRoot y targetSdkVersion 36 | `specs/39-fix-native-library-path-and-proot-sandbox-init.md` | `APPROVED` | 6 ACs |
 | **SPEC-040** | Transición Atómica Zero-Leak, Persistencia Inteligente de Sesión y Notificación Interactiva | `specs/40-premium-zero-leak-transition-and-session-persistence.md` | `APPROVED` | 6 ACs |
 | **SPEC-041** | Tarjeta Gráfica de Autenticación Google, Transición Suave Post-Login y Estado de Cuenta | `specs/41-native-google-auth-card-and-session-state.md` | `APPROVED` | 6 ACs |
+| **SPEC-042** | Auto-Respondedor Reactivo de Stream WebSocket y Auto-Inyección de Token OAuth desde Portapapeles | `specs/42-stream-auto-responder-and-auto-clipboard-oauth.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

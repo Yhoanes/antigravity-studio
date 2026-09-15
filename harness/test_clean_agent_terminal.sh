@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.3.0 y android-versionCode 20300 en configuración (Criterio AUTH-06)
-echo -n "16. Verificando versión 2.3.0 y versionCode 20300 en configuración... "
-grep -q 'version="2.3.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.3.0"; exit 1; }
-grep -q 'android-versionCode="20300"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20300"; exit 1; }
-grep -q '"version": "2.3.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.3.0"; exit 1; }
+# 16. Verificar versionado v2.3.1 y android-versionCode 20301 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.3.1 y versionCode 20301 en configuración... "
+grep -q 'version="2.3.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.3.1"; exit 1; }
+grep -q 'android-versionCode="20301"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20301"; exit 1; }
+grep -q '"version": "2.3.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.3.1"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -178,4 +178,34 @@ grep -q "google-auth-overlay" "$SCSS_FILE" || { echo "FALLO: .google-auth-overla
 grep -q "clean-agent-account-badge" "$SCSS_FILE" || { echo "FALLO: .clean-agent-account-badge ausente en SCSS"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036, SPEC-037, SPEC-038, SPEC-039, SPEC-040 Y SPEC-041 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 24. Verificar SPEC-042 (Criterios AUTO-01 a AUTO-06)
+SPEC_FILE_042="specs/42-stream-auto-responder-and-auto-clipboard-oauth.md"
+
+echo -n "24. Verificando documento SPEC-042... "
+[ -f "$SPEC_FILE_042" ] || { echo "FALLO: No existe $SPEC_FILE_042"; exit 1; }
+echo "[OK]"
+
+echo -n "25. Verificando auto-respondedor de stream y banderas one-shot (AUTO-01, AUTO-02, AUTO-06)... "
+grep -q "_handleAutoResponderStream" "$CLEAN_TERM_JS" || { echo "FALLO: _handleAutoResponderStream ausente"; exit 1; }
+grep -q "_hasAutoSelectedLogin" "$CLEAN_TERM_JS" || { echo "FALLO: _hasAutoSelectedLogin ausente"; exit 1; }
+grep -q "Select login method" "$CLEAN_TERM_JS" || { echo "FALLO: Patrón 'Select login method' ausente"; exit 1; }
+echo "[OK]"
+
+echo -n "26. Verificando inyección automática desde portapapeles (AUTO-03)... "
+grep -q "_setupClipboardAutoInjection" "$CLEAN_TERM_JS" || { echo "FALLO: _setupClipboardAutoInjection ausente"; exit 1; }
+grep -q '\^4\/' "$CLEAN_TERM_JS" || { echo "FALLO: Expresión regular para token 4/... ausente"; exit 1; }
+echo "[OK]"
+
+echo -n "27. Verificando copy neutral y setAuthenticating en GoogleAuthCard (AUTO-04, AUTO-05)... "
+grep -q "Inicia sesión para sincronizar tus proyectos" "$AUTH_CARD_JS" || {
+    echo "FALLO: Copy neutral ausente en GoogleAuthCard.js"; exit 1;
+}
+grep -q "Gemini 3.8 Flash" "$AUTH_CARD_JS" && {
+    echo "FALLO: GoogleAuthCard.js aún menciona 'Gemini 3.8 Flash'"; exit 1;
+}
+grep -q "setAuthenticating" "$AUTH_CARD_JS" || {
+    echo "FALLO: setAuthenticating ausente en GoogleAuthCard.js"; exit 1;
+}
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-042 HAN SIDO SUPERADAS EXITOSAMENTE ==="

@@ -1,6 +1,6 @@
 /**
  * GoogleAuthCard - Tarjeta Gráfica de Autenticación Google para Google Antigravity
- * Conforme a SPEC-041: Tarjeta Gráfica Material 3, Isotipo SVG Oficial y Transición Suave.
+ * Conforme a SPEC-041 & SPEC-042: Tarjeta Gráfica Material 3, Isotipo SVG Oficial, Copy Neutral y Transición Suave.
  */
 
 export class GoogleAuthCard {
@@ -17,6 +17,7 @@ export class GoogleAuthCard {
         this.cardEl.className = "google-auth-overlay";
         this.cardEl.id = "google-auth-card";
 
+        // AUTO-05: Copy neutral oficial sin mención a modelos específicos
         this.cardEl.innerHTML = `
             <div class="google-auth-card">
                 <div class="google-logo-wrap">
@@ -28,7 +29,7 @@ export class GoogleAuthCard {
                     </svg>
                 </div>
                 <h2 class="auth-title">Google Antigravity</h2>
-                <p class="auth-description">Conéctate para programar con Gemini 3.8 Flash y Google AI Ultra</p>
+                <p class="auth-description" id="auth-card-desc">Inicia sesión para sincronizar tus proyectos y asistencia de desarrollo</p>
                 <button class="google-sign-in-btn" id="btn-google-sign-in">
                     <svg class="btn-g-logo" viewBox="0 0 48 48" width="20" height="20">
                         <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
@@ -36,7 +37,7 @@ export class GoogleAuthCard {
                         <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
                         <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
                     </svg>
-                    <span>Continuar con Google</span>
+                    <span id="btn-google-sign-in-text">Continuar con Google</span>
                 </button>
                 <div class="auth-status-hint" id="auth-status-hint">Esperando autorización segura...</div>
             </div>
@@ -56,6 +57,25 @@ export class GoogleAuthCard {
 
     setAuthUrl(url) {
         this.authUrl = url;
+    }
+
+    setAuthenticating(msg = "Autenticando con Google...") {
+        const btn = this.cardEl?.querySelector("#btn-google-sign-in");
+        if (btn) {
+            btn.disabled = true;
+            btn.style.opacity = "0.7";
+            btn.style.pointerEvents = "none";
+        }
+        const hint = this.cardEl?.querySelector("#auth-status-hint");
+        if (hint) {
+            hint.innerHTML = `<span class="auth-spinner">⏳</span> ${msg}`;
+            hint.style.color = "#8ab4f8";
+            hint.classList.add("authenticating");
+        }
+        const btnText = this.cardEl?.querySelector("#btn-google-sign-in-text");
+        if (btnText) {
+            btnText.textContent = "Conectando cuenta...";
+        }
     }
 
     async fadeOut(delayMs = 250) {

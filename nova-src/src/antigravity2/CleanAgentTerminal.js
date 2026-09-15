@@ -64,6 +64,15 @@ export class CleanAgentTerminal {
         this.accountBadgeEl = null;
         this.authenticatedUserStorageKey = "antigravity_authenticated_user";
         this.authenticatedUser = localStorage.getItem(this.authenticatedUserStorageKey) || null;
+
+        // Banderas One-Shot de Onboarding y Auto-Clipboard (SPEC-042)
+        this._hasAutoSelectedLogin = false;
+        this._hasAutoConfirmedTheme = false;
+        this._hasAutoConfirmedTrust = false;
+        this._hasAutoConfirmedTerms = false;
+        this._hasInjectedOAuthCode = false;
+
+        this._setupClipboardAutoInjection();
     }
 
     mount(parentEl) {
@@ -435,6 +444,97 @@ export class CleanAgentTerminal {
     }
 
     /**
+     * SPEC-042: Configura escuchadores para detectar retorno de foco desde Google Chrome
+     * e inyectar automáticamente el código de autorización OAuth desde el portapapeles.
+     */
+    _setupClipboardAutoInjection() {
+        const checkAndInject = () => this._checkAndInjectClipboardOAuth();
+        window.addEventListener("focus", checkAndInject);
+        document.addEventListener("resume", checkAndInject);
+    }
+
+    async _checkAndInjectClipboardOAuth() {
+        if (this._hasInjectedOAuthCode || this.authenticatedUser) return;
+        if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
+        try {
+            let text = "";
+            if (window.cordova?.plugins?.clipboard) {
+                text = await new Promise((resolve) => {
+                    cordova.plugins.clipboard.paste((t) => resolve(t || ""), () => resolve(""));
+                });
+            } else if (navigator.clipboard?.readText) {
+                text = await navigator.clipboard.readText().catch(() => "");
+            }
+            text = (text || "").trim();
+            // AUTO-03: Validar patrón oficial de token Google OAuth 2.0 PKCE: ^4/
+            if (/^4\/[a-zA-Z0-9_-]{20,}/.test(text) || /^4\/[a-zA-Z0-9_-]+/.test(text)) {
+                console.log("[OAUTH] Código de autorización detectado en portapapeles. Inyectando silenciosamente...");
+                this._hasInjectedOAuthCode = true;
+                if (this.authCard) {
+                    this.authCard.setAuthenticating();
+                }
+                this.websocket.send(text + "\r");
+            }
+        } catch (err) {
+            console.warn("[OAUTH] Error leyendo portapapeles en resume/focus:", err);
+        }
+    }
+
+    /**
+     * SPEC-042: Inspecciona los fragmentos de texto del socket para responder automáticamente
+     * a las pantallas de onboarding del CLI sin interacción manual.
+     * @param {string} text Fragmento decodificado de texto PTY.
+     */
+    _handleAutoResponderStream(text) {
+        if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
+        if (!text || typeof text !== "string") return;
+
+        // AC-AUTO-01: Auto-selección de 1. Google OAuth
+        if (!this._hasAutoSelectedLogin && (text.includes("Select login method:") || text.includes("> 1. Google OAuth") || text.includes("1. Google OAuth") || /Select login method:/i.test(text))) {
+            console.log("[AUTO-RESPONDER] 'Select login method' detectado. Enviando Enter (Opción 1)...");
+            this._hasAutoSelectedLogin = true;
+            setTimeout(() => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send("\r");
+                }
+            }, 50);
+        }
+
+        // AC-AUTO-02: Auto-confirmación de Tema (Dark)
+        if (!this._hasAutoConfirmedTheme && (text.includes("color scheme") || text.includes("Choose your color scheme") || text.includes("Select theme:") || /(?:Choose your color scheme|color scheme)/i.test(text))) {
+            console.log("[AUTO-RESPONDER] Prompt de tema detectado. Enviando Enter...");
+            this._hasAutoConfirmedTheme = true;
+            setTimeout(() => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send("\r");
+                }
+            }, 50);
+        }
+
+        // AC-AUTO-02: Auto-confirmación de Confianza de Carpeta (Trust workspace)
+        if (!this._hasAutoConfirmedTrust && (text.includes("trust this folder") || text.includes("Do you trust the authors") || text.includes("Yes, I trust") || /(?:trust this folder|Do you trust)/i.test(text))) {
+            console.log("[AUTO-RESPONDER] Prompt de confianza detectado. Enviando Enter...");
+            this._hasAutoConfirmedTrust = true;
+            setTimeout(() => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send("\r");
+                }
+            }, 50);
+        }
+
+        // AC-AUTO-02: Auto-confirmación de Términos / [Done]
+        if (!this._hasAutoConfirmedTerms && (text.includes("Terms of Service") || text.includes("[Done]") || text.includes("Security Agreement") || /(?:Terms of Service|\[Done\])/i.test(text))) {
+            console.log("[AUTO-RESPONDER] Prompt de Términos / Done detectado. Enviando Enter...");
+            this._hasAutoConfirmedTerms = true;
+            setTimeout(() => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send("\r");
+                }
+            }, 50);
+        }
+    }
+
+    /**
      * SPEC-029, SPEC-030 & SPEC-035: Sniffer silencioso de flujo de datos en el WebSocket.
      * Acumula fragmentos TCP y utiliza ventana de debounce de 350ms para validar URL completa antes de abrir Chrome.
      */
@@ -445,6 +545,9 @@ export class CleanAgentTerminal {
                 : (chunk instanceof ArrayBuffer
                     ? new TextDecoder().decode(chunk)
                     : String(chunk || ""));
+
+            // SPEC-042: Auto-respondedor reactivo de onboarding
+            this._handleAutoResponderStream(text);
 
             // SPEC-041: Detección reactiva de confirmación de usuario autenticado
             if (
@@ -636,6 +739,11 @@ export class CleanAgentTerminal {
         this.pid = null;
         this._hasAutoOpenedBrowser = false;
         this._streamBuffer = "";
+        this._hasAutoSelectedLogin = false;
+        this._hasAutoConfirmedTheme = false;
+        this._hasAutoConfirmedTrust = false;
+        this._hasAutoConfirmedTerms = false;
+        this._hasInjectedOAuthCode = false;
         if (this.terminal) {
             this.terminal.clear();
         }
