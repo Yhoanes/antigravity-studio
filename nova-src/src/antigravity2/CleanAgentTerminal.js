@@ -141,15 +141,14 @@ export class CleanAgentTerminal {
         }
 
         // SPEC-041: Si el usuario ya está autenticado, renderizar Account Badge de inmediato
+        // LIFECYCLE-01: NO invocar _setupOnboardingWizard() aquí de forma síncrona.
+        // El asistente se montará exclusivamente de forma diferida en connect() tras openWebSocket().
         if (this.authenticatedUser) {
             this.renderAccountBadge(this.authenticatedUser, "Google AI Ultra");
-        } else {
-            // SPEC-043: Si no hay usuario autenticado, inicializar OnboardingWizard con enmascaramiento opaco
-            this._setupOnboardingWizard();
         }
 
         // Iniciar Conexión PTY en segundo plano
-        setTimeout(() => this.connect(), 100);
+        setTimeout(() => this.connect(), 50);
     }
 
     initTerminal() {
@@ -303,6 +302,10 @@ export class CleanAgentTerminal {
                 if (this.activeLoader) {
                     await this.activeLoader.finish();
                     this.activeLoader = null;
+                }
+                // SPEC-044: Montaje diferido de OnboardingWizard exclusivamente cuando el WebSocket está OPEN
+                if (!this.authenticatedUser && !this.onboardingWizard) {
+                    this._setupOnboardingWizard();
                 }
             }, 350);
         } catch (error) {
@@ -837,9 +840,6 @@ export class CleanAgentTerminal {
             this.activeLoader.mount(this.containerEl || document.body);
         }
         this.activeLoader.update(100, "Reiniciando Google Antigravity...");
-        if (!this.authenticatedUser) {
-            this._setupOnboardingWizard();
-        }
         await this.connect();
     }
 

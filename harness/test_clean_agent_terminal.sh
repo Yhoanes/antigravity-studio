@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.4.0 y android-versionCode 20400 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.4.0 y versionCode 20400 en configuración... "
-grep -q 'version="2.4.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.0"; exit 1; }
-grep -q 'android-versionCode="20400"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20400"; exit 1; }
-grep -q '"version": "2.4.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.0"; exit 1; }
+# 16. Verificar versionado v2.4.1 y android-versionCode 20401 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.4.1 y versionCode 20401 en configuración... "
+grep -q 'version="2.4.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.1"; exit 1; }
+grep -q 'android-versionCode="20401"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20401"; exit 1; }
+grep -q '"version": "2.4.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.1"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -235,4 +235,30 @@ echo -n "31. Verificando integración de OnboardingWizard en CleanAgentTerminal.
 grep -q "OnboardingWizard" "$CLEAN_TERM_JS" || { echo "FALLO: OnboardingWizard ausente en CleanAgentTerminal.js"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-043 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 32. Verificar SPEC-044 (Criterios LIFECYCLE-01 a LIFECYCLE-06)
+SPEC_FILE_044="specs/44-fix-provisioning-loader-lifecycle-and-wizard-mount-order.md"
+
+echo -n "32. Verificando documento SPEC-044... "
+[ -f "$SPEC_FILE_044" ] || { echo "FALLO: No existe $SPEC_FILE_044"; exit 1; }
+echo "[OK]"
+
+echo -n "33. Verificando desacoplamiento de OnboardingWizard en mount() (LIFECYCLE-01)... "
+grep -A 30 "mount(parentEl)" "$CLEAN_TERM_JS" | grep -q "_setupOnboardingWizard" && {
+    echo "FALLO: _setupOnboardingWizard aún se invoca síncronamente en mount()"; exit 1;
+}
+echo "[OK]"
+
+echo -n "34. Verificando elevación de z-index a 1000010 en SCSS (LIFECYCLE-02)... "
+grep -q "1000010" "$SCSS_FILE" || {
+    echo "FALLO: z-index 1000010 ausente en clean-terminal.scss"; exit 1;
+}
+echo "[OK]"
+
+echo -n "35. Verificando montaje diferido tras openWebSocket (LIFECYCLE-03)... "
+grep -A 35 "openWebSocket" "$CLEAN_TERM_JS" | grep -q "_setupOnboardingWizard" || {
+    echo "FALLO: _setupOnboardingWizard no se invoca tras openWebSocket en connect()"; exit 1;
+}
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-044 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+

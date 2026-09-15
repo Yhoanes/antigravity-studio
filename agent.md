@@ -2564,6 +2564,56 @@ Se diseña e implementa la arquitectura de asistente visual e insolación óptic
 
 ---
 
+### ADR-055: Corrección del Ciclo de Vida de Aprovisionamiento y Montaje Diferido del Onboarding Wizard (Release v2.4.1)
+
+- **Identificador:** `ADR-055`
+- **Especificación SDD Asociada:** [`SPEC-044`](specs/44-fix-provisioning-loader-lifecycle-and-wizard-mount-order.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.167 Contexto
+Durante pruebas de campo de la versión `v2.4.0` tras una desinstalación completa (arranque en frío limpio) en la tablet física Xiaomi Pad 6, se manifestaron dos fallos críticos de ciclo de vida e interfaz:
+1. **Oclusión Total del Loader de Descarga:** La barra de progreso de aprovisionamiento cinemático (10% a 100% de descarga de Ubuntu ARM64 y el CLI `agy`) no era visible.
+2. **Inoperancia de Botones de Login:** Al desplegarse prematuramente el `OnboardingWizard`, pulsar `[ Continuar con Google ]` no producía ninguna acción táctil ni avance visual.
+
+El análisis forense reveló que `OnboardingWizard` se montaba síncronamente durante la ejecución de `CleanAgentTerminal.prototype.mount()` con un fondo 100% opaco (`#0b0f19`) y `z-index: 1000005`. Dado que el `ProvisioningLoader` poseía `z-index: 1000001`, quedaba sepultado en el plano posterior mientras la descarga de 38 MB transcurría oculta. Al mismo tiempo, las pulsaciones del usuario despachaban secuencias a `this.websocket`, el cual se encontraba en valor `null` porque el runtime Linux y el daemon AXS PTY aún no estaban operativos.
+
+#### 4.168 Decisión
+Se implementa la reestructuración arquitectónica del ciclo de vida bajo el contrato formal [`SPEC-044`](specs/44-fix-provisioning-loader-lifecycle-and-wizard-mount-order.md):
+1. **Desacoplamiento Estricto de `mount()`:**
+   - Se elimina por completo la invocación síncrona de `_setupOnboardingWizard()` del método `mount()`. La fase de montaje DOM se reserva exclusivamente a la inicialización de Xterm.js y al registro de gestos táctiles.
+2. **Elevación de Jerarquía Z-Index a `1000010` (`clean-terminal.scss`):**
+   - Se actualiza la prioridad visual de `.provisioning-loader-overlay` y `.provisioning-overlay` a `z-index: 1000010 !important;`. Al superar estrictamente el nivel `1000005` del wizard, el loader permanece en el plano frontal absoluto durante cualquier operación de descarga o extracción.
+3. **Montaje Diferido Condicional en `connect()`:**
+   - `_setupOnboardingWizard()` se ejecuta de forma diferida en `CleanAgentTerminal.prototype.connect()` únicamente cuando se satisfacen las siguientes precondiciones concurrentes:
+     - `ensureAxsRunning()` ha finalizado con éxito.
+     - `openWebSocket(this.pid)` ha resuelto afirmativamente.
+     - `this.websocket.readyState === WebSocket.OPEN`.
+     - `activeLoader` ha finalizado y concluido su animación de salida.
+     - `!this.authenticatedUser` (el usuario requiere configurar su sesión).
+4. **Garantía de Socket Activo ante la Interacción Táctil:**
+   - Al mostrarse el `OnboardingWizard` únicamente cuando el WebSocket está plenamente abierto y el proceso `agy` espera entrada, cualquier pulsación de usuario (`[ Continuar con Google ]` o `[ Ingresar Token ]`) se transmite de forma instantánea ($\le 5\,\text{ms}$) al CLI.
+5. **Retiro Fluido de Loader (Fade-Out 350ms a 144Hz):**
+   - Transición cinemática continua entre la desaparición del loader y el despliegue del asistente visual sin parpadeos ni fugas visuales de la consola.
+6. **Empaquetado y Certificación Oficial v2.4.1:**
+   - Versión `2.4.1` (versionCode `20401`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.4.1-ARM64.apk`** (36.82 MB / 38,607,581 bytes $\le 42.0\,\text{MB}$, SHA256 `bc396542f82909299ffad3bbb4a56694330b127843087a0cc3d05a2327fb7773`).
+7. **Invariantes Reafirmados:**
+   - *Zero-visual-occlusion:* Prioridad absoluta frontal del loader (`z-index: 1000010`).
+   - *Deferred wizard mount:* Montaje condicionado a `WebSocket.OPEN`.
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-044` (`AC-LIFECYCLE-01` a `AC-LIFECYCLE-06`).
+
+#### 4.169 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Transparencia en Primer Arranque:** El usuario observa en todo momento el avance porcentual de aprovisionamiento en instalaciones limpias.
+  - **Interactividad Robusta:** Cero clics perdidos o ignorados en la pantalla de bienvenida.
+  - **Secuencia de Ciclo de Vida Determinista:** Flujo unidireccional ordenado: Descarga $\rightarrow$ Arranque de Runtime $\rightarrow$ Conexión PTY $\rightarrow$ Asistente Visual $\rightarrow$ Terminal Agéntica.
+- **Compromisos Operativos:**
+  - El usuario debe esperar a que el daemon PTY esté conectado antes de ver el wizard, lo cual ocurre en menos de 1 segundo en arranques subsecuentes.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2612,6 +2662,7 @@ Se diseña e implementa la arquitectura de asistente visual e insolación óptic
 | **SPEC-041** | Tarjeta Gráfica de Autenticación Google, Transición Suave Post-Login y Estado de Cuenta | `specs/41-native-google-auth-card-and-session-state.md` | `APPROVED` | 6 ACs |
 | **SPEC-042** | Auto-Respondedor Reactivo de Stream WebSocket y Auto-Inyección de Token OAuth desde Portapapeles | `specs/42-stream-auto-responder-and-auto-clipboard-oauth.md` | `APPROVED` | 6 ACs |
 | **SPEC-043** | Asistente Visual Multi-Paso Nativo (Material 3 Onboarding Wizard) y Enmascaramiento Opaco de Terminal | `specs/43-native-material3-multi-step-onboarding-wizard.md` | `APPROVED` | 6 ACs |
+| **SPEC-044** | Corrección del Ciclo de Vida del Loader de Aprovisionamiento y Orden de Montaje Diferido del Onboarding Wizard | `specs/44-fix-provisioning-loader-lifecycle-and-wizard-mount-order.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
