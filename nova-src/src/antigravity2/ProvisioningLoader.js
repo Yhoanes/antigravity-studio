@@ -136,7 +136,11 @@ export class ProvisioningLoader {
         }
     }
 
-    async finish() {
+    async completeAndFadeOut(delayMs = 250) {
+        return this.finish(delayMs);
+    }
+
+    async finish(delayMs = 250) {
         this.update(100, "¡Listo! Iniciando sesión agéntica...");
         if (!this.overlayEl) return;
 
@@ -156,7 +160,7 @@ export class ProvisioningLoader {
                     this.overlayEl = null;
                     resolve();
                 }, 300);
-            }, 250);
+            }, delayMs);
         });
     }
 }

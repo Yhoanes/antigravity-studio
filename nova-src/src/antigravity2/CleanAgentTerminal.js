@@ -53,6 +53,10 @@ export class CleanAgentTerminal {
         this._hasAutoOpenedBrowser = false;
         this._streamBuffer = "";
         this._oauthDebounceTimer = null;
+
+        // Persistencia de Sesión y Cortina Zero-Leak (SPEC-040)
+        this.sessionStorageKey = "antigravity_active_session_pid";
+        this.activeLoader = null;
     }
 
     mount(parentEl) {
@@ -102,6 +106,19 @@ export class CleanAgentTerminal {
                 await this.pasteFromClipboard();
             }
         });
+
+        // PREM-01: Cortina Zero-Leak montada durante la inicialización
+        if (!this.activeLoader) {
+            this.activeLoader = new ProvisioningLoader();
+            this.activeLoader.mount(this.containerEl || document.body);
+            this.activeLoader.update(100, "Iniciando Google Antigravity...");
+        }
+
+        // Listener para reinicio de sesión interactivo si existe #btn-restart
+        const btnRestart = document.getElementById("btn-restart");
+        if (btnRestart) {
+            btnRestart.addEventListener("click", () => this.restartSession());
+        }
 
         // Iniciar Conexión PTY en segundo plano
         setTimeout(() => this.connect(), 100);
@@ -209,29 +226,67 @@ export class CleanAgentTerminal {
         if (this.isConnecting || this.isConnected) return;
         this.isConnecting = true;
 
+        // PREM-01: Cortina Zero-Leak montada durante la inicialización
+        if (!this.activeLoader) {
+            this.activeLoader = new ProvisioningLoader();
+            this.activeLoader.mount(this.containerEl || document.body);
+            this.activeLoader.update(100, "Iniciando Google Antigravity...");
+        }
+
         try {
             await this.ensureAxsRunning();
             await this.waitForServerReady();
-            this.pid = await this.createSession();
-            await this.openWebSocket(this.pid);
+
+            let reattached = false;
+            const savedPid = localStorage.getItem(this.sessionStorageKey);
+
+            if (savedPid) {
+                try {
+                    console.log(`[SESSION] Intentando reenganche a PID previo: ${savedPid}`);
+                    await this.openWebSocket(savedPid);
+                    this.pid = savedPid;
+                    reattached = true;
+                    console.log("[SESSION] Reenganche a sesión persistente completado con éxito.");
+                } catch (reconnectErr) {
+                    console.warn("[SESSION] Sesión previa caducada. Creando nueva sesión...", reconnectErr);
+                    localStorage.removeItem(this.sessionStorageKey);
+                }
+            }
+
+            if (!reattached) {
+                this.pid = await this.createSession();
+                localStorage.setItem(this.sessionStorageKey, String(this.pid));
+                await this.openWebSocket(this.pid);
+
+                if (this.autoCommand) {
+                    setTimeout(() => {
+                        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                            this.websocket.send(this.autoCommand);
+                        }
+                    }, 200);
+                }
+            }
 
             this.isConnected = true;
             this.isConnecting = false;
 
-            // Ejecución automática de agy al establecer la sesión (AC-CORE-04)
-            if (this.autoCommand) {
-                setTimeout(() => {
-                    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                        this.websocket.send(this.autoCommand);
-                    }
-                }, 250);
-            }
+            // Retiro suave de la cortina Zero-Leak tras conexión lista (AC-PREM-01)
+            setTimeout(async () => {
+                if (this.activeLoader) {
+                    await this.activeLoader.finish();
+                    this.activeLoader = null;
+                }
+            }, 350);
         } catch (error) {
-            console.error("Fallo de conexión en CleanAgentTerminal:", error);
+            console.error("Fallo en inicialización de sesión:", error);
             this.isConnecting = false;
             this.isConnected = false;
+            if (this.activeLoader) {
+                await this.activeLoader.finish();
+                this.activeLoader = null;
+            }
             if (this.terminal) {
-                this.terminal.writeln(`\r\n\x1b[31m[ERROR]\x1b[0m No se pudo conectar con el daemon AXS: ${formatErrorMessage(error)}`);
+                this.terminal.writeln(`\r\n\x1b[31m[ERROR]\x1b[0m ${formatErrorMessage(error)}`);
             }
         }
     }
@@ -240,8 +295,10 @@ export class CleanAgentTerminal {
         const terminalPlugin = typeof Terminal !== "undefined" ? Terminal : (window.Terminal || null);
         if (terminalPlugin) {
             if (typeof terminalPlugin.isInstalled === "function" && !(await terminalPlugin.isInstalled())) {
-                const loader = new ProvisioningLoader();
-                loader.mount(this.containerEl || document.body);
+                const loader = this.activeLoader || new ProvisioningLoader();
+                if (!this.activeLoader) {
+                    loader.mount(this.containerEl || document.body);
+                }
                 let installSuccess = false;
                 try {
                     installSuccess = await terminalPlugin.install((percent, msg) => {
@@ -252,11 +309,15 @@ export class CleanAgentTerminal {
                         throw new Error(errMsg);
                     }
                 } finally {
-                    await loader.finish();
+                    if (!this.activeLoader) {
+                        await loader.finish();
+                    } else {
+                        this.activeLoader.update(100, "Iniciando Google Antigravity...");
+                    }
                 }
             }
             if (typeof terminalPlugin.isAxsRunning === "function" && !(await terminalPlugin.isAxsRunning())) {
-                this.terminal?.writeln("\r\n\x1b[33m[SISTEMA]\x1b[0m Iniciando daemon AXS...");
+                // AC-PREM-01: No escribir [SISTEMA] Iniciando daemon AXS... en terminal para evitar fugas visuales
                 await terminalPlugin.startAxs();
             }
         }
@@ -309,6 +370,7 @@ export class CleanAgentTerminal {
     openWebSocket(pid) {
         return new Promise((resolve, reject) => {
             const wsUrl = `ws://127.0.0.1:${this.port}/terminals/${pid}`;
+            let opened = false;
             this.websocket = new WebSocket(wsUrl);
 
             // SPEC-029 / SPEC-030: Sniffer silencioso de WebSocket para detección de URL OAuth
@@ -317,6 +379,7 @@ export class CleanAgentTerminal {
             });
 
             this.websocket.onopen = () => {
+                opened = true;
                 if (this.attachAddon) {
                     try { this.attachAddon.dispose(); } catch (e) {}
                     this.attachAddon = null;
@@ -331,12 +394,18 @@ export class CleanAgentTerminal {
             this.websocket.onclose = () => {
                 this.isConnected = false;
                 this.isConnecting = false;
-                this.terminal?.writeln("\r\n\x1b[33m[SESIÓN TERMINADA]\x1b[0m Conexión WebSocket con la terminal cerrada.");
+                if (!opened) {
+                    reject(new Error(`No se pudo conectar al WebSocket para PID ${pid}`));
+                } else {
+                    this.terminal?.writeln("\r\n\x1b[33m[SESIÓN TERMINADA]\x1b[0m Conexión WebSocket con la terminal cerrada.");
+                }
             };
 
             this.websocket.onerror = (err) => {
                 console.error("WebSocket error:", err);
-                reject(err);
+                if (!opened) {
+                    reject(err);
+                }
             };
         });
     }
@@ -463,15 +532,13 @@ export class CleanAgentTerminal {
     }
 
     async restartSession() {
-        if (this.terminal) {
-            this.terminal.writeln("\r\n\x1b[36m[REINICIANDO]\x1b[0m Cerrando sesión previa y reconectando...");
-        }
+        localStorage.removeItem(this.sessionStorageKey);
         if (this.attachAddon) {
             try { this.attachAddon.dispose(); } catch (e) {}
             this.attachAddon = null;
         }
         if (this.websocket) {
-            try { this.websocket.close(); } catch (e) {}
+            try { this.websocket.close(); } catch (_) {}
             this.websocket = null;
         }
         this.isConnected = false;
@@ -479,6 +546,14 @@ export class CleanAgentTerminal {
         this.pid = null;
         this._hasAutoOpenedBrowser = false;
         this._streamBuffer = "";
+        if (this.terminal) {
+            this.terminal.clear();
+        }
+        if (!this.activeLoader) {
+            this.activeLoader = new ProvisioningLoader();
+            this.activeLoader.mount(this.containerEl || document.body);
+        }
+        this.activeLoader.update(100, "Reiniciando Google Antigravity...");
         await this.connect();
     }
 

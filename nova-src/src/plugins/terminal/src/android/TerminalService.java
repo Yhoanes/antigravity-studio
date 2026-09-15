@@ -375,21 +375,35 @@ public class TerminalService extends Service {
         PendingIntent wakeLockPendingIntent = PendingIntent.getService(this, 1, wakeLockIntent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
+        // PREM-04: Intent interactivo para regresar a la aplicación
+        Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+        PendingIntent contentPendingIntent = null;
+        if (launchIntent != null) {
+            launchIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+            contentPendingIntent = PendingIntent.getActivity(
+                this, 0, launchIntent,
+                PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE
+            );
+        }
+
         String contentText = "Servicio en segundo plano activo" + (isWakeLockHeld ? " (wakelock activo)" : "");
         String wakeLockButtonText = isWakeLockHeld ? "Liberar Wake Lock" : "Mantener Activo";
 
         int notificationIcon = resolveDrawableId("ic_notification", "ic_launcher_foreground", "ic_launcher");
 
-        Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
+        NotificationCompat.Builder builder = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("Google Antigravity")
                 .setContentText(contentText)
                 .setSmallIcon(notificationIcon)
                 .setOngoing(true)
                 .addAction(notificationIcon, wakeLockButtonText, wakeLockPendingIntent)
-                .addAction(notificationIcon, "Salir", exitPendingIntent)
-                .build();
+                .addAction(notificationIcon, "Salir", exitPendingIntent);
 
-        startForeground(1, notification);
+        if (contentPendingIntent != null) {
+            builder.setContentIntent(contentPendingIntent);
+        }
+
+        startForeground(1, builder.build());
     }
 
     @Override

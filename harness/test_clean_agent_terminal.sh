@@ -130,11 +130,28 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.2.1 y android-versionCode 20201 en configuración (Criterio LIB-07)
-echo -n "16. Verificando versión 2.2.1 y versionCode 20201 en configuración... "
-grep -q 'version="2.2.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.2.1"; exit 1; }
-grep -q 'android-versionCode="20201"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20201"; exit 1; }
-grep -q '"version": "2.2.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.2.1"; exit 1; }
+# 16. Verificar versionado v2.2.2 y android-versionCode 20202 en configuración (Criterio PREM-06)
+echo -n "16. Verificando versión 2.2.2 y versionCode 20202 en configuración... "
+grep -q 'version="2.2.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.2.2"; exit 1; }
+grep -q 'android-versionCode="20202"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20202"; exit 1; }
+grep -q '"version": "2.2.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.2.2"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036, SPEC-037, SPEC-038 Y SPEC-039 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
+SPEC_FILE_040="specs/40-premium-zero-leak-transition-and-session-persistence.md"
+TERMINAL_SERVICE_JAVA="nova-src/src/plugins/terminal/src/android/TerminalService.java"
+echo -n "17. Verificando documento SPEC-040... "
+[ -f "$SPEC_FILE_040" ] || { echo "FALLO: No existe $SPEC_FILE_040"; exit 1; }
+echo "[OK]"
+
+echo -n "18. Verificando persistencia de sesión y cortina en CleanAgentTerminal.js (PREM-01/02/03)... "
+grep -q "antigravity_active_session_pid" "$CLEAN_TERM_JS" || { echo "FALLO: antigravity_active_session_pid ausente en CleanAgentTerminal.js"; exit 1; }
+grep -q "restartSession" "$CLEAN_TERM_JS" || { echo "FALLO: restartSession ausente en CleanAgentTerminal.js"; exit 1; }
+echo "[OK]"
+
+echo -n "19. Verificando setContentIntent en TerminalService.java (PREM-04)... "
+grep -q "setContentIntent" "$TERMINAL_SERVICE_JAVA" || { echo "FALLO: setContentIntent ausente en TerminalService.java"; exit 1; }
+grep -q "FLAG_ACTIVITY_SINGLE_TOP" "$TERMINAL_SERVICE_JAVA" || { echo "FALLO: FLAG_ACTIVITY_SINGLE_TOP ausente en TerminalService.java"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036, SPEC-037, SPEC-038, SPEC-039 Y SPEC-040 HAN SIDO SUPERADAS EXITOSAMENTE ==="
