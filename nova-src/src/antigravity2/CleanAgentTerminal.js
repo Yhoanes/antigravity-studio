@@ -1,6 +1,7 @@
 /**
  * CleanAgentTerminal - Terminal Agéntica Minimalista para Google Antigravity
- * Conforme a SPEC-028: Arquitectura Base sin ChatCanvas, directa a Xterm.js y PTY/AXS.
+ * Conforme a SPEC-028 & SPEC-029: Arquitectura Base sin ChatCanvas, directa a Xterm.js y PTY/AXS,
+ * Puente OAuth hacia navegador externo (FLAG_ACTIVITY_NEW_TASK), soporte OSC 8 y barra interactiva.
  */
 import { Terminal as Xterm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
@@ -10,6 +11,9 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import "@xterm/xterm/css/xterm.css";
 import "./clean-terminal.scss";
+
+// Google OAuth 2.0 PKCE detection regex (SPEC-029: AC-OAUTH-01): accounts.google.com/o/oauth2/
+const OAUTH_REGEX = /https:\/\/accounts\.google\.com\/o\/oauth2\/[^\s"'>\x1b\x00-\x1f\)]+/;
 
 export class CleanAgentTerminal {
     constructor(options = {}) {
@@ -22,13 +26,24 @@ export class CleanAgentTerminal {
         this.websocket = null;
         this.pid = null;
         this.containerEl = null;
+        this.topBarEl = null;
+        this.oauthBarEl = null;
         this.viewportEl = null;
         this.badgeEl = null;
         this.btnRestart = null;
+        this.btnOAuthOpen = null;
+        this.btnPasteCode = null;
+        this.btnDismissOAuth = null;
         this.isConnecting = false;
         this.isConnected = false;
         this._resizeObserver = null;
         this._cleanupResize = null;
+
+        // SPEC-029: Estado de sesión OAuth y sniffer
+        this._lastOAuthUrl = null;
+        this.activeOAuthUrl = null;
+        this._hasAutoOpenedBrowser = false;
+        this._streamBuffer = "";
     }
 
     mount(parentEl) {
@@ -37,9 +52,9 @@ export class CleanAgentTerminal {
 
         // 1. Construir TopBar Minimalista si está habilitada
         if (this.showTopBar) {
-            const topBar = document.createElement("header");
-            topBar.className = "clean-agent-topbar";
-            topBar.innerHTML = `
+            this.topBarEl = document.createElement("header");
+            this.topBarEl.className = "clean-agent-topbar";
+            this.topBarEl.innerHTML = `
                 <div class="clean-agent-brand">
                     <span class="brand-dot"></span>
                     <span class="clean-agent-title">Google Antigravity Agent</span>
@@ -52,14 +67,51 @@ export class CleanAgentTerminal {
                     </button>
                 </div>
             `;
-            this.containerEl.appendChild(topBar);
+            this.containerEl.appendChild(this.topBarEl);
 
-            this.badgeEl = topBar.querySelector("#agent-status-badge");
-            this.btnRestart = topBar.querySelector("#btn-restart");
+            this.badgeEl = this.topBarEl.querySelector("#agent-status-badge");
+            this.btnRestart = this.topBarEl.querySelector("#btn-restart");
             this.btnRestart.addEventListener("click", () => this.restartSession());
         }
 
-        // 2. Construir Viewport de Terminal a Pantalla Completa
+        // 2. Construir Barra Contextual Flotante de OAuth (SPEC-029)
+        this.oauthBarEl = document.createElement("div");
+        this.oauthBarEl.className = "clean-agent-oauth-bar";
+        this.oauthBarEl.id = "oauth-action-bar";
+        this.oauthBarEl.innerHTML = `
+            <div class="oauth-bar-info">
+                <span class="oauth-bar-icon">🔐</span>
+                <span class="oauth-badge oauth-bar-label">🔑 Autenticación Requerida</span>
+            </div>
+            <div class="oauth-bar-buttons">
+                <button class="oauth-btn btn-open-chrome btn-oauth-chrome" id="btn-oauth-open" title="Abrir enlace en Google Chrome">
+                    <span class="btn-icon">🌐</span>
+                    <span class="btn-text">Abrir en Google Chrome</span>
+                </button>
+                <button class="oauth-btn btn-paste-code btn-oauth-paste" id="btn-oauth-paste" title="Pegar código del portapapeles">
+                    <span class="btn-icon">📋</span>
+                    <span class="btn-text">Pegar Código</span>
+                </button>
+                <button class="oauth-btn btn-dismiss" id="btn-oauth-dismiss" title="Cerrar barra">✕</button>
+            </div>
+        `;
+        this.containerEl.appendChild(this.oauthBarEl);
+
+        this.btnOAuthOpen = this.oauthBarEl.querySelector("#btn-oauth-open");
+        this.btnPasteCode = this.oauthBarEl.querySelector("#btn-oauth-paste");
+        this.btnDismissOAuth = this.oauthBarEl.querySelector("#btn-oauth-dismiss");
+
+        this.btnOAuthOpen.addEventListener("click", () => {
+            this.openInBrowser(this._lastOAuthUrl || this.activeOAuthUrl);
+        });
+        this.btnPasteCode.addEventListener("click", () => {
+            this.pasteAuthCode();
+        });
+        this.btnDismissOAuth.addEventListener("click", () => {
+            this.hideOAuthBar();
+        });
+
+        // 3. Construir Viewport de Terminal a Pantalla Completa
         this.viewportEl = document.createElement("main");
         this.viewportEl.className = "clean-agent-viewport";
         this.viewportEl.id = "terminal-viewport";
@@ -67,10 +119,10 @@ export class CleanAgentTerminal {
 
         parentEl.appendChild(this.containerEl);
 
-        // 3. Inicializar Xterm.js
+        // 4. Inicializar Xterm.js
         this.initTerminal();
 
-        // 4. Iniciar Conexión PTY en segundo plano
+        // 5. Iniciar Conexión PTY en segundo plano
         setTimeout(() => this.connect(), 100);
     }
 
@@ -86,18 +138,21 @@ export class CleanAgentTerminal {
                 cursor: "#60a5fa",
                 selectionBackground: "rgba(96, 165, 250, 0.3)",
             },
-            allowProposedApi: true
+            allowProposedApi: true,
+            // SPEC-029: AC-OAUTH-02 (Soporte nativo de hipervínculos OSC 8 para clics/toques táctiles)
+            linkHandler: {
+                activate: (event, uri) => {
+                    console.log("OSC 8 Link activado táctilmente:", uri);
+                    this.openInBrowser(uri);
+                }
+            }
         });
 
         this.fitAddon = new FitAddon();
         this.terminal.loadAddon(this.fitAddon);
         this.terminal.loadAddon(new Unicode11Addon());
         this.terminal.loadAddon(new WebLinksAddon((evt, uri) => {
-            if (window.system?.openInBrowser) {
-                window.system.openInBrowser(uri);
-            } else {
-                window.open(uri, "_blank");
-            }
+            this.openInBrowser(uri);
         }));
 
         this.terminal.open(this.viewportEl);
@@ -252,6 +307,11 @@ export class CleanAgentTerminal {
             const wsUrl = `ws://127.0.0.1:${this.port}/terminals/${pid}`;
             this.websocket = new WebSocket(wsUrl);
 
+            // SPEC-029: AC-OAUTH-01 (Sniffer de flujo WebSocket para detección de URL de OAuth)
+            this.websocket.addEventListener("message", (event) => {
+                this.detectOAuthUrl(event.data);
+            });
+
             this.websocket.onopen = () => {
                 if (this.attachAddon) {
                     try { this.attachAddon.dispose(); } catch (e) {}
@@ -276,6 +336,130 @@ export class CleanAgentTerminal {
                 reject(err);
             };
         });
+    }
+
+    /**
+     * SPEC-029: AC-OAUTH-01 Sniffer de flujo de datos en el WebSocket.
+     * Acumula chunks en un buffer circular, detecta patrones de URL Google OAuth,
+     * muestra la barra contextual y dispara auto-apertura la primera vez.
+     */
+    detectOAuthUrl(chunk) {
+        try {
+            const text = typeof chunk === "string"
+                ? chunk
+                : (chunk instanceof ArrayBuffer
+                    ? new TextDecoder().decode(chunk)
+                    : String(chunk || ""));
+
+            this._streamBuffer = (this._streamBuffer || "") + text;
+            if (this._streamBuffer.length > 8192) {
+                this._streamBuffer = this._streamBuffer.slice(-8192);
+            }
+
+            const match = this._streamBuffer.match(OAUTH_REGEX);
+            if (match) {
+                const detectedUrl = match[0];
+                this._lastOAuthUrl = detectedUrl;
+                this.activeOAuthUrl = detectedUrl;
+
+                // Muestra la barra contextual clean-agent-oauth-bar
+                this.showOAuthBar(detectedUrl);
+
+                // Lanza automáticamente this.openInBrowser la primera vez
+                if (!this._hasAutoOpenedBrowser) {
+                    this._hasAutoOpenedBrowser = true;
+                    this.openInBrowser(detectedUrl);
+                }
+            }
+        } catch (err) {
+            console.warn("Error en detectOAuthUrl:", err);
+        }
+    }
+
+    sniffWebSocketMessage(rawData) {
+        this.detectOAuthUrl(rawData);
+    }
+
+    openInBrowser(uri) {
+        if (!uri) return;
+        if (window.system?.openInBrowser) {
+            window.system.openInBrowser(uri);
+        } else {
+            window.open(uri, "_blank");
+        }
+    }
+
+    openOAuthUrl(url) {
+        this.openInBrowser(url);
+    }
+
+    showOAuthBar(url) {
+        if (!this.oauthBarEl) return;
+        this.oauthBarEl.classList.add("visible");
+        // Refit para ajustar geometría de terminal ante la barra visible
+        if (this.fitAddon) {
+            setTimeout(() => {
+                try { this.fitAddon.fit(); } catch (e) {}
+            }, 50);
+        }
+    }
+
+    hideOAuthBar() {
+        if (!this.oauthBarEl) return;
+        this.oauthBarEl.classList.remove("visible");
+        // Refit al ocultar la barra contextual
+        if (this.fitAddon) {
+            setTimeout(() => {
+                try { this.fitAddon.fit(); } catch (e) {}
+            }, 50);
+        }
+    }
+
+    /**
+     * SPEC-029: AC-OAUTH-03 Manejo de pegado de código de autorización
+     * Lee portapapeles (navigator o cordova), fallback prompt, inyecta con \r a PTY y oculta la barra.
+     */
+    async pasteAuthCode() {
+        let code = "";
+        try {
+            if (window.cordova?.plugins?.clipboard?.paste) {
+                code = await new Promise((resolve) => {
+                    cordova.plugins.clipboard.paste((text) => resolve(text || ""), () => resolve(""));
+                });
+            } else if (navigator.clipboard?.readText) {
+                code = await navigator.clipboard.readText().catch(() => "");
+            }
+        } catch (err) {
+            console.warn("Error leyendo portapapeles:", err);
+        }
+
+        if (!code || !code.trim()) {
+            code = window.prompt("Pega el código de autorización de Google aquí:") || "";
+        }
+
+        if (code && code.trim()) {
+            const cleanCode = code.trim();
+            if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                this.websocket.send(`${cleanCode}\r`);
+            }
+
+            if (this.btnPasteCode) {
+                const origHtml = this.btnPasteCode.innerHTML;
+                this.btnPasteCode.innerHTML = `<span class="btn-icon">✓</span><span class="btn-text">¡Código Pegado!</span>`;
+                setTimeout(() => {
+                    if (this.btnPasteCode) {
+                        this.btnPasteCode.innerHTML = origHtml;
+                    }
+                    this.hideOAuthBar();
+                }, 1200);
+            } else {
+                this.hideOAuthBar();
+            }
+        }
+    }
+
+    async handlePasteOAuthCode() {
+        return this.pasteAuthCode();
     }
 
     notifyServerResize(cols, rows) {
@@ -310,6 +494,9 @@ export class CleanAgentTerminal {
         this.isConnected = false;
         this.isConnecting = false;
         this.pid = null;
+        this._hasAutoOpenedBrowser = false;
+        this._streamBuffer = "";
+        this.hideOAuthBar();
         await this.connect();
     }
 
