@@ -6,22 +6,25 @@ set -e
 
 SPEC_FILE_036="specs/36-smooth-provisioning-loader-and-stream-logger.md"
 SPEC_FILE_037="specs/37-fix-cordova-terminal-wrapper-and-splash-dismissal.md"
+SPEC_FILE_038="specs/38-repair-arm64-subsystem-download-and-smooth-loader.md"
 PROV_LOADER_JS="nova-src/src/antigravity2/ProvisioningLoader.js"
 SCSS_FILE="nova-src/src/antigravity2/clean-terminal.scss"
 TERM_SRC="nova-src/src/plugins/terminal/www/Terminal.js"
 TERM_PLUGIN="nova-src/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js"
 TERM_PLATFORM="nova-src/platforms/android/platform_www/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js"
 TERM_ASSETS="nova-src/platforms/android/app/src/main/assets/www/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js"
+CLEAN_TERM_JS="nova-src/src/antigravity2/CleanAgentTerminal.js"
 MAIN_JS="nova-src/src/main.js"
 CONFIG_XML="nova-src/config.xml"
 PACKAGE_JSON="nova-src/package.json"
 
-echo "=== INICIANDO VALIDACIÓN FORMAL DE TERMINAL Y BOOTSTRAP (SPEC-036 / SPEC-037) ==="
+echo "=== INICIANDO VALIDACIÓN FORMAL DE TERMINAL Y BOOTSTRAP (SPEC-036 / SPEC-037 / SPEC-038) ==="
 
 # 1. Verificar documentos SPEC
 echo -n "1. Verificando documentos de especificación... "
 [ -f "$SPEC_FILE_036" ] || { echo "FALLO: No existe $SPEC_FILE_036"; exit 1; }
 [ -f "$SPEC_FILE_037" ] || { echo "FALLO: No existe $SPEC_FILE_037"; exit 1; }
+[ -f "$SPEC_FILE_038" ] || { echo "FALLO: No existe $SPEC_FILE_038"; exit 1; }
 echo "[OK]"
 
 # 2. Verificar API polimórfica y anti-NaN en ProvisioningLoader (Criterio LOADER-01)
@@ -83,11 +86,28 @@ grep -q '2500' "$MAIN_JS" || { echo "FALLO: Watchdog timer de 2500ms ausente en 
 grep -q 'disipando splash screen' "$MAIN_JS" || { echo "FALLO: Mensaje de disipación de splash ausente en main.js"; exit 1; }
 echo "[OK]"
 
-# 10. Verificar versionado v2.1.9 y android-versionCode 20109 (Criterio VER-05)
-echo -n "10. Verificando versión 2.1.9 y versionCode 20109 en configuración... "
-grep -q 'version="2.1.9"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.1.9"; exit 1; }
-grep -q 'android-versionCode="20109"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20109"; exit 1; }
-grep -q '"version": "2.1.9"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.1.9"; exit 1; }
+# 10. Verificar descarga legítima por red en Terminal.js (Criterio REPAIR-01)
+echo -n "10. Verificando URLs legítimas de descarga en Terminal.js... "
+grep -q "cdimage.ubuntu.com" "$TERM_SRC" || { echo "FALLO: URL de Ubuntu base ausente en Terminal.js"; exit 1; }
+grep -q "storage.googleapis.com" "$TERM_SRC" || { echo "FALLO: URL de Google Antigravity CLI ausente en Terminal.js"; exit 1; }
+grep -q "downloadFile" "$TERM_SRC" || { echo "FALLO: downloadFile ausente en Terminal.js"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 Y SPEC-037 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 11. Verificar validación de éxito en CleanAgentTerminal.js (Criterio REPAIR-03)
+echo -n "11. Verificando validación de installSuccess en CleanAgentTerminal.js... "
+grep -q "installSuccess" "$CLEAN_TERM_JS" || { echo "FALLO: installSuccess ausente en CleanAgentTerminal.js"; exit 1; }
+echo "[OK]"
+
+# 12. Verificar formateador anti-[object Object] en CleanAgentTerminal.js (Criterio REPAIR-04)
+echo -n "12. Verificando formateador anti-[object Object] en CleanAgentTerminal.js... "
+grep -q "formatErrorMessage" "$CLEAN_TERM_JS" || { echo "FALLO: formatErrorMessage ausente en CleanAgentTerminal.js"; exit 1; }
+echo "[OK]"
+
+# 13. Verificar versionado v2.2.0 y android-versionCode 20200 en configuración (Criterio REPAIR-06)
+echo -n "13. Verificando versión 2.2.0 y versionCode 20200 en configuración... "
+grep -q 'version="2.2.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.2.0"; exit 1; }
+grep -q 'android-versionCode="20200"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20200"; exit 1; }
+grep -q '"version": "2.2.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.2.0"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036, SPEC-037 Y SPEC-038 HAN SIDO SUPERADAS EXITOSAMENTE ==="

@@ -1,5 +1,40 @@
 const Executor = require("./Executor");
 
+const UBUNTU_ARM64_ROOTFS_URL = "https://cdimage.ubuntu.com/ubuntu-base/releases/24.04/release/ubuntu-base-24.04.5-base-arm64.tar.gz";
+const GOOGLE_ANTIGRAVITY_CLI_URL = "https://storage.googleapis.com/antigravity-public/antigravity-cli/1.2.2-6061403484848128/linux-arm/cli_linux_arm64.tar.gz";
+
+function downloadFile(url, destination, label, onProgress, startPct = 10, endPct = 50) {
+    return new Promise((resolve, reject) => {
+        let currentPct = startPct;
+        let progressTimer = null;
+        if (typeof onProgress === "function") {
+            onProgress(startPct, `Descargando ${label}...`);
+            progressTimer = setInterval(() => {
+                if (currentPct < endPct - 2) {
+                    currentPct += 1;
+                    onProgress(currentPct, `Descargando ${label}...`);
+                }
+            }, 450);
+        }
+
+        cordova.plugin.http.downloadFile(
+            url, {}, {},
+            destination,
+            () => {
+                if (progressTimer) clearInterval(progressTimer);
+                if (typeof onProgress === "function") {
+                    onProgress(endPct, `${label} descargado con éxito.`);
+                }
+                resolve();
+            },
+            (error) => {
+                if (progressTimer) clearInterval(progressTimer);
+                reject(new Error(`${label} download failed: ${formatError(error)}`));
+            }
+        );
+    });
+}
+
 const Terminal = {
     /**
      * Starts the AXS environment by writing init scripts and executing the sandbox.
@@ -216,46 +251,17 @@ const Terminal = {
             }
 
             if (arch === "arm64-v8a") {
-                report(30, "Extrayendo sistema base Linux ARM64...");
-                logger("📦  Extrayendo Ubuntu ARM64 glibc rootfs desde assets locales canónicos...");
-                await new Promise((resolve, reject) => {
-                    system.extractAsset(
-                        "antigravity/rootfs/ubuntu_arm64.tar.gz",
-                        `${filesDir}/rootfs.tar.gz`,
-                        resolve,
-                        () => {
-                            system.extractAsset(
-                                "antigravity/rootfs/ubuntu_arm64.tar",
-                                `${filesDir}/rootfs.tar.gz`,
-                                resolve,
-                                (err) => {
-                                    console.error("Fallo extrayendo rootfs desde ruta canónica:", err);
-                                    reject(err);
-                                }
-                            );
-                        }
-                    );
-                });
+                report(10, "Descargando subsistema Linux Ubuntu ARM64...");
+                logger("⬇️  Descargando subsistema Linux Ubuntu ARM64...");
+                const rootfsDest = (window.cordova?.file?.dataDirectory || `file://${filesDir}/`) + "rootfs.tar.gz";
+                await downloadFile(UBUNTU_ARM64_ROOTFS_URL, rootfsDest, "subsistema Linux Ubuntu ARM64", report, 10, 48);
 
-                report(55, "Extrayendo Google Antigravity CLI (agy)...");
-                logger("📦  Extrayendo Google Antigravity CLI (arm64) desde assets locales...");
-                await new Promise((resolve, reject) => {
-                    system.extractAsset(
-                        "antigravity/cli_linux_arm64.tar.gz",
-                        `${filesDir}/cli_linux_arm64.tar.gz`,
-                        resolve,
-                        () => {
-                            system.extractAsset(
-                                "antigravity/cli_linux_arm64.tar",
-                                `${filesDir}/cli_linux_arm64.tar.gz`,
-                                resolve,
-                                reject
-                            );
-                        }
-                    );
-                });
+                report(50, "Descargando Google Antigravity CLI (agy)...");
+                logger("⬇️  Descargando Google Antigravity CLI (arm64)...");
+                const cliDest = (window.cordova?.file?.dataDirectory || `file://${filesDir}/`) + "cli_linux_arm64.tar.gz";
+                await downloadFile(GOOGLE_ANTIGRAVITY_CLI_URL, cliDest, "Google Antigravity CLI", report, 50, 72);
 
-                logger("✅  Todos los activos locales fueron extraídos con éxito (CERO descargas de red).");
+                logger("✅  Descargas completadas con éxito.");
             } else {
                 logger("📦  Extrayendo sandbox filesystem...");
                 await new Promise((resolve, reject) => {
@@ -281,19 +287,19 @@ const Terminal = {
             await ensureDir(alpineDir);
 
             if (arch === "arm64-v8a") {
-                report(75, "Descomprimiendo subsistema e instalando paquetes...");
+                report(75, "Descomprimiendo subsistema Ubuntu ARM64...");
                 logger("📦  Descomprimiendo sistema base Linux Ubuntu ARM64...");
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/rootfs.tar.gz -C ${alpineDir} || [ -f ${alpineDir}/bin/sh ]`);
                 await Executor.execute(`ln -sf perl ${alpineDir}/usr/bin/perl5.38.2 2>/dev/null || true`);
                 await Executor.execute(`ln -sf gunzip ${alpineDir}/usr/bin/uncompress 2>/dev/null || true`);
 
+                report(85, "Instalando Google Antigravity CLI (agy)...");
                 logger("⚡  Instalando Google Antigravity CLI (agy)...");
                 await ensureDir(`${alpineDir}/usr/local/bin`);
                 await Executor.execute(`tar --no-same-owner -xf ${filesDir}/cli_linux_arm64.tar.gz -C ${alpineDir}/usr/local/bin`);
                 await Executor.execute(`chmod +x ${alpineDir}/usr/local/bin/antigravity`);
                 await Executor.execute(`ln -sf antigravity ${alpineDir}/usr/local/bin/agy`);
 
-                // Cleanup temporary archives to optimize device storage (SPEC-024 §2.3)
                 await deleteFile(`${filesDir}/rootfs.tar.gz`).catch(() => {});
                 await deleteFile(`${filesDir}/cli_linux_arm64.tar.gz`).catch(() => {});
             } else {

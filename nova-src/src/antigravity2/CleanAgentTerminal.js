@@ -17,6 +17,19 @@ import "./clean-terminal.scss";
 // Google OAuth 2.0 PKCE detection regex (SPEC-029 / SPEC-030: AC-CORE-07): accounts.google.com/o/oauth2/
 const OAUTH_REGEX = /https:\/\/accounts\.google\.com\/o\/oauth2\/[^\s"'>\x1b\x00-\x1f\)]+/;
 
+function formatErrorMessage(error) {
+    if (!error) return "Error desconocido";
+    if (typeof error === "string") return error;
+    if (error.message) return error.message;
+    if (error.error) return String(error.error);
+    if (error.status) return `HTTP ${error.status} - ${error.data || "Fallo de conexión"}`;
+    try {
+        return JSON.stringify(error);
+    } catch (e) {
+        return String(error);
+    }
+}
+
 export class CleanAgentTerminal {
     constructor(options = {}) {
         this.port = options.port || 8767;
@@ -218,7 +231,7 @@ export class CleanAgentTerminal {
             this.isConnecting = false;
             this.isConnected = false;
             if (this.terminal) {
-                this.terminal.writeln(`\r\n\x1b[31m[ERROR]\x1b[0m No se pudo conectar con el daemon AXS: ${error?.message || error}`);
+                this.terminal.writeln(`\r\n\x1b[31m[ERROR]\x1b[0m No se pudo conectar con el daemon AXS: ${formatErrorMessage(error)}`);
             }
         }
     }
@@ -229,10 +242,15 @@ export class CleanAgentTerminal {
             if (typeof terminalPlugin.isInstalled === "function" && !(await terminalPlugin.isInstalled())) {
                 const loader = new ProvisioningLoader();
                 loader.mount(this.containerEl || document.body);
+                let installSuccess = false;
                 try {
-                    await terminalPlugin.install((percent, msg) => {
+                    installSuccess = await terminalPlugin.install((percent, msg) => {
                         loader.update(percent, msg);
                     });
+                    if (!installSuccess) {
+                        const errMsg = terminalPlugin.lastInstallError || "Fallo en la descarga o aprovisionamiento del subsistema Linux";
+                        throw new Error(errMsg);
+                    }
                 } finally {
                     await loader.finish();
                 }
