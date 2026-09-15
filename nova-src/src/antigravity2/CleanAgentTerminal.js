@@ -11,6 +11,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import TerminalTouchNavigation from "./TerminalTouchNavigation";
 import { ProvisioningLoader } from "./ProvisioningLoader.js";
+import { GoogleAuthCard } from "./GoogleAuthCard.js";
 import "@xterm/xterm/css/xterm.css";
 import "./clean-terminal.scss";
 
@@ -57,6 +58,12 @@ export class CleanAgentTerminal {
         // Persistencia de Sesión y Cortina Zero-Leak (SPEC-040)
         this.sessionStorageKey = "antigravity_active_session_pid";
         this.activeLoader = null;
+
+        // Tarjeta de Autenticación Google y Estado de Cuenta (SPEC-041)
+        this.authCard = null;
+        this.accountBadgeEl = null;
+        this.authenticatedUserStorageKey = "antigravity_authenticated_user";
+        this.authenticatedUser = localStorage.getItem(this.authenticatedUserStorageKey) || null;
     }
 
     mount(parentEl) {
@@ -118,6 +125,11 @@ export class CleanAgentTerminal {
         const btnRestart = document.getElementById("btn-restart");
         if (btnRestart) {
             btnRestart.addEventListener("click", () => this.restartSession());
+        }
+
+        // SPEC-041: Si el usuario ya está autenticado, renderizar Account Badge de inmediato
+        if (this.authenticatedUser) {
+            this.renderAccountBadge(this.authenticatedUser, "Google AI Ultra");
         }
 
         // Iniciar Conexión PTY en segundo plano
@@ -434,6 +446,26 @@ export class CleanAgentTerminal {
                     ? new TextDecoder().decode(chunk)
                     : String(chunk || ""));
 
+            // SPEC-041: Detección reactiva de confirmación de usuario autenticado
+            if (
+                text.includes("shadrick1212@gmail.com") ||
+                text.includes("Google AI Ultra") ||
+                /(?:Logged in as|autenticado como|authenticated as)\s+([^\s\(\)]+@[^\s\(\)]+)/i.test(text)
+            ) {
+                let email = "shadrick1212@gmail.com";
+                const userMatch = text.match(/(?:Logged in as|autenticado como|authenticated as)\s+([^\s\(\)]+@[^\s\(\)]+)/i);
+                if (userMatch && userMatch[1]) {
+                    email = userMatch[1].trim();
+                }
+                this.authenticatedUser = email;
+                localStorage.setItem(this.authenticatedUserStorageKey, email);
+                this.renderAccountBadge(email, "Google AI Ultra");
+                if (this.authCard) {
+                    this.authCard.fadeOut(250);
+                    this.authCard = null;
+                }
+            }
+
             if (text.includes("accounts.google.com") || (this._streamBuffer && !this._hasAutoOpenedBrowser)) {
                 this._streamBuffer = (this._streamBuffer || "") + text;
                 if (this._streamBuffer.length > 16384) {
@@ -461,10 +493,23 @@ export class CleanAgentTerminal {
             if (this.validateOAuthUrl(candidateUrl)) {
                 this._lastOAuthUrl = candidateUrl;
                 this.activeOAuthUrl = candidateUrl;
-                if (!this._hasAutoOpenedBrowser) {
-                    this._hasAutoOpenedBrowser = true;
-                    this.openInBrowser(candidateUrl);
+
+                // SPEC-041: Si el usuario ya está autenticado, no desplegar la tarjeta de login
+                if (this.authenticatedUser) {
+                    return;
                 }
+
+                // SPEC-041: Desplegar GoogleAuthCard con diseño Material 3
+                if (!this.authCard) {
+                    this.authCard = new GoogleAuthCard({
+                        onSignIn: (url) => {
+                            this._hasAutoOpenedBrowser = true;
+                            this.openInBrowser(url);
+                        }
+                    });
+                    this.authCard.mount(this.containerEl || document.body);
+                }
+                this.authCard.setAuthUrl(candidateUrl);
             }
         }
     }
@@ -531,8 +576,53 @@ export class CleanAgentTerminal {
         // En SPEC-030 no hay barra ni badge visual para mantener terminal 100% pura
     }
 
+    /**
+     * SPEC-041: Account Badge en la barra superior (shadrick1212@gmail.com • Google AI Ultra)
+     */
+    renderAccountBadge(userEmail = "shadrick1212@gmail.com", tier = "Google AI Ultra") {
+        if (this.accountBadgeEl) {
+            const pill = this.accountBadgeEl.querySelector(".account-pill");
+            if (pill) pill.textContent = `${userEmail} • ${tier}`;
+            return;
+        }
+        this.accountBadgeEl = document.createElement("div");
+        this.accountBadgeEl.className = "clean-agent-account-badge";
+        this.accountBadgeEl.id = "clean-agent-account-badge";
+        this.accountBadgeEl.innerHTML = `
+            <span class="badge-dot"></span>
+            <span class="account-pill">${userEmail} • ${tier}</span>
+        `;
+        this.accountBadgeEl.addEventListener("click", () => this.handleAccountMenu());
+        (this.containerEl || document.body).appendChild(this.accountBadgeEl);
+    }
+
+    handleAccountMenu() {
+        const user = this.authenticatedUser || "shadrick1212@gmail.com";
+        const doLogout = window.confirm(`Sesión de Google Antigravity activa:\n${user}\n\n¿Deseas cerrar sesión?`);
+        if (doLogout) {
+            this.logout();
+        }
+    }
+
+    async logout() {
+        localStorage.removeItem(this.authenticatedUserStorageKey);
+        this.authenticatedUser = null;
+        if (this.accountBadgeEl && this.accountBadgeEl.parentNode) {
+            this.accountBadgeEl.parentNode.removeChild(this.accountBadgeEl);
+            this.accountBadgeEl = null;
+        }
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            this.websocket.send("agy auth logout\r");
+        }
+        await this.restartSession();
+    }
+
     async restartSession() {
         localStorage.removeItem(this.sessionStorageKey);
+        if (this.authCard) {
+            this.authCard.dismiss();
+            this.authCard = null;
+        }
         if (this.attachAddon) {
             try { this.attachAddon.dispose(); } catch (e) {}
             this.attachAddon = null;
@@ -558,6 +648,14 @@ export class CleanAgentTerminal {
     }
 
     destroy() {
+        if (this.authCard) {
+            this.authCard.dismiss();
+            this.authCard = null;
+        }
+        if (this.accountBadgeEl && this.accountBadgeEl.parentNode) {
+            this.accountBadgeEl.parentNode.removeChild(this.accountBadgeEl);
+            this.accountBadgeEl = null;
+        }
         if (this.touchNav) {
             this.touchNav.destroy();
             this.touchNav = null;

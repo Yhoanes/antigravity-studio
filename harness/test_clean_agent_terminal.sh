@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.2.2 y android-versionCode 20202 en configuración (Criterio PREM-06)
-echo -n "16. Verificando versión 2.2.2 y versionCode 20202 en configuración... "
-grep -q 'version="2.2.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.2.2"; exit 1; }
-grep -q 'android-versionCode="20202"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20202"; exit 1; }
-grep -q '"version": "2.2.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.2.2"; exit 1; }
+# 16. Verificar versionado v2.3.0 y android-versionCode 20300 en configuración (Criterio AUTH-06)
+echo -n "16. Verificando versión 2.3.0 y versionCode 20300 en configuración... "
+grep -q 'version="2.3.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.3.0"; exit 1; }
+grep -q 'android-versionCode="20300"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20300"; exit 1; }
+grep -q '"version": "2.3.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.3.0"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -154,4 +154,28 @@ grep -q "setContentIntent" "$TERMINAL_SERVICE_JAVA" || { echo "FALLO: setContent
 grep -q "FLAG_ACTIVITY_SINGLE_TOP" "$TERMINAL_SERVICE_JAVA" || { echo "FALLO: FLAG_ACTIVITY_SINGLE_TOP ausente en TerminalService.java"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036, SPEC-037, SPEC-038, SPEC-039 Y SPEC-040 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 20. Verificar SPEC-041 (Criterios AUTH-01 a AUTH-06)
+SPEC_FILE_041="specs/41-native-google-auth-card-and-session-state.md"
+AUTH_CARD_JS="nova-src/src/antigravity2/GoogleAuthCard.js"
+
+echo -n "20. Verificando documento SPEC-041... "
+[ -f "$SPEC_FILE_041" ] || { echo "FALLO: No existe $SPEC_FILE_041"; exit 1; }
+echo "[OK]"
+
+echo -n "21. Verificando componente GoogleAuthCard.js (AUTH-01)... "
+[ -f "$AUTH_CARD_JS" ] || { echo "FALLO: No existe GoogleAuthCard.js"; exit 1; }
+grep -q "google-auth-card" "$AUTH_CARD_JS" || { echo "FALLO: Contenedor google-auth-card ausente"; exit 1; }
+grep -q "Continuar con Google" "$AUTH_CARD_JS" || { echo "FALLO: Botón de login ausente en GoogleAuthCard.js"; exit 1; }
+echo "[OK]"
+
+echo -n "22. Verificando integración de GoogleAuthCard y Account Badge (AUTH-02 y AUTH-04)... "
+grep -q "GoogleAuthCard" "$CLEAN_TERM_JS" || { echo "FALLO: Import o uso de GoogleAuthCard ausente en CleanAgentTerminal"; exit 1; }
+grep -q "clean-agent-account-badge" "$CLEAN_TERM_JS" || { echo "FALLO: Badge de cuenta ausente en CleanAgentTerminal"; exit 1; }
+echo "[OK]"
+
+echo -n "23. Verificando estilos en clean-terminal.scss (AUTH-01 y AUTH-04)... "
+grep -q "google-auth-overlay" "$SCSS_FILE" || { echo "FALLO: .google-auth-overlay ausente en SCSS"; exit 1; }
+grep -q "clean-agent-account-badge" "$SCSS_FILE" || { echo "FALLO: .clean-agent-account-badge ausente en SCSS"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036, SPEC-037, SPEC-038, SPEC-039, SPEC-040 Y SPEC-041 HAN SIDO SUPERADAS EXITOSAMENTE ==="
