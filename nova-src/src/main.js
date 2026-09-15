@@ -109,6 +109,15 @@ document.addEventListener("pause", pauseHandler);
 document.addEventListener("resume", resumeHandler);
 document.addEventListener("keydown", keyboardHandler);
 document.addEventListener("deviceready", onDeviceReady);
+setTimeout(() => {
+	if (document.body.classList.contains("loading")) {
+		console.warn("[Antigravity] Watchdog: disipando splash screen tras 2500ms");
+		document.body.removeAttribute("data-small-msg");
+		document.body.classList.remove("loading", "splash");
+		const splash = document.getElementById("splash");
+		if (splash) splash.style.display = "none";
+	}
+}, 2500);
 document.addEventListener("backbutton", backButtonHandler);
 document.addEventListener("menubutton", menuButtonHandler);
 

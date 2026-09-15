@@ -127,8 +127,9 @@ html, body {
     }
 }
 
-// SPEC-036: ProvisioningLoader Overlay, Shimmer & Monoline Log Stream
-.provisioning-loader-overlay {
+// SPEC-036 / SPEC-037: ProvisioningLoader Overlay, Shimmer & Monoline Log Stream (z-index superior a #splash 999999)
+.provisioning-loader-overlay,
+.provisioning-overlay {
     position: fixed;
     inset: 0;
     width: 100vw;
@@ -137,7 +138,7 @@ html, body {
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 10000;
+    z-index: 1000001;
     transition: opacity 0.3s ease-out;
 
     &.fade-out {

@@ -19,6 +19,14 @@ export class ProvisioningLoader {
     mount(parentEl = document.body) {
         if (this.overlayEl) return;
 
+        // SPEC-037 (AC-DISMISS-03): Disipación Activa de Splash Screen
+        const splash = document.getElementById("splash");
+        if (splash) {
+            splash.style.display = "none";
+            splash.style.visibility = "hidden";
+        }
+        document.body.classList.remove("loading", "splash");
+
         this.overlayEl = document.createElement("div");
         this.overlayEl.className = "provisioning-loader-overlay";
         this.overlayEl.id = "provisioning-loader";
