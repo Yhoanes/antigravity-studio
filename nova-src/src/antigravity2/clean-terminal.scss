@@ -1,5 +1,5 @@
 // nova-src/src/antigravity2/clean-terminal.scss
-// Google Antigravity 2.1.5: Zero-Scrollbar Edge-to-Edge Architecture (SPEC-033)
+// Google Antigravity 2.1.6: Experiencia Oficial Pura y Erradicación Total de Scrollbars DOM (SPEC-034)
 // 4-Way D-Pad Touch Navigation, Zero-Decoration Architecture, Supresión Total de Barras Laterales y Scrollbars
 
 html, body {
@@ -72,28 +72,52 @@ html, body {
             margin: 0;
             box-sizing: border-box;
 
-            // Zero-Scrollbar Architecture: Supresión Total de Scrollbar (SPEC-033)
+            // Zero-Scrollbar Architecture: Supresión Total de Scrollbar DOM y Webkit (SPEC-033 / SPEC-034)
             .xterm-viewport,
             .xterm-scrollable-element {
                 background-color: #0b0f19 !important;
                 scrollbar-width: none !important;
                 -ms-overflow-style: none !important;
 
-                &::-webkit-scrollbar {
-                    display: none !important;
-                    width: 0 !important;
-                    height: 0 !important;
-                    background: transparent !important;
-                }
-
+                &::-webkit-scrollbar,
                 &::-webkit-scrollbar-thumb,
                 &::-webkit-scrollbar-track,
                 &::-webkit-scrollbar-corner {
                     display: none !important;
                     width: 0 !important;
                     height: 0 !important;
+                    opacity: 0 !important;
+                    visibility: hidden !important;
                     background: transparent !important;
                 }
+
+                > .scrollbar,
+                .scrollbar,
+                .scrollbar.vertical,
+                .scrollbar.horizontal,
+                .slider,
+                .scra,
+                > .shadow {
+                    display: none !important;
+                    visibility: hidden !important;
+                    opacity: 0 !important;
+                    pointer-events: none !important;
+                    width: 0 !important;
+                    height: 0 !important;
+                    background: transparent !important;
+                    border: none !important;
+                }
+            }
+
+            .scrollbar,
+            .slider,
+            .scra {
+                display: none !important;
+                visibility: hidden !important;
+                opacity: 0 !important;
+                pointer-events: none !important;
+                width: 0 !important;
+                height: 0 !important;
             }
 
             .xterm-screen {

@@ -2014,6 +2014,45 @@ Se decide implementar el desacoplamiento de navegación táctil e introducir el 
 
 ---
 
+### ADR-033: Supresión Total del Deslizador Lateral (Zero-Scrollbar Architecture), Expansión Borde a Borde y Publicación Oficial v2.1.5
+
+- **Identificador:** `ADR-033` (Secuencia Repositorio: `ADR-043` / `ADR-033`)
+- **Especificación SDD Asociada:** [`SPEC-033`](specs/33-zero-scrollbar-clean-edge-to-edge-terminal.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.131 Contexto
+Tras consolidar en `v2.1.4` el desplazamiento táctil con inercia a 144Hz directamente sobre el lienzo de la terminal, el usuario en la tablet física Xiaomi Pad 6 cuestionó la necesidad de conservar la barra lateral de scroll en el borde derecho (`clean-terminal.scss` con ancho de 6px):
+1. **Rezago de Escritorio en UX Móvil:** En interfaces táctiles modernas para tablets de 11 pulgadas, las barras de desplazamiento permanentes representan un rezago del paradigma de escritorio con ratón. Su presencia produce polución visual sobre el fondo Cyber-Obsidian (`#0b0f19`) y fragmenta la inmersión del entorno de desarrollo.
+2. **Desperdicio de Margen Lateral y Redundancia:** El canal del scrollbar (*gutter*) reservaba píxeles innecesarios en el margen derecho, reduciendo el ancho efectivo de columnas para el addon de autoajuste (`FitAddon`). Habiéndose calibrado el desplazamiento fluido con inercia y fricción (`0.92`) en cualquier punto de la pantalla, el deslizador resultaba 100% redundante. El usuario eligió formalmente la eliminación total del deslizador para disfrutar de una pantalla limpia y sin estorbos visuales.
+
+#### 4.132 Decisión
+Se formaliza la arquitectura de cero barras de desplazamiento (*Zero-Scrollbar Architecture*) y expansión de borde a borde bajo el contrato formal [`SPEC-033`](specs/33-zero-scrollbar-clean-edge-to-edge-terminal.md):
+1. **Supresión Total y Universal de Scrollbars:** Se eliminan las reglas que otorgaban dimensiones al scrollbar en `clean-terminal.scss`. Se inyectan directivas estrictas universales sobre `.xterm-viewport`, `.xterm-scrollable-element` y `.clean-agent-viewport`:
+   - `scrollbar-width: none !important;` (Estándar W3C).
+   - `-ms-overflow-style: none !important;`.
+   - `::-webkit-scrollbar { display: none !important; width: 0 !important; height: 0 !important; background: transparent !important; }`.
+   - Supresión completa de `::-webkit-scrollbar-thumb`, `track` y `corner` con `display: none !important`.
+2. **Reclamación del 100% del Ancho de Pantalla:** Se expande la superficie de la terminal al $100\,\text{vw} \times 100\,\text{vh}$ sin canales laterales residuales. `FitAddon` computa el número óptimo de columnas ocupando todo el ancho físico de la pantalla.
+3. **Preservación Íntegra del Motor Táctil (`TerminalTouchNavigation.js`):** El desplazamiento vertical de chat con física de inercia (144Hz), la conmutación contextual a D-Pad (`isInteractiveMenu`), el gesto de 2 dedos para el historial de comandos, la navegación horizontal y el portapapeles táctil permanecen 100% activos y operativos.
+4. **Empaquetado y Publicación Oficial v2.1.5:** Compilación y certificación de **`GoogleAntigravity-v2.1.5-ARM64.apk`** (36.81 MB / 38,597,613 bytes $\le 42\,\text{MB}$), versión `2.1.5` (versionCode `20105`), commit `84cb383`, SHA256 `6d9b8cb73a452a67e87cac56f8e846a37382a2fa850ec35479f87fc45f1a24e4`.
+5. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-033` (`AC-CLEAN-01` a `AC-CLEAN-06`).
+   - *Zero-Scrollbar:* Cero barras estáticas en viewport táctil.
+   - *Terminal Borde a Borde Pura:* Ergonomía Cyber-Obsidian de 144Hz sin artefactos residuales.
+
+#### 4.133 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Inmersión y Pureza Estética Absoluta:** Viewport 100% limpio sin polución visual en el borde derecho.
+  - **Aprovechamiento Integral de Columnas:** Las columnas de texto abarcan la totalidad del ancho utilizable de la pantalla de 11 pulgadas.
+  - **Cero Pérdida Funcional:** La navegación táctil fluida con inercia suple y supera con creces la funcionalidad del deslizador suprimido.
+- **Compromisos Operativos:**
+  - En caso de inspección en navegadores de escritorio de depuración, el scroll visual depende del scrollwheel del ratón o de la emulación de eventos táctiles.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2051,6 +2090,7 @@ Se decide implementar el desacoplamiento de navegación táctil e introducir el 
 | **SPEC-030** | Terminal Agéntica Pura de Borde a Borde (Zero-Decoration), Motor Gestual Táctil de Navegación (Arrow Emulation) y Portapapeles por Pulsación Prolongada | `specs/30-pure-clean-terminal-and-gesture-touch-navigation.md` | `APPROVED` | 6 ACs |
 | **SPEC-031** | Navegación Gestual Táctil Cuadridireccional (4-Way D-Pad), Bloqueo Cinemático de Eje (Axis-Locking) y Supresión Definitiva de Paneles Laterales | `specs/31-horizontal-gesture-navigation-4-way-dpad.md` | `APPROVED` | 6 ACs |
 | **SPEC-032** | Desplazamiento Táctil Unificado de Chat con Física de Inercia (Momentum Scrolling) y D-Pad Contextual Inteligente | `specs/32-unified-chat-touch-scrolling-and-contextual-dpad.md` | `APPROVED` | 6 ACs |
+| **SPEC-033** | Supresión Total de Scrollbar (Zero-Scrollbar), Expansión de Borde a Borde y Preservación de Navegación Táctil con Inercia | `specs/33-zero-scrollbar-clean-edge-to-edge-terminal.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

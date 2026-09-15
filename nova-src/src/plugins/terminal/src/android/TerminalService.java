@@ -354,7 +354,7 @@ public class TerminalService extends Service {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationChannel serviceChannel = new NotificationChannel(
                     CHANNEL_ID,
-                    "Terminal Executor Channel",
+                    "Google Antigravity Service",
                     NotificationManager.IMPORTANCE_LOW
             );
             NotificationManager manager = getSystemService(NotificationManager.class);
@@ -375,18 +375,18 @@ public class TerminalService extends Service {
         PendingIntent wakeLockPendingIntent = PendingIntent.getService(this, 1, wakeLockIntent,
             PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
-        String contentText = "Executor service" + (isWakeLockHeld ? " (wakelock held)" : "");
-        String wakeLockButtonText = isWakeLockHeld ? "Release Wake Lock" : "Acquire Wake Lock";
+        String contentText = "Servicio en segundo plano activo" + (isWakeLockHeld ? " (wakelock activo)" : "");
+        String wakeLockButtonText = isWakeLockHeld ? "Liberar Wake Lock" : "Mantener Activo";
 
         int notificationIcon = resolveDrawableId("ic_notification", "ic_launcher_foreground", "ic_launcher");
 
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("Acode Service")
+                .setContentTitle("Google Antigravity")
                 .setContentText(contentText)
                 .setSmallIcon(notificationIcon)
                 .setOngoing(true)
                 .addAction(notificationIcon, wakeLockButtonText, wakeLockPendingIntent)
-                .addAction(notificationIcon, "Exit", exitPendingIntent)
+                .addAction(notificationIcon, "Salir", exitPendingIntent)
                 .build();
 
         startForeground(1, notification);

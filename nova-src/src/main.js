@@ -601,33 +601,9 @@ function getUpdateMessage(count) {
 
 async function promptUpdateCheckConsent() {
 	try {
-		if (isPlayStoreInstall()) {
-			localStorage.setItem("checkForUpdatesPrompted", "true");
-
-			if (settings.value.checkForAppUpdates) {
-				await settings.update({ checkForAppUpdates: false }, false);
-			}
-
-			return;
-		}
-
-		if (Boolean(localStorage.getItem("checkForUpdatesPrompted"))) return;
-
-		if (settings.value.checkForAppUpdates) {
-			localStorage.setItem("checkForUpdatesPrompted", "true");
-			return;
-		}
-
-		const message = strings["prompt update check consent message"];
-		const shouldEnable = await confirm(strings?.confirm, message);
-
 		localStorage.setItem("checkForUpdatesPrompted", "true");
-		if (shouldEnable) {
-			await settings.update({ checkForAppUpdates: true }, false);
-		}
-	} catch (error) {
-		console.error("Failed to prompt for update check consent", error);
-	}
+		return;
+	} catch (e) {}
 }
 
 async function loadApp() {
@@ -815,25 +791,34 @@ async function loadApp() {
 			openFolder(folder.url, folder.opts);
 		}
 	} else {
-		// Zero-Click auto-anchor to /storage/emulated/0/Projects (SPEC-020 §5.1, ProjectsWorkspaceBridge)
-		const projectsPath = "/storage/emulated/0/Projects";
-		fsOperation(projectsPath)
-			.exists()
-			.then((exists) => {
-				if (!exists) {
-					return fsOperation("/storage/emulated/0")
-						.createDirectory("Projects")
-						.catch(() => {});
-				}
-			})
-			.catch(() => {})
-			.finally(() => {
-				openFolder(projectsPath, {
-					name: "Projects",
-					saveState: true,
-					listFiles: true,
-				});
-			});
+		// Zero-Click auto-anchor to /storage/emulated/0/Projects (SPEC-020 §5.1, ProjectsWorkspaceBridge, SPEC-034 Safe Guards)
+		try {
+			const projectsPath = "/storage/emulated/0/Projects";
+			const fsOp = typeof fsOperation === "function" ? fsOperation(projectsPath) : null;
+			if (fsOp && typeof fsOp.exists === "function") {
+				fsOp.exists()
+					.then((exists) => {
+						if (!exists) {
+							const rootOp = typeof fsOperation === "function" ? fsOperation("/storage/emulated/0") : null;
+							if (rootOp && typeof rootOp.createDirectory === "function") {
+								return rootOp.createDirectory("Projects").catch(() => {});
+							}
+						}
+					})
+					.catch(() => {})
+					.finally(() => {
+						if (typeof openFolder === "function") {
+							openFolder(projectsPath, {
+								name: "Projects",
+								saveState: true,
+								listFiles: true,
+							});
+						}
+					});
+			}
+		} catch (e) {
+			console.warn("Projects folder init skipped:", e);
+		}
 	}
 
 	if (Array.isArray(files) && files.length) {

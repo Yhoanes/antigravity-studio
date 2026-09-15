@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-15T03:21:25.992754+00:00",
+  "timestamp": "2026-09-15T03:55:30.704916+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,20 +7,20 @@
     "passed_suites": 1,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 215.08
+    "total_duration_ms": 219.12
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 214.63,
-      "summary": "34/34 especificaciones SDD válidas | 280 Criterios de Aceptación (AC) verificados",
+      "duration_ms": 218.62,
+      "summary": "35/35 especificaciones SDD válidas | 286 Criterios de Aceptación (AC) verificados",
       "details": {
-        "total_specs": 34,
-        "passed_specs": 34,
+        "total_specs": 35,
+        "passed_specs": 35,
         "failed_specs": 0,
-        "total_acceptance_criteria": 280,
+        "total_acceptance_criteria": 286,
         "reports": [
           {
             "file_path": "specs/00-system-architecture.md",
@@ -2591,6 +2591,66 @@
             ],
             "diagram_count": 3,
             "contract_count": 1,
+            "errors": [],
+            "warnings": []
+          },
+          {
+            "file_path": "specs/34-pure-official-antigravity-experience-and-brand-purging.md",
+            "is_valid": true,
+            "metadata": {
+              "id": "SPEC-034",
+              "title": "Experiencia Oficial Pura Google Antigravity, Erradicación de Scrollbar DOM de Xterm y Purga Definitiva de Marcas Heredadas",
+              "author": "@spec-architect",
+              "status": "APPROVED FOR IMPLEMENTATION",
+              "target_device": "Xiaomi Pad 6 (Qualcomm Snapdragon 870, ARM64-v8a, 6-8 GB RAM, 11\" 2.8K $2880\\times 1800$, 144Hz, Xiaomi HyperOS / Android 13/14) y Ecosistema Android Móvil (API 26+)",
+              "runtime_target": "Cordova Android WebView / PRoot Linux Sandbox / AXS PTY Daemon (puerto 8767) / Xterm.js v5+ sin elementos DOM de scrollbar / Google Antigravity CLI (`agy`) Oficial / Android NotificationManager & Foreground Service"
+            },
+            "acceptance_criteria": [
+              {
+                "id": "AC-BRAND-01",
+                "module": "`clean-terminal.scss`, `CleanAgentTerminal.js`",
+                "description": "Supresión total del scrollbar DOM de xterm (`.scrollbar`, `.slider`, `.scra`, temas transparentes y clase `terminal-scrollbar-hidden`).",
+                "verification_method": "Inspección estática del archivo SCSS compilado y verificación de opciones de tema transparentes en `CleanAgentTerminal.js`.",
+                "line_number": 445
+              },
+              {
+                "id": "AC-BRAND-02",
+                "module": "`init-alpine.sh`, `CleanAgentTerminal.js`",
+                "description": "Supresión de `/etc/acode_motd` en scripts de arranque y despacho de `clear && exec agy\\r` al conectar la terminal.",
+                "verification_method": "Verificación de ausencia de `acode_motd` en `init-alpine.sh` y confirmación de comando atómico `clear && exec agy` en `CleanAgentTerminal.js`.",
+                "line_number": 446
+              },
+              {
+                "id": "AC-BRAND-03",
+                "module": "main.js",
+                "description": "Resolución de la excepción de arranque `exists` con guardas nulas y supresión de la ventana modal emergente de primera instalación en `promptUpdateCheckConsent`.",
+                "verification_method": "Inspección de `main.js` verificando que `fsOperation` cuente con validación previa de tipo y que `promptUpdateCheckConsent` no invoque `confirm()`.",
+                "line_number": 447
+              },
+              {
+                "id": "AC-BRAND-04",
+                "module": "TerminalService.java",
+                "description": "Rebranding de la notificación foreground a \"Google Antigravity\" y canal \"Google Antigravity Service\".",
+                "verification_method": "Grep en `TerminalService.java` comprobando `setContentTitle(\"Google Antigravity\")` y nombre del canal oficial.",
+                "line_number": 448
+              },
+              {
+                "id": "AC-BRAND-05",
+                "module": "`config.xml`, `package.json`",
+                "description": "Sincronización de versión a `2.1.6` (versionCode `20106`) en la configuración del proyecto.",
+                "verification_method": "Grep automatizado sobre `config.xml` y `package.json` comprobando versión y versionCode.",
+                "line_number": 449
+              },
+              {
+                "id": "AC-BRAND-06",
+                "module": "Gradle Build Pipeline",
+                "description": "Verificación estática con `test_clean_agent_terminal.sh` y compilación de `GoogleAntigravity-v2.1.6-ARM64.apk` con presupuesto estricto $\\le 42\\,\\text{MB}$.",
+                "verification_method": "Ejecución de script de pruebas y validación del tamaño binario del APK generado.",
+                "line_number": 450
+              }
+            ],
+            "diagram_count": 2,
+            "contract_count": 6,
             "errors": [],
             "warnings": []
           }

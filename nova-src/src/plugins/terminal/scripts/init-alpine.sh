@@ -133,19 +133,7 @@ fi
     echo "$$" > "$PREFIX/pid"
     chmod +x "$PREFIX/axs"
 
-    if [ ! -e "$PREFIX/alpine/etc/acode_motd" ]; then
-        cat <<EOF > "$PREFIX/alpine/etc/acode_motd"
-‹ ✦ › Nova IDE (Ubuntu 24.04 ARM64)
-Google Antigravity CLI (agy) Environment
-
-Working with packages:
- - Search:    apt search <query>
- - Install:   apt install <package>
- - Uninstall: apt remove <package>
- - Update:    apt update && apt upgrade
-
-EOF
-    fi
+    # SPEC-034: MOTD suprimido para arranque limpio oficial Google Antigravity
 
     # Create acode CLI tool
     if [ ! -e "$PREFIX/alpine/usr/local/bin/acode" ]; then
@@ -282,10 +270,7 @@ _shorten_path() {
 
 PROMPT_COMMAND='_PS1_PATH=$(_shorten_path); _PS1_EXIT=$?'
 
-# Display MOTD if available
-if [ -s /etc/acode_motd ]; then
-    cat /etc/acode_motd
-fi
+# SPEC-034: MOTD suprimido para arranque limpio oficial Google Antigravity
 
 check_binary_execution() {
     local cmd="$1"

@@ -19,7 +19,7 @@ const OAUTH_REGEX = /https:\/\/accounts\.google\.com\/o\/oauth2\/[^\s"'>\x1b\x00
 export class CleanAgentTerminal {
     constructor(options = {}) {
         this.port = options.port || 8767;
-        this.autoCommand = options.autoCommand !== undefined ? options.autoCommand : "agy\r";
+        this.autoCommand = options.autoCommand !== undefined ? options.autoCommand : "clear && exec agy\r";
         this.terminal = null;
         this.fitAddon = null;
         this.attachAddon = null;
@@ -103,7 +103,11 @@ export class CleanAgentTerminal {
                 foreground: "#e2e8f0",
                 cursor: "#60a5fa",
                 selectionBackground: "rgba(96, 165, 250, 0.3)",
+                scrollbarSliderBackground: "transparent",
+                scrollbarSliderHoverBackground: "transparent",
+                scrollbarSliderActiveBackground: "transparent",
             },
+            overviewRulerWidth: 0,
             allowProposedApi: true,
             // SPEC-029 / SPEC-030: Soporte nativo de hipervínculos OSC 8 para clics/toques táctiles
             linkHandler: {
@@ -122,6 +126,17 @@ export class CleanAgentTerminal {
         }));
 
         this.terminal.open(this.viewportEl);
+
+        const pruneScrollbars = () => {
+            this.viewportEl.querySelectorAll(".scrollbar, .slider").forEach(el => {
+                el.style.display = "none";
+                el.style.width = "0px";
+                el.style.opacity = "0";
+            });
+        };
+        pruneScrollbars();
+        setTimeout(pruneScrollbars, 300);
+        setTimeout(pruneScrollbars, 1000);
 
         try {
             const webgl = new WebglAddon();
