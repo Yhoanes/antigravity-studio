@@ -2100,6 +2100,45 @@ Se formaliza la purga integral de marcas heredadas y la experiencia oficial dire
 
 ---
 
+### ADR-035: Experiencia de Splash Pura, Estabilizador de Stream OAuth Anti-404, Loader Visual de Aprovisionamiento Linux y Discriminador Contextual de Gestos (v2.1.7)
+
+- **Identificador:** `ADR-035` (Secuencia Repositorio: `ADR-045` / `ADR-035`)
+- **Especificación SDD Asociada:** [`SPEC-035`](specs/35-splash-ux-oauth-stabilizer-and-progress-loader.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.137 Contexto
+Durante las pruebas de validación con la versión `v2.1.6` en la tablet física Xiaomi Pad 6, el usuario reportó cuatro fricciones que afectaban la experiencia de inicio y el uso conversacional de la terminal:
+1. **Contaminación Visual en Splash Screen:** La pantalla de bienvenida mostraba metadatos técnicos de depuración superpuestos (`.splash-version` con texto 'App: v2.1.6', 'Android: 14' y `.splash-message` con 'Loading folders...'), rompiendo la estética limpia del producto comercial.
+2. **Error 404 en Google OAuth por Fragmentación de Stream TCP:** La URL de consentimiento OAuth 2.0 PKCE emitida por la PTY se transmitía fragmentada en varios paquetes WebSocket. El detector disparaba Chrome de inmediato sobre el primer fragmento truncado, abriendo una URL incompleta sin `redirect_uri` ni `code_challenge`, lo que generaba un error 404 en los servidores de Google.
+3. **Ausencia de Indicador Visual en Aprovisionamiento Linux:** Durante el primer inicio en frío, la extracción del rootfs y binarios de Antigravity (4-8s) se realizaba sobre una consola negra estática con texto plano, generando incertidumbre sobre el progreso del sistema.
+4. **Falsos Positivos de Menú Interactivo en el Prompt (`❯`):** En `TerminalTouchNavigation.js`, la heurística de `isInteractiveMenu()` clasificaba el prompt de chat `❯ ` como un menú selector de Inquirer, bloqueando el scroll táctil vertical e inyectando `ArrowUp` (historial de comandos).
+
+#### 4.138 Decisión
+Se formaliza la solución integral bajo el contrato formal [`SPEC-035`](specs/35-splash-ux-oauth-stabilizer-and-progress-loader.md):
+1. **Splash Screen Inmaculado y Puro:** Ocultamiento total mediante CSS (`display: none !important;`) de `.splash-version` y `.splash-message` en `index.html` y `main.js`. El splash despliega exclusivamente el prisma oficial 3D de Google Antigravity centrado sobre fondo Cyber-Obsidian `#0b0f19`.
+2. **Estabilizador de Stream OAuth Anti-404:** Se implementa un buffer acumulador de fragmentos WebSocket con debounce de 350ms y validación estricta en `validateOAuthUrl()` (`client_id`, `redirect_uri`, `scope`, `code_challenge`, `state`, longitud $\ge 350$). Sólo al verificar la URL completa se despacha Google Chrome en tarea aislada (`FLAG_ACTIVITY_NEW_TASK`), eliminando de raíz el error 404.
+3. **Componente Visual de Carga (`ProvisioningLoader.js`):** Se introduce una tarjeta overlay elegante con el logotipo 3D, barra de progreso con gradiente Material 3 (`#4285F4` a `#34A853`), porcentaje numérico animado (0% a 100%) conectado a `Terminal.install(onProgress)` y fade-out fluido de 300ms hacia la terminal limpia.
+4. **Discriminador Contextual Inteligente de Gestos:** Se refactoriza `isInteractiveMenu()` para distinguir de forma determinista el prompt de entrada `❯ ` de menús genuinos multilínea. Habilita scroll táctil de chat con inercia a 144Hz y activa el D-Pad vertical con retroalimentación háptica de 25ms exclusivamente ante selectores interactivos reales.
+5. **Empaquetado y Versionado Oficial v2.1.7:** Compilación y certificación del instalador **`GoogleAntigravity-v2.1.7-ARM64.apk`** (36.81 MB / 38,599,001 bytes $\le 42.0\,\text{MB}$), versión `2.1.7` (versionCode `20107`), commit `0cadc49`, SHA256 `c99702e3bcffaba0befe82c8c0a11878f32d0e237f0cd8238d2e854e63a96c0a`.
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Modificaciones implementadas por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-035` (`AC-SPLASH-01`, `AC-OAUTH-01`, `AC-OAUTH-02`, `AC-LOADER-01` a `AC-LOADER-03`, `AC-GESTURE-01`, `AC-VER-01`).
+   - *FLAG_ACTIVITY_NEW_TASK:* Aislamiento estricto de navegación externa OAuth.
+   - *Experiencia Oficial de Borde a Borde:* Cero textos de depuración y retroalimentación fluida en cada fase.
+
+#### 4.139 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia de Bienvenida de Primer Nivel:** Splash screen inmaculado sin información de depuración.
+  - **Flujo OAuth 100% Determinista:** Erradicación del error 404 por fragmentación de paquetes.
+  - **Claridad Total en Instalación:** El usuario visualiza el progreso real de aprovisionamiento de 0% a 100% con subtítulos descriptivos en español.
+  - **Navegación Conversacional sin Bloqueos:** Desplazamiento natural a 144Hz en el chat sin conflicto con el prompt `❯ `.
+- **Compromisos Operativos:**
+  - La ventana de debounce de 350ms introduce un retraso imperceptible pero necesario para garantizar la completitud de la URL de autorización.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2139,6 +2178,7 @@ Se formaliza la purga integral de marcas heredadas y la experiencia oficial dire
 | **SPEC-032** | Desplazamiento Táctil Unificado de Chat con Física de Inercia (Momentum Scrolling) y D-Pad Contextual Inteligente | `specs/32-unified-chat-touch-scrolling-and-contextual-dpad.md` | `APPROVED` | 6 ACs |
 | **SPEC-033** | Supresión Total de Scrollbar (Zero-Scrollbar), Expansión de Borde a Borde y Preservación de Navegación Táctil con Inercia | `specs/33-zero-scrollbar-clean-edge-to-edge-terminal.md` | `APPROVED` | 6 ACs |
 | **SPEC-034** | Experiencia Oficial Pura Google Antigravity, Erradicación de Scrollbar DOM de Xterm y Purga Definitiva de Marcas Heredadas | `specs/34-pure-official-antigravity-experience-and-brand-purging.md` | `APPROVED` | 6 ACs |
+| **SPEC-035** | Experiencia de Splash Pura, Estabilizador de Stream OAuth Anti-404, Loader Visual de Aprovisionamiento y Discriminador de Gestos | `specs/35-splash-ux-oauth-stabilizer-and-progress-loader.md` | `APPROVED` | 8 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
