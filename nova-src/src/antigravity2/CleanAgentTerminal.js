@@ -55,9 +55,10 @@ export class CleanAgentTerminal {
         // Inicializar Xterm.js
         this.initTerminal();
 
-        // Enlazar Motor Gestual Táctil (SPEC-030: AC-TOUCH-01 & AC-TOUCH-03)
+        // Enlazar Motor Gestual Táctil Cuadridireccional (SPEC-030 / SPEC-031: 4-Way D-Pad)
         this.touchNav = new TerminalTouchNavigation(this.viewportEl, {
             swipeThreshold: 28,
+            deadzone: 10,
             longPressMs: 400,
             onArrowUp: () => {
                 if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
@@ -67,6 +68,16 @@ export class CleanAgentTerminal {
             onArrowDown: () => {
                 if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
                     this.websocket.send("\x1b[B");
+                }
+            },
+            onArrowLeft: () => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send("\x1b[D");
+                }
+            },
+            onArrowRight: () => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send("\x1b[C");
                 }
             },
             onPaste: async () => {

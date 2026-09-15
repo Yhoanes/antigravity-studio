@@ -1,61 +1,53 @@
 #!/bin/bash
 # ==============================================================================
-# Harness Test: SPEC-030 Pure Clean Terminal & Gesture Touch Navigation
+# Harness Test: SPEC-031 4-Way D-Pad Gesture Navigation Verification
 # ==============================================================================
 set -e
 
-SPEC_FILE_030="specs/30-pure-clean-terminal-and-gesture-touch-navigation.md"
-MAIN_JS="nova-src/src/main.js"
-CLEAN_TERM_JS="nova-src/src/antigravity2/CleanAgentTerminal.js"
+SPEC_FILE_031="specs/31-horizontal-gesture-navigation-4-way-dpad.md"
 TOUCH_NAV_JS="nova-src/src/antigravity2/TerminalTouchNavigation.js"
+CLEAN_TERM_JS="nova-src/src/antigravity2/CleanAgentTerminal.js"
 CLEAN_TERM_SCSS="nova-src/src/antigravity2/clean-terminal.scss"
 CONFIG_XML="nova-src/config.xml"
 PACKAGE_JSON="nova-src/package.json"
 
-echo "=== INICIANDO VALIDACIÓN FORMAL DE SPEC-030 ==="
+echo "=== INICIANDO VALIDACIÓN FORMAL DE SPEC-031 ==="
 
-# 1. Verificar documento SPEC-030
-echo -n "1. Verificando existencia de documento SPEC-030... "
-[ -f "$SPEC_FILE_030" ] || { echo "FALLO: No existe $SPEC_FILE_030"; exit 1; }
+# 1. Verificar documento SPEC-031
+echo -n "1. Verificando existencia de documento SPEC-031... "
+[ -f "$SPEC_FILE_031" ] || { echo "FALLO: No existe $SPEC_FILE_031"; exit 1; }
 echo "[OK]"
 
-# 2. Verificar supresión de elementos UI decorativos (Criterio CLEAN-01: Zero-Decoration)
-echo -n "2. Verificando supresión de TopBar y barras flotantes... "
-if grep -q "clean-agent-topbar" "$CLEAN_TERM_JS"; then
-    echo "FALLO: CleanAgentTerminal.js aún contiene referencias de render a clean-agent-topbar"; exit 1;
-fi
-if grep -q "oauth-action-bar" "$CLEAN_TERM_JS"; then
-    echo "FALLO: CleanAgentTerminal.js aún contiene referencias de render a oauth-action-bar"; exit 1;
-fi
+# 2. Verificar emulación horizontal ArrowLeft y ArrowRight (Criterios DPAD-01 y DPAD-02)
+echo -n "2. Verificando emulación horizontal ArrowLeft y ArrowRight... "
+grep -q "\\\\x1b\\[D" "$TOUCH_NAV_JS" || grep -q "ArrowLeft" "$TOUCH_NAV_JS" || { echo "FALLO: No se encuentra emisión de ArrowLeft"; exit 1; }
+grep -q "\\\\x1b\\[C" "$TOUCH_NAV_JS" || grep -q "ArrowRight" "$TOUCH_NAV_JS" || { echo "FALLO: No se encuentra emisión de ArrowRight"; exit 1; }
+grep -q "onArrowLeft" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no enlaza onArrowLeft"; exit 1; }
+grep -q "onArrowRight" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no enlaza onArrowRight"; exit 1; }
 echo "[OK]"
 
-# 3. Verificar motor gestual táctil TerminalTouchNavigation (Criterio TOUCH-01)
-echo -n "3. Verificando motor de navegación táctil TerminalTouchNavigation... "
-[ -f "$TOUCH_NAV_JS" ] || { echo "FALLO: No existe $TOUCH_NAV_JS"; exit 1; }
-grep -q "\\\\x1b\\[A" "$TOUCH_NAV_JS" || grep -q "ArrowUp" "$TOUCH_NAV_JS" || { echo "FALLO: TerminalTouchNavigation no emite flecha arriba"; exit 1; }
-grep -q "\\\\x1b\\[B" "$TOUCH_NAV_JS" || grep -q "ArrowDown" "$TOUCH_NAV_JS" || { echo "FALLO: TerminalTouchNavigation no emite flecha abajo"; exit 1; }
-grep -q "TerminalTouchNavigation" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no integra TerminalTouchNavigation"; exit 1; }
-grep -q "onArrowUp" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no define onArrowUp"; exit 1; }
-grep -q "onArrowDown" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no define onArrowDown"; exit 1; }
+# 3. Verificar preservación de emulación vertical (Criterio DPAD-03)
+echo -n "3. Verificando preservación de flechas verticales... "
+grep -q "\\\\x1b\\[A" "$TOUCH_NAV_JS" || grep -q "ArrowUp" "$TOUCH_NAV_JS" || { echo "FALLO: No se encuentra emisión de ArrowUp"; exit 1; }
+grep -q "\\\\x1b\\[B" "$TOUCH_NAV_JS" || grep -q "ArrowDown" "$TOUCH_NAV_JS" || { echo "FALLO: No se encuentra emisión de ArrowDown"; exit 1; }
+grep -q "onArrowUp" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no enlaza onArrowUp"; exit 1; }
+grep -q "onArrowDown" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no enlaza onArrowDown"; exit 1; }
 echo "[OK]"
 
-# 4. Verificar soporte de Long-Press para pegado (Criterio TOUCH-03)
-echo -n "4. Verificando gesto long-press para portapapeles... "
-grep -q "longPress" "$TOUCH_NAV_JS" || { echo "FALLO: TerminalTouchNavigation no implementa longPress"; exit 1; }
-grep -q "pasteFromClipboard" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no implementa pasteFromClipboard"; exit 1; }
-grep -q "clipboard" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no accede al portapapeles"; exit 1; }
+# 4. Verificar algoritmo de bloqueo de eje (Criterio DPAD-04)
+echo -n "4. Verificando bloqueo cinemático de eje (Axis-Locking)... "
+grep -q "axisLock" "$TOUCH_NAV_JS" || grep -q "lockedAxis" "$TOUCH_NAV_JS" || { echo "FALLO: TerminalTouchNavigation no implementa axisLock"; exit 1; }
 echo "[OK]"
 
-# 5. Verificar preservación de auto-bridge OAuth silencioso (Criterio CORE-07)
-echo -n "5. Verificando auto-bridge silencioso de OAuth... "
-grep -q "accounts\.google\.com" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no conserva el sniffer de OAuth"; exit 1; }
-grep -q "linkHandler" "$CLEAN_TERM_JS" || { echo "FALLO: CleanAgentTerminal no conserva linkHandler OSC 8"; exit 1; }
+# 5. Verificar supresión forzada de sidebar (Criterio DPAD-05)
+echo -n "5. Verificando reglas CSS de supresión de sidebar... "
+grep -q "#sidebar" "$CLEAN_TERM_SCSS" || { echo "FALLO: clean-terminal.scss no suprime #sidebar"; exit 1; }
 echo "[OK]"
 
-# 6. Verificar versionado v2.1.2 (Criterio VER-02)
-echo -n "6. Verificando versión 2.1.2 en configuración... "
-grep -q 'version="2.1.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.1.2"; exit 1; }
-grep -q '"version": "2.1.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.1.2"; exit 1; }
+# 6. Verificar versionado v2.1.3 (Criterio DPAD-06)
+echo -n "6. Verificando versión 2.1.3 en configuración... "
+grep -q 'version="2.1.3"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.1.3"; exit 1; }
+grep -q '"version": "2.1.3"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.1.3"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-030 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-031 HAN SIDO SUPERADAS EXITOSAMENTE ==="

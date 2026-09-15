@@ -1,6 +1,6 @@
 // nova-src/src/antigravity2/clean-terminal.scss
-// Google Antigravity 2.1.2: Terminal Agéntica Pura Borde a Borde (SPEC-030)
-// Zero-Decoration Architecture: 100vw x 100vh, fondo #0b0f19, touch-action: none
+// Google Antigravity 2.1.3: Terminal Agéntica Pura Borde a Borde (SPEC-030 & SPEC-031)
+// 4-Way D-Pad Touch Navigation, Zero-Decoration Architecture, Supresión Total de Barras Laterales
 
 html, body {
     margin: 0;
@@ -9,6 +9,25 @@ html, body {
     height: 100vh;
     overflow: hidden;
     background-color: #0b0f19;
+}
+
+// Supresión definitiva de barras laterales residuales y elementos de Acode (SPEC-031: AC-DPAD-05)
+#sidebar,
+.sidebar,
+#sidebar-toggler,
+#header-toggler,
+#header,
+#floating-nav-toggler,
+[data-action="toggle-sidebar"],
+.sidebar-apps,
+.mask {
+    display: none !important;
+    pointer-events: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    width: 0 !important;
+    height: 0 !important;
+    max-width: 0 !important;
 }
 
 .clean-agent-container {
@@ -72,7 +91,7 @@ html, body {
             }
 
             .xterm-screen {
-                touch-action: none; // Control gestual total por TerminalTouchNavigation (SPEC-030)
+                touch-action: none; // Control gestual total por TerminalTouchNavigation (SPEC-030 / SPEC-031)
             }
         }
     }

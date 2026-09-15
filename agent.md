@@ -1899,6 +1899,45 @@ Se formaliza e implementa la solución integral bajo el contrato formal [`SPEC-0
 
 ---
 
+### ADR-030: Terminal Borde a Borde Pura (Zero-Decoration) y Navegación Gestual Táctil v2.1.2 (TerminalTouchNavigation)
+
+- **Identificador:** `ADR-030` (Secuencia Repositorio: `ADR-040` / `ADR-030`)
+- **Especificación SDD Asociada:** [`SPEC-030`](specs/30-pure-clean-terminal-and-gesture-touch-navigation.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.122 Contexto
+Tras la entrega de la versión `v2.1.1` en la Xiaomi Pad 6, el usuario reportó dos objeciones críticas de experiencia y operatividad:
+1. **Polución Visual de Barras y Botones Decorativos:** La presencia de la barra superior (TopBar), botones de reinicio y barras contextuales de OAuth fue rechazada por el usuario por "ensuciar la pantalla", restando inmersión y reduciendo el área visible de trabajo de la terminal en la tablet.
+2. **Bloqueo en Menús Interactivos de `agy`:** Al iniciar la CLI o seleccionar modelos de Gemini, `agy` despliega menús TUI interactivos que requieren flechas direccionales (`ArrowUp` / `\x1b[A` y `ArrowDown` / `\x1b[B`). El teclado virtual de Android en la tablet carece de teclas de dirección en su diseño estándar, dejando al desarrollador atrapado en los menús sin posibilidad de navegar ni seleccionar opciones.
+
+#### 4.123 Decisión
+Se decide adoptar la arquitectura de terminal borde a borde pura y navegación gestual táctil bajo el contrato formal [`SPEC-030`](specs/30-pure-clean-terminal-and-gesture-touch-navigation.md):
+1. **Supresión Absoluta de Elementos Decorativos (Zero-Decoration):** Erradicación total de `clean-agent-topbar`, insignias de estado, botones de reinicio y `clean-agent-oauth-bar`. La terminal ocupa el $100\%$ del viewport ($100\,\text{vw} \times 100\,\text{vh}$), fondo Cyber-Obsidian `#0b0f19` puro, sin botones ni iconos estáticos.
+2. **Motor Gestual Táctil de Navegación (`TerminalTouchNavigation.js`):** Componente que intercepta eventos `touchstart`/`touchmove` en el lienzo de Xterm.js y traduce deslizamientos verticales con umbral calibrado ($28\,\text{px}$) a pulsaciones direccionales reales:
+   - Deslizar hacia abajo: emite `ArrowUp` (`\x1b[A`).
+   - Deslizar hacia arriba: emite `ArrowDown` (`\x1b[B`).
+   Permite navegar fluidamente menús de configuración y selección de modelos de `agy` con alta precisión sin teclado físico.
+3. **Pegado Rápido por Pulsación Prolongada (*Long-Press* 400ms) y Doble Toque (*Double-Tap*):** Una pulsación continua $\ge 400\,\text{ms}$ o un doble toque rápido lee asíncronamente el portapapeles del sistema operativo (`navigator.clipboard` / `cordova.plugins.clipboard`), inyecta `${token}\r` en el socket PTY y emite retroalimentación háptica discreta (`navigator.vibrate(50)`).
+4. **Auto-Bridge Silencioso de Autenticación Google OAuth 2.0:** El sniffer de WebSocket permanece activo en segundo plano; al detectar la URL de consentimiento, despacha inmediatamente Google Chrome en una tarea aislada de Android (`FLAG_ACTIVITY_NEW_TASK`). Al regresar a la app, el usuario realiza un simple *long-press* para inyectar el código, logrando un flujo de autenticación de cero clics en pantalla.
+5. **Empaquetado Ligero y Versionado v2.1.2:** Compilación y certificación del instalador **`GoogleAntigravity-v2.1.2-ARM64.apk`** (36.81 MB / 38,596,065 bytes $\le 42\,\text{MB}$, versionCode `20102`, SHA256 `77d7733e581aec7557ea073e187d5c066c4969bc4ec865628aff693c31976406`).
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Modificaciones de producción delegadas a `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-030` (`AC-CLEAN-01`, `AC-TOUCH-01`, `AC-TOUCH-02`, `AC-TOUCH-03`, `AC-CORE-07`, `AC-VER-02`).
+   - *FLAG_ACTIVITY_NEW_TASK:* Aislamiento de tarea del navegador para preservar el proceso principal.
+   - *Ergonomía Táctil Borde a Borde:* Pantalla 100% limpia sin polución visual.
+
+#### 4.124 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia Inmersiva Absoluta:** Pantalla completamente limpia, maximizando el área útil para código y respuestas agénticas a 144Hz.
+  - **Navegación Intuitiva sin Teclado Físico:** Selección natural en menús mediante swipe vertical y pegado instantáneo con long-press.
+  - **Cero Polución Visual:** Ningún elemento residual decorativo distrae la atención del desarrollador.
+- **Compromisos Operativos:**
+  - El usuario interactúa mediante gestos táctiles directos en la pantalla en lugar de botones visuales.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1933,6 +1972,7 @@ Se formaliza e implementa la solución integral bajo el contrato formal [`SPEC-0
 | **SPEC-027** | Arquitectura de Doble Motor Agéntico (Google Antigravity PTY & Gemini Direct API), Estado Informativo de Autenticación y Suite de Pruebas E2E en Tablet | `specs/27-antigravity-2-mobile-gemini-bridge-and-e2e-testing.md` | `APPROVED` | 7 ACs |
 | **SPEC-028** | Arquitectura de Terminal Agéntica Minimalista (CleanAgentTerminal), Desmantelamiento de ChatCanvas y Empaquetado de APK Ultra-Ligero (~38 MB) | `specs/28-minimal-agent-terminal-clean-apk.md` | `APPROVED` | 9 ACs |
 | **SPEC-029** | Arquitectura de Puente OAuth hacia Navegador Externo (FLAG_ACTIVITY_NEW_TASK), Detección Reactiva de Hipervínculos OSC 8 y Barra de Acción Interactiva en Terminal Agéntica | `specs/29-oauth-browser-bridge-and-interactive-auth.md` | `APPROVED` | 8 ACs |
+| **SPEC-030** | Terminal Agéntica Pura de Borde a Borde (Zero-Decoration), Motor Gestual Táctil de Navegación (Arrow Emulation) y Portapapeles por Pulsación Prolongada | `specs/30-pure-clean-terminal-and-gesture-touch-navigation.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
