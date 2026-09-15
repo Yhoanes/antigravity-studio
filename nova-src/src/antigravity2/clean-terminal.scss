@@ -264,17 +264,18 @@ html, body {
     50% { transform: scale(1.04); opacity: 1; }
 }
 
-// SPEC-041: Google Auth Card & Account Badge
+// SPEC-041 & SPEC-043: Google Auth Card & Account Badge
 .google-auth-overlay {
     position: fixed;
     inset: 0;
     width: 100vw;
     height: 100vh;
-    background: rgba(11, 15, 25, 0.96);
+    background: #0b0f19 !important; // WIZ-01: Cero transparencia
+    background-color: #0b0f19 !important;
     display: flex;
     align-items: center;
     justify-content: center;
-    z-index: 1000002; // Superior a cualquier overlay de carga
+    z-index: 1000005; // Superior a cualquier overlay de carga
     transition: opacity 0.25s ease-out;
 
     &.fade-out {
@@ -376,5 +377,248 @@ html, body {
         height: 8px;
         border-radius: 50%;
         background: #34a853;
+    }
+}
+
+// SPEC-043: Native Material 3 Onboarding Wizard Overlay (Fondo 100% Sólido)
+.onboarding-wizard-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #0b0f19 !important; // WIZ-01: Cero transparencia
+    background-color: #0b0f19 !important;
+    opacity: 1 !important;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000005 !important; // Prioridad máxima absoluta
+    transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+
+    &.fade-out {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .wizard-card {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 90%;
+        max-width: 460px;
+        padding: 40px 32px;
+        background: #0f172a;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 24px;
+        box-shadow: 0 24px 48px rgba(0, 0, 0, 0.8);
+        box-sizing: border-box;
+
+        .wizard-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .wizard-logo-wrap {
+            margin-bottom: 20px;
+        }
+
+        .wizard-logo {
+            width: 64px;
+            height: 64px;
+        }
+
+        .wizard-title {
+            color: #f8fafc;
+            font-size: 22px;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            text-align: center;
+            letter-spacing: -0.02em;
+        }
+
+        .wizard-subtitle {
+            color: #94a3b8;
+            font-size: 14px;
+            text-align: center;
+            margin: 0 0 28px 0;
+            line-height: 1.5;
+        }
+
+        .wizard-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            width: 100%;
+
+            .btn-primary-auth {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 12px;
+                height: 48px;
+                background: #ffffff;
+                color: #1f2937;
+                font-weight: 600;
+                font-size: 15px;
+                border: none;
+                border-radius: 24px;
+                cursor: pointer;
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+                transition: background 0.15s ease, transform 0.1s ease;
+
+                &:active {
+                    transform: scale(0.98);
+                    background: #f1f5f9;
+                }
+            }
+
+            .btn-secondary-auth {
+                height: 44px;
+                background: rgba(255, 255, 255, 0.06);
+                color: #cbd5e1;
+                font-size: 14px;
+                font-weight: 500;
+                border: 1px solid rgba(255, 255, 255, 0.1);
+                border-radius: 22px;
+                cursor: pointer;
+                transition: background 0.15s ease, transform 0.1s ease;
+
+                &:active {
+                    transform: scale(0.98);
+                    background: rgba(255, 255, 255, 0.12);
+                }
+            }
+        }
+
+        .auth-waiting-box {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            width: 100%;
+            padding: 14px 18px;
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #94a3b8;
+            box-sizing: border-box;
+
+            .auth-spinner {
+                font-size: 16px;
+            }
+        }
+
+        .btn-open-browser {
+            width: 100%;
+            height: 44px;
+            background: rgba(66, 133, 244, 0.15);
+            color: #8ab4f8;
+            font-size: 14px;
+            font-weight: 600;
+            border: 1px solid rgba(66, 133, 244, 0.3);
+            border-radius: 22px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+
+            &:active {
+                background: rgba(66, 133, 244, 0.25);
+            }
+        }
+
+        .theme-options-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            width: 100%;
+            margin-bottom: 24px;
+
+            .theme-card {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+                padding: 12px 8px;
+                background: #1e293b;
+                border: 2px solid transparent;
+                border-radius: 12px;
+                cursor: pointer;
+                font-size: 11px;
+                font-weight: 500;
+                color: #94a3b8;
+                text-align: center;
+                transition: border-color 0.2s ease, transform 0.1s ease;
+
+                &.active {
+                    border-color: #3b82f6;
+                    color: #ffffff;
+                    background: rgba(59, 130, 246, 0.1);
+                }
+
+                &:active {
+                    transform: scale(0.97);
+                }
+
+                .theme-preview {
+                    width: 100%;
+                    height: 44px;
+                    border-radius: 6px;
+
+                    &.dark-theme { background: #0b0f19; border: 1px solid #334155; }
+                    &.classic-theme { background: #000000; border: 1px solid #15803d; }
+                    &.light-theme { background: #f8fafc; border: 1px solid #cbd5e1; }
+                }
+            }
+        }
+
+        .terms-consent-box {
+            width: 100%;
+            padding: 14px;
+            background: #1e293b;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 12px;
+            margin-bottom: 24px;
+            box-sizing: border-box;
+
+            .consent-label {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                font-size: 12px;
+                color: #cbd5e1;
+                cursor: pointer;
+                user-select: none;
+                line-height: 1.4;
+
+                input[type="checkbox"] {
+                    accent-color: #3b82f6;
+                    width: 16px;
+                    height: 16px;
+                }
+            }
+        }
+
+        .btn-wizard-next,
+        .btn-start-coding {
+            width: 100%;
+            height: 48px;
+            background: linear-gradient(90deg, #3b82f6 0%, #10b981 100%);
+            color: #ffffff;
+            font-size: 15px;
+            font-weight: 600;
+            border: none;
+            border-radius: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+            transition: opacity 0.15s ease, transform 0.1s ease;
+
+            &:active {
+                transform: scale(0.98);
+                opacity: 0.9;
+            }
+        }
     }
 }

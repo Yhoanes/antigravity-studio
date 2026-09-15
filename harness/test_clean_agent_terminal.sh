@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.3.1 y android-versionCode 20301 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.3.1 y versionCode 20301 en configuración... "
-grep -q 'version="2.3.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.3.1"; exit 1; }
-grep -q 'android-versionCode="20301"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20301"; exit 1; }
-grep -q '"version": "2.3.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.3.1"; exit 1; }
+# 16. Verificar versionado v2.4.0 y android-versionCode 20400 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.4.0 y versionCode 20400 en configuración... "
+grep -q 'version="2.4.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.0"; exit 1; }
+grep -q 'android-versionCode="20400"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20400"; exit 1; }
+grep -q '"version": "2.4.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.0"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -208,4 +208,31 @@ grep -q "setAuthenticating" "$AUTH_CARD_JS" || {
 }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-042 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 28. Verificar SPEC-043 (Criterios WIZ-01 a WIZ-06)
+SPEC_FILE_043="specs/43-native-material3-multi-step-onboarding-wizard.md"
+WIZARD_JS="nova-src/src/antigravity2/OnboardingWizard.js"
+
+echo -n "28. Verificando documento SPEC-043... "
+[ -f "$SPEC_FILE_043" ] || { echo "FALLO: No existe $SPEC_FILE_043"; exit 1; }
+echo "[OK]"
+
+echo -n "29. Verificando fondo sólido opaco en SCSS (WIZ-01)... "
+grep -q "onboarding-wizard-overlay" "$SCSS_FILE" || { echo "FALLO: .onboarding-wizard-overlay ausente en SCSS"; exit 1; }
+grep -q "background-color: #0b0f19" "$SCSS_FILE" || { echo "FALLO: Fondo sólido #0b0f19 ausente en SCSS"; exit 1; }
+echo "[OK]"
+
+echo -n "30. Verificando OnboardingWizard.js y secuencia [Done] (WIZ-02 a WIZ-05)... "
+[ -f "$WIZARD_JS" ] || { echo "FALLO: No existe OnboardingWizard.js"; exit 1; }
+grep -q "step-auth-method" "$WIZARD_JS" || { echo "FALLO: step-auth-method ausente"; exit 1; }
+grep -q "step-theme-selector" "$WIZARD_JS" || { echo "FALLO: step-theme-selector ausente"; exit 1; }
+grep -q "step-terms-telemetry" "$WIZARD_JS" || { echo "FALLO: step-terms-telemetry ausente"; exit 1; }
+grep -q "\\t\\\\x1b\\[C\\\\r" "$WIZARD_JS" || grep -q "\t\x1b\[C\r" "$WIZARD_JS" || {
+    echo "FALLO: Secuencia Tab->Flecha Der->Enter para [Done] ausente en OnboardingWizard.js"; exit 1;
+}
+echo "[OK]"
+
+echo -n "31. Verificando integración de OnboardingWizard en CleanAgentTerminal.js (WIZ-06)... "
+grep -q "OnboardingWizard" "$CLEAN_TERM_JS" || { echo "FALLO: OnboardingWizard ausente en CleanAgentTerminal.js"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-043 HAN SIDO SUPERADAS EXITOSAMENTE ==="

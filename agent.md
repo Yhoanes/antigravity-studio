@@ -2521,6 +2521,49 @@ Se diseña e implementa una arquitectura reactiva no intrusiva gobernada por [`S
 
 ---
 
+### ADR-054: Asistente Visual Multi-Paso Nativo (Material 3 Onboarding Wizard) y Enmascaramiento Opaco de Terminal (Release v2.4.0)
+
+- **Identificador:** `ADR-054`
+- **Especificación SDD Asociada:** [`SPEC-043`](specs/43-native-material3-multi-step-onboarding-wizard.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.164 Contexto
+En la versión `v2.3.1`, el diálogo de autenticación utilizaba un overlay semi-transparente (`rgba(11, 15, 25, 0.96)`). En la pantalla 2.8K ($2880\times 1800$, 144Hz) de la Xiaomi Pad 6, el 4% de canal alfa permitía que los caracteres y secuencias de escape ANSI emitidas por el shell Linux en la terminal PTY de fondo se traslucieran con destellos parpadeantes, dando la apariencia de una interfaz fragmentada.
+
+Asimismo, la experiencia de incorporación del CLI oficial de Google Antigravity (`agy`) comprende cuatro decisiones fundamentales (`Select login method`, ingreso de token OAuth, selección de tema de color y aceptación de términos/telemetría). Gestionar estos pasos mediante auto-respuestas ciegas sin confirmación o exponer la consola interactiva Inquirer al desarrollador táctil resultaba contraproducente. Se requería un Asistente Visual Multi-Paso Nativo (GUI Wrapper) Material 3 que mantuviera la terminal completamente enmascarada y tradujera las elecciones táctiles en secuencias de teclas precisas hacia la PTY.
+
+#### 4.165 Decisión
+Se diseña e implementa la arquitectura de asistente visual e insolación óptica gobernada formalmente por [`SPEC-043`](specs/43-native-material3-multi-step-onboarding-wizard.md):
+1. **Enmascaramiento 100% Sólido y Opaco (`clean-terminal.scss`):**
+   - El overlay `.onboarding-wizard-overlay` aplica de forma incondicional `background-color: #0b0f19 !important`, `opacity: 1 !important` y `z-index: 1000005 !important`, erradicando por completo cualquier fuga visual o canal alfa sobre la consola PTY de fondo.
+2. **Componente Visual Nativo `OnboardingWizard.js` con Máquina de Estados:**
+   - **Paso 1: Método de Login (`step-auth-method`):** Isotipo vectorial oficial y botones táctiles `[ Continuar con Google ]` (envía `\r` para selección OAuth) y `[ Ingresar Token / API Key ]` (envía `\x1b[B\r`).
+   - **Paso 2: Autorización OAuth (`step-auth-code`):** Enlace interactivo `[ Abrir Navegador de Nuevo ]` y auto-detección reactiva del código desde el portapapeles (`^4/`) al retomar foco (`focus`/`resume`), inyectando de inmediato el token e indicando estado activo con spinner.
+   - **Paso 3: Selector Gráfico de Temas (`step-theme-selector`):** Selector de 3 tarjetas visuales (*Dark*, *Terminal Clásico*, *Light*) con bordes de realce azul Material 3, traduciendo la elección táctil a secuencias de flechas ANSI hacia la PTY al pulsar `Continuar`.
+   - **Paso 4: Términos y Telemetría (`step-terms-telemetry`):** Casilla de consentimiento y botón prominente `[ Comenzar a Programar 🚀 ]` con gradiente esmeralda, que ejecuta la secuencia atómica `\t\x1b[C\r` (Tab $\rightarrow$ Flecha Derecha $\rightarrow$ Enter sobre el botón `[Done]` del CLI).
+3. **Disipación Cinemática Fluida a 144Hz:**
+   - Al confirmarse el inicio de sesión en el stream de la PTY (`Logged in as...`), el asistente ejecuta `dismiss(350)` con transición suave CSS (*fade-out* de 350ms), desmontándose del DOM y revelando la terminal con el agente listo.
+4. **Empaquetado y Certificación Oficial v2.4.0:**
+   - Versión `2.4.0` (versionCode `20400`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.4.0-ARM64.apk`** (36.82 MB / 38,607,617 bytes $\le 42.0\,\text{MB}$, SHA256 `261020e9e547be1f1b33350c42304e9b02412edf5cf928e052c3ca03ae1b126a`).
+5. **Invariantes Reafirmados:**
+   - *Zero-console-leakage:* Opacidad absoluta 100% (#0b0f19, z-index: 1000005).
+   - *Material 3 Multi-Step UI:* Experiencia gráfica completa que envuelve el CLI.
+   - *Atomic Inquirer Sequences:* Traducción de selecciones táctiles a secuencias VT100 exactas (`\t\x1b[C\r`).
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-043` (`AC-WIZ-01` a `AC-WIZ-06`).
+
+#### 4.166 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Inmersión Visual Pura:** Eliminación total de destellos o fugas de la consola Linux en la pantalla 2.8K de Xiaomi Pad 6.
+  - **Experiencia de Incorporación Nativa:** El desarrollador configura su entorno mediante una GUI moderna sin enfrentarse a comandos o menús de terminal.
+  - **Automatización Atómica:** Consentimiento legal completado limpiamente sin riesgo de bloqueos en el diálogo Inquirer.
+- **Compromisos Operativos:**
+  - Si el binario `agy` modifica el orden o la estructura de sus diálogos de inicio en versiones futuras, la máquina de estados de `OnboardingWizard` debe actualizarse correspondientemente en la especificación SDD.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2568,6 +2611,7 @@ Se diseña e implementa una arquitectura reactiva no intrusiva gobernada por [`S
 | **SPEC-040** | Transición Atómica Zero-Leak, Persistencia Inteligente de Sesión y Notificación Interactiva | `specs/40-premium-zero-leak-transition-and-session-persistence.md` | `APPROVED` | 6 ACs |
 | **SPEC-041** | Tarjeta Gráfica de Autenticación Google, Transición Suave Post-Login y Estado de Cuenta | `specs/41-native-google-auth-card-and-session-state.md` | `APPROVED` | 6 ACs |
 | **SPEC-042** | Auto-Respondedor Reactivo de Stream WebSocket y Auto-Inyección de Token OAuth desde Portapapeles | `specs/42-stream-auto-responder-and-auto-clipboard-oauth.md` | `APPROVED` | 6 ACs |
+| **SPEC-043** | Asistente Visual Multi-Paso Nativo (Material 3 Onboarding Wizard) y Enmascaramiento Opaco de Terminal | `specs/43-native-material3-multi-step-onboarding-wizard.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

@@ -12,6 +12,7 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import TerminalTouchNavigation from "./TerminalTouchNavigation";
 import { ProvisioningLoader } from "./ProvisioningLoader.js";
 import { GoogleAuthCard } from "./GoogleAuthCard.js";
+import { OnboardingWizard } from "./OnboardingWizard.js";
 import "@xterm/xterm/css/xterm.css";
 import "./clean-terminal.scss";
 
@@ -64,6 +65,9 @@ export class CleanAgentTerminal {
         this.accountBadgeEl = null;
         this.authenticatedUserStorageKey = "antigravity_authenticated_user";
         this.authenticatedUser = localStorage.getItem(this.authenticatedUserStorageKey) || null;
+
+        // Asistente Visual Multi-Paso Nativo (SPEC-043: Material 3 Onboarding Wizard)
+        this.onboardingWizard = null;
 
         // Banderas One-Shot de Onboarding y Auto-Clipboard (SPEC-042)
         this._hasAutoSelectedLogin = false;
@@ -139,6 +143,9 @@ export class CleanAgentTerminal {
         // SPEC-041: Si el usuario ya está autenticado, renderizar Account Badge de inmediato
         if (this.authenticatedUser) {
             this.renderAccountBadge(this.authenticatedUser, "Google AI Ultra");
+        } else {
+            // SPEC-043: Si no hay usuario autenticado, inicializar OnboardingWizard con enmascaramiento opaco
+            this._setupOnboardingWizard();
         }
 
         // Iniciar Conexión PTY en segundo plano
@@ -444,6 +451,48 @@ export class CleanAgentTerminal {
     }
 
     /**
+     * SPEC-043: Inicializa el Asistente Visual Multi-Paso Nativo (Material 3 Onboarding Wizard)
+     * con enmascaramiento 100% opaco y captura de eventos.
+     */
+    _setupOnboardingWizard() {
+        if (this.authenticatedUser || this.onboardingWizard) return;
+        this.onboardingWizard = new OnboardingWizard({
+            onAction: (action, data) => {
+                if (action === "open_browser") {
+                    this._hasAutoOpenedBrowser = true;
+                    this.openInBrowser(data);
+                } else if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send(data);
+                }
+            },
+            onSelectAuthMethod: (method) => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    const seq = method === "token" ? "\x1b[B\r" : "\r";
+                    this.websocket.send(seq);
+                }
+            },
+            onOpenBrowser: (url) => {
+                this._hasAutoOpenedBrowser = true;
+                this.openInBrowser(url);
+            },
+            onSelectTheme: (theme) => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    let seq = "\r";
+                    if (theme === "terminal" || theme === 1) seq = "\x1b[B\r";
+                    else if (theme === "light" || theme === 2) seq = "\x1b[B\x1b[B\r";
+                    this.websocket.send(seq);
+                }
+            },
+            onAcceptTerms: () => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send("\t\x1b[C\r");
+                }
+            }
+        });
+        this.onboardingWizard.mount(this.containerEl || document.body);
+    }
+
+    /**
      * SPEC-042: Configura escuchadores para detectar retorno de foco desde Google Chrome
      * e inyectar automáticamente el código de autorización OAuth desde el portapapeles.
      */
@@ -466,10 +515,13 @@ export class CleanAgentTerminal {
                 text = await navigator.clipboard.readText().catch(() => "");
             }
             text = (text || "").trim();
-            // AUTO-03: Validar patrón oficial de token Google OAuth 2.0 PKCE: ^4/
+            // AUTO-03 / WIZ-03: Validar patrón oficial de token Google OAuth 2.0 PKCE: ^4/
             if (/^4\/[a-zA-Z0-9_-]{20,}/.test(text) || /^4\/[a-zA-Z0-9_-]+/.test(text)) {
                 console.log("[OAUTH] Código de autorización detectado en portapapeles. Inyectando silenciosamente...");
                 this._hasInjectedOAuthCode = true;
+                if (this.onboardingWizard) {
+                    this.onboardingWizard.setTokenInjected();
+                }
                 if (this.authCard) {
                     this.authCard.setAuthenticating();
                 }
@@ -489,48 +541,62 @@ export class CleanAgentTerminal {
         if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
         if (!text || typeof text !== "string") return;
 
-        // AC-AUTO-01: Auto-selección de 1. Google OAuth
-        if (!this._hasAutoSelectedLogin && (text.includes("Select login method:") || text.includes("> 1. Google OAuth") || text.includes("1. Google OAuth") || /Select login method:/i.test(text))) {
-            console.log("[AUTO-RESPONDER] 'Select login method' detectado. Enviando Enter (Opción 1)...");
-            this._hasAutoSelectedLogin = true;
-            setTimeout(() => {
-                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                    this.websocket.send("\r");
-                }
-            }, 50);
+        // SPEC-043: Sincronización reactiva con OnboardingWizard (Paso 1: Método de Login)
+        if (text.includes("Select login method:") || text.includes("> 1. Google OAuth") || text.includes("1. Google OAuth") || /Select login method:/i.test(text)) {
+            if (this.onboardingWizard) {
+                this.onboardingWizard.goToStep("step-auth-method");
+            } else if (!this._hasAutoSelectedLogin) {
+                console.log("[AUTO-RESPONDER] 'Select login method' detectado. Enviando Enter (Opción 1)...");
+                this._hasAutoSelectedLogin = true;
+                setTimeout(() => {
+                    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                        this.websocket.send("\r");
+                    }
+                }, 50);
+            }
         }
 
-        // AC-AUTO-02: Auto-confirmación de Tema (Dark)
-        if (!this._hasAutoConfirmedTheme && (text.includes("color scheme") || text.includes("Choose your color scheme") || text.includes("Select theme:") || /(?:Choose your color scheme|color scheme)/i.test(text))) {
-            console.log("[AUTO-RESPONDER] Prompt de tema detectado. Enviando Enter...");
-            this._hasAutoConfirmedTheme = true;
-            setTimeout(() => {
-                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                    this.websocket.send("\r");
-                }
-            }, 50);
+        // SPEC-043: Sincronización reactiva con OnboardingWizard (Paso 3: Selector de Tema)
+        if (text.includes("color scheme") || text.includes("Choose your color scheme") || text.includes("Select theme:") || /(?:Choose your color scheme|color scheme)/i.test(text)) {
+            if (this.onboardingWizard) {
+                this.onboardingWizard.goToStep("step-theme-selector");
+            } else if (!this._hasAutoConfirmedTheme) {
+                console.log("[AUTO-RESPONDER] Prompt de tema detectado. Enviando Enter...");
+                this._hasAutoConfirmedTheme = true;
+                setTimeout(() => {
+                    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                        this.websocket.send("\r");
+                    }
+                }, 50);
+            }
         }
 
         // AC-AUTO-02: Auto-confirmación de Confianza de Carpeta (Trust workspace)
-        if (!this._hasAutoConfirmedTrust && (text.includes("trust this folder") || text.includes("Do you trust the authors") || text.includes("Yes, I trust") || /(?:trust this folder|Do you trust)/i.test(text))) {
-            console.log("[AUTO-RESPONDER] Prompt de confianza detectado. Enviando Enter...");
-            this._hasAutoConfirmedTrust = true;
-            setTimeout(() => {
-                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                    this.websocket.send("\r");
-                }
-            }, 50);
+        if (text.includes("trust this folder") || text.includes("Do you trust the authors") || text.includes("Yes, I trust") || /(?:trust this folder|Do you trust)/i.test(text)) {
+            if (!this._hasAutoConfirmedTrust) {
+                console.log("[AUTO-RESPONDER] Prompt de confianza detectado. Enviando Enter...");
+                this._hasAutoConfirmedTrust = true;
+                setTimeout(() => {
+                    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                        this.websocket.send("\r");
+                    }
+                }, 50);
+            }
         }
 
-        // AC-AUTO-02: Auto-confirmación de Términos / [Done]
-        if (!this._hasAutoConfirmedTerms && (text.includes("Terms of Service") || text.includes("[Done]") || text.includes("Security Agreement") || /(?:Terms of Service|\[Done\])/i.test(text))) {
-            console.log("[AUTO-RESPONDER] Prompt de Términos / Done detectado. Enviando Enter...");
-            this._hasAutoConfirmedTerms = true;
-            setTimeout(() => {
-                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                    this.websocket.send("\r");
-                }
-            }, 50);
+        // SPEC-043: Sincronización reactiva con OnboardingWizard (Paso 4: Términos / [Done])
+        if (text.includes("Terms of Service") || text.includes("[Done]") || text.includes("Security Agreement") || /(?:Terms of Service|\[Done\])/i.test(text)) {
+            if (this.onboardingWizard) {
+                this.onboardingWizard.goToStep("step-terms-telemetry");
+            } else if (!this._hasAutoConfirmedTerms) {
+                console.log("[AUTO-RESPONDER] Prompt de Términos / Done detectado. Enviando Enter...");
+                this._hasAutoConfirmedTerms = true;
+                setTimeout(() => {
+                    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                        this.websocket.send("\r");
+                    }
+                }, 50);
+            }
         }
     }
 
@@ -549,7 +615,7 @@ export class CleanAgentTerminal {
             // SPEC-042: Auto-respondedor reactivo de onboarding
             this._handleAutoResponderStream(text);
 
-            // SPEC-041: Detección reactiva de confirmación de usuario autenticado
+            // SPEC-041 & SPEC-043: Detección reactiva de confirmación de usuario autenticado
             if (
                 text.includes("shadrick1212@gmail.com") ||
                 text.includes("Google AI Ultra") ||
@@ -563,6 +629,10 @@ export class CleanAgentTerminal {
                 this.authenticatedUser = email;
                 localStorage.setItem(this.authenticatedUserStorageKey, email);
                 this.renderAccountBadge(email, "Google AI Ultra");
+                if (this.onboardingWizard) {
+                    this.onboardingWizard.fadeOut(350);
+                    this.onboardingWizard = null;
+                }
                 if (this.authCard) {
                     this.authCard.fadeOut(250);
                     this.authCard = null;
@@ -602,7 +672,18 @@ export class CleanAgentTerminal {
                     return;
                 }
 
-                // SPEC-041: Desplegar GoogleAuthCard con diseño Material 3
+                // SPEC-043: Sincronizar OnboardingWizard en Paso 2 y auto-abrir navegador
+                if (this.onboardingWizard) {
+                    this.onboardingWizard.setAuthUrl(candidateUrl);
+                    this.onboardingWizard.goToStep("step-auth-code", candidateUrl);
+                    if (!this._hasAutoOpenedBrowser) {
+                        this._hasAutoOpenedBrowser = true;
+                        this.openInBrowser(candidateUrl);
+                    }
+                    return;
+                }
+
+                // SPEC-041: Desplegar GoogleAuthCard con diseño Material 3 si no hay wizard
                 if (!this.authCard) {
                     this.authCard = new GoogleAuthCard({
                         onSignIn: (url) => {
@@ -722,6 +803,10 @@ export class CleanAgentTerminal {
 
     async restartSession() {
         localStorage.removeItem(this.sessionStorageKey);
+        if (this.onboardingWizard) {
+            this.onboardingWizard.dismiss(0);
+            this.onboardingWizard = null;
+        }
         if (this.authCard) {
             this.authCard.dismiss();
             this.authCard = null;
@@ -752,10 +837,17 @@ export class CleanAgentTerminal {
             this.activeLoader.mount(this.containerEl || document.body);
         }
         this.activeLoader.update(100, "Reiniciando Google Antigravity...");
+        if (!this.authenticatedUser) {
+            this._setupOnboardingWizard();
+        }
         await this.connect();
     }
 
     destroy() {
+        if (this.onboardingWizard) {
+            this.onboardingWizard.dismiss(0);
+            this.onboardingWizard = null;
+        }
         if (this.authCard) {
             this.authCard.dismiss();
             this.authCard = null;
