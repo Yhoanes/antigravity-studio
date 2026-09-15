@@ -2180,7 +2180,53 @@ Se formaliza e implementa la solución de aprovisionamiento cinemático dinámic
   - **Transparencia en Tiempo Real:** El stream logger monolínea informa al desarrollador sobre cada etapa de descompresión sin saturar la pantalla.
   - **Robustez en Toda la Cadena Cordova:** Paridad garantizada entre fuentes y assets empaquetados en el APK.
 - **Compromisos Operativos:**
-  - El ticker a 16ms consume ciclos de requestAnimationFrame/intervalo durante la ventana inicial de aprovisionamiento (4 a 8s), deteniéndose inmediatamente tras el `fade-out`.
+   - El ticker a 16ms consume ciclos de requestAnimationFrame/intervalo durante la ventana inicial de aprovisionamiento (4 a 8s), deteniéndose inmediatamente tras el `fade-out`.
+
+---
+
+### ADR-037 / ADR-047: Reparación de Envoltura Cordova Terminal.js, Elevación de z-index de ProvisioningLoader y Watchdog Incondicional de Splash Screen (v2.1.9)
+
+- **Identificador:** `ADR-037` (Secuencia Repositorio: `ADR-047` / `ADR-037`)
+- **Especificación SDD Asociada:** [`SPEC-037`](specs/37-fix-cordova-terminal-wrapper-and-splash-dismissal.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.143 Contexto
+Tras el despliegue del binario `v2.1.8` en el dispositivo físico Xiaomi Pad 6, se reportó un bloqueo absoluto durante el arranque en frío: la pantalla permanecía congelada indefinidamente en el splash screen con el prisma 3D de Google Antigravity, sin desplegar la tarjeta de aprovisionamiento ni iniciar la descarga o extracción del subsistema Linux.
+El análisis forense en `adb logcat` reveló:
+1. **Ruptura de Envoltura CommonJS en Cordova:** `Terminal.js` en `platform_www` y `assets/www` carecía de la envoltura constructora obligatoria `cordova.define("com.foxdebug.acode.rk.exec.terminal.Terminal", function(require, exports, module) { ... });`. Al evaluarse el script en el WebView, arrojó `Uncaught ReferenceError: require is not defined` en la línea 1, abortando el registro de plugins en `cordova.js` (`Uncaught Error: Module com.foxdebug.acode.rk.exec.terminal.Terminal does not exist`).
+2. **Supresión del Evento `deviceready`:** Como consecuencia del fallo fatal en la carga de módulos, Cordova nunca emitió el evento `deviceready`, dejando la inicialización de `main.js` suspendida indefinidamente.
+3. **Colisión de Jerarquía Visual (Z-Index):** En `clean-terminal.scss`, `.provisioning-loader-overlay` tenía `z-index: 10000`, mientras que `#splash` en `index.html` tenía `z-index: 999999`. Incluso montándose en el DOM, el splash screen estático ocultaba por completo el loader dinámico.
+4. **Ausencia de Watchdog:** El descarte de `#splash` dependía exclusivamente de la finalización sin errores del arranque tras `deviceready`, careciendo de un temporizador de escape ante contingencias tempranas.
+
+#### 4.144 Decisión
+Se formaliza e implementa la solución de arranque resiliente bajo el contrato formal [`SPEC-037`](specs/37-fix-cordova-terminal-wrapper-and-splash-dismissal.md):
+1. **Envoltura Canónica Estricta de Cordova (`Terminal.js`):**
+   - Envolvimiento íntegro de `Terminal.js` tanto en `nova-src/platforms/android/platform_www/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js` como en `nova-src/platforms/android/app/src/main/assets/www/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js` dentro de la macro `cordova.define("com.foxdebug.acode.rk.exec.terminal.Terminal", function(require, exports, module) { ... });`.
+   - Preservación íntegra de la API extendida de `v2.1.8`: `install(onProgress, err_logger)` y despachador estructurado `report(percent, message)`.
+2. **Elevación Visual de Máxima Prioridad (`z-index: 1000001`):**
+   - Modificación de `.provisioning-loader-overlay` y selectores relacionados en `clean-terminal.scss` a `z-index: 1000001 !important;`, garantizando prioridad visual absoluta sobre el `z-index: 999999` de `#splash`.
+3. **Descarte Preventivo Inmediato en `ProvisioningLoader.mount()`:**
+   - Inyección en el ciclo `mount()` de la destrucción activa del splash (`splash.style.display = "none"`) y remoción de clases `body.loading` y `body.splash`, eliminando el splash screen del pipeline de renderizado de la GPU en el momento exacto del montaje.
+4. **Temporizador Guardián (*Watchdog*) de 2500ms en `main.js`:**
+   - Incorporación de `initSplashWatchdog()` ejecutándose de inmediato al evaluar `main.js`. Si pasados 2500ms el splash screen persiste, se fuerza incondicionalmente la remoción de las clases `"loading"` y `"splash"` y se oculta el contenedor `#splash`, garantizando que la aplicación jamás se congele visualmente.
+5. **Empaquetado y Certificación Oficial v2.1.9:**
+   - Sincronización de versión a `2.1.9` (versionCode `20109`) en `config.xml` y `package.json`.
+   - Compilación del frontend (`npm run build:prod`) y empaquetado del artefacto binario **`GoogleAntigravity-v2.1.9-ARM64.apk`** (36.81 MB / 38,599,541 bytes $\le 42.0\,\text{MB}$, SHA256 `D0069A290D8EDF08F1EAE19CF1A352168542DAD2B7E2BE78933B396153828470`).
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Modificaciones de producción delegadas a `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-037` (`AC-WRAPPER-01`, `AC-ZINDEX-02`, `AC-DISMISS-03`, `AC-WATCHDOG-04`, `AC-VER-05`).
+   - *Resiliencia de Arranque:* Cero bloqueos silenciosos; watchdog activo e inmunidad en jerarquía visual de capas DOM.
+   - *Presupuesto de Binario:* Peso contenido por debajo de 42 MB.
+
+#### 4.145 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Arranque Determinista en Frío:** Registro limpio del plugin `Terminal.js` sin errores de CommonJS, permitiendo la emisión inmediata de `deviceready`.
+  - **Visibilidad Ininterrumpida del Progreso:** La tarjeta de aprovisionamiento con animación cinemática y stream logger se despliega en primer plano sin interferencia de capas anteriores.
+  - **Inmunidad ante Fallas Tempranas:** El watchdog de 2.5 segundos previene congelamientos indefinidos de pantalla en cualquier circunstancia.
+- **Compromisos Operativos:**
+  - Cualquier modificación futura sobre plugins de Cordova en `platforms/android` debe mantener rigurosamente la envoltura `cordova.define`.
 
 ---
 
@@ -2225,6 +2271,7 @@ Se formaliza e implementa la solución de aprovisionamiento cinemático dinámic
 | **SPEC-034** | Experiencia Oficial Pura Google Antigravity, Erradicación de Scrollbar DOM de Xterm y Purga Definitiva de Marcas Heredadas | `specs/34-pure-official-antigravity-experience-and-brand-purging.md` | `APPROVED` | 6 ACs |
 | **SPEC-035** | Experiencia de Splash Pura, Estabilizador de Stream OAuth Anti-404, Loader Visual de Aprovisionamiento y Discriminador de Gestos | `specs/35-splash-ux-oauth-stabilizer-and-progress-loader.md` | `APPROVED` | 8 ACs |
 | **SPEC-036** | Loader Visual Dinámico de Aprovisionamiento, Interpolación Cinemática Continua y Stream Logger Monolínea Anti-NaN | `specs/36-smooth-provisioning-loader-and-stream-logger.md` | `APPROVED` | 5 ACs |
+| **SPEC-037** | Reparación de Envoltura Cordova Terminal, Elevación Visual de Loader y Descarte Incondicional de Splash Screen | `specs/37-fix-cordova-terminal-wrapper-and-splash-dismissal.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
