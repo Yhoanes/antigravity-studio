@@ -1,7 +1,7 @@
 /**
  * ProvisioningLoader.js
- * Google Antigravity 2.1.7: Overlay Visual de Aprovisionamiento Inicial (SPEC-035)
- * Criterios: AC-LOADER-01, AC-LOADER-02, AC-LOADER-03
+ * Google Antigravity Mobile 2.1.8 (SPEC-036)
+ * Loader visual dinámico con interpolación continua y log stream monolínea anti-NaN.
  */
 export class ProvisioningLoader {
     constructor() {
@@ -9,7 +9,11 @@ export class ProvisioningLoader {
         this.statusTextEl = null;
         this.progressBarEl = null;
         this.percentageTextEl = null;
-        this.currentPercent = 0;
+        this.logStreamEl = null;
+
+        this._targetPercent = 0;
+        this._currentVisualPercent = 0;
+        this._tickerTimer = null;
     }
 
     mount(parentEl = document.body) {
@@ -30,6 +34,9 @@ export class ProvisioningLoader {
                     <div class="provisioning-progress-bar" id="provisioning-progress-fill"></div>
                 </div>
                 <span class="provisioning-percentage" id="provisioning-percentage-text">0%</span>
+                <div class="provisioning-log-stream" id="provisioning-log-stream">
+                    <span class="log-prefix">❯</span><span class="log-message">Iniciando verificación de componentes...</span>
+                </div>
             </div>
         `;
 
@@ -38,20 +45,86 @@ export class ProvisioningLoader {
         this.statusTextEl = this.overlayEl.querySelector("#provisioning-status-text");
         this.progressBarEl = this.overlayEl.querySelector("#provisioning-progress-fill");
         this.percentageTextEl = this.overlayEl.querySelector("#provisioning-percentage-text");
+        this.logStreamEl = this.overlayEl.querySelector("#provisioning-log-stream");
+
+        this._startTicker();
     }
 
-    update(percent, message) {
-        const clamped = Math.max(0, Math.min(100, Math.round(percent)));
-        this.currentPercent = clamped;
+    update(progressOrMsg, maybeMsg) {
+        let numericPercent = null;
+        let messageText = null;
 
+        // 1. Discriminador Polimórfico de Parámetros
+        if (typeof progressOrMsg === "number") {
+            numericPercent = progressOrMsg;
+            if (typeof maybeMsg === "string") {
+                messageText = maybeMsg;
+            }
+        } else if (typeof progressOrMsg === "string") {
+            messageText = progressOrMsg;
+            if (typeof maybeMsg === "number") {
+                numericPercent = maybeMsg;
+            }
+        }
+
+        // 2. Normalización Segura Anti-NaN
+        if (numericPercent !== null && Number.isFinite(numericPercent) && !isNaN(numericPercent)) {
+            const clamped = Math.max(0, Math.min(100, numericPercent));
+            this._targetPercent = clamped;
+            this._startTicker();
+        }
+
+        // 3. Despacho a Log Stream y Subtítulo
+        if (messageText) {
+            this.log(messageText);
+        }
+    }
+
+    log(msg) {
+        if (!this.logStreamEl) return;
+        const cleanMsg = String(msg)
+            .replace(/^(\s*\[SISTEMA\]|\s*📦|\s*✅|\s*⬇️|\s*🚀)\s*/, "")
+            .trim();
+
+        const msgSpan = this.logStreamEl.querySelector(".log-message");
+        if (msgSpan) {
+            msgSpan.textContent = cleanMsg;
+        } else {
+            this.logStreamEl.textContent = cleanMsg;
+        }
+
+        if (this.statusTextEl && cleanMsg.length < 50) {
+            this.statusTextEl.textContent = cleanMsg;
+        }
+    }
+
+    _startTicker() {
+        if (this._tickerTimer) return;
+
+        this._tickerTimer = setInterval(() => {
+            const delta = this._targetPercent - this._currentVisualPercent;
+
+            if (Math.abs(delta) < 0.1) {
+                this._currentVisualPercent = this._targetPercent;
+                this._renderVisual();
+                clearInterval(this._tickerTimer);
+                this._tickerTimer = null;
+                return;
+            }
+
+            // Interpolación cinemática continua con easing exponencial
+            this._currentVisualPercent += delta * 0.12;
+            this._renderVisual();
+        }, 16); // ~60fps - 144Hz compatible
+    }
+
+    _renderVisual() {
+        const rounded = Math.round(this._currentVisualPercent);
         if (this.progressBarEl) {
-            this.progressBarEl.style.width = `${clamped}%`;
+            this.progressBarEl.style.width = `${this._currentVisualPercent.toFixed(1)}%`;
         }
         if (this.percentageTextEl) {
-            this.percentageTextEl.textContent = `${clamped}%`;
-        }
-        if (message && this.statusTextEl) {
-            this.statusTextEl.textContent = message;
+            this.percentageTextEl.textContent = `${rounded}%`;
         }
     }
 
@@ -65,13 +138,17 @@ export class ProvisioningLoader {
                     this.overlayEl.classList.add("fade-out");
                 }
                 setTimeout(() => {
+                    if (this._tickerTimer) {
+                        clearInterval(this._tickerTimer);
+                        this._tickerTimer = null;
+                    }
                     if (this.overlayEl && this.overlayEl.parentNode) {
                         this.overlayEl.parentNode.removeChild(this.overlayEl);
                     }
                     this.overlayEl = null;
                     resolve();
                 }, 300);
-            }, 200);
+            }, 250);
         });
     }
 }

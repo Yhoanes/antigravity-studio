@@ -1,5 +1,5 @@
 // nova-src/src/antigravity2/clean-terminal.scss
-// Google Antigravity 2.1.7: Experiencia de Splash Pura, Estabilizador OAuth y Loader de Aprovisionamiento (SPEC-035)
+// Google Antigravity 2.1.8: Loader Dinámico con Shimmer y Log Stream Monolínea Anti-NaN (SPEC-036)
 // 4-Way D-Pad Touch Navigation, Zero-Decoration Architecture, Supresión Total de Barras Laterales y Scrollbars
 
 html, body {
@@ -127,7 +127,7 @@ html, body {
     }
 }
 
-// SPEC-035: ProvisioningLoader Overlay & Material 3 Progress Bar
+// SPEC-036: ProvisioningLoader Overlay, Shimmer & Monoline Log Stream
 .provisioning-loader-overlay {
     position: fixed;
     inset: 0;
@@ -149,13 +149,14 @@ html, body {
         display: flex;
         flex-direction: column;
         align-items: center;
-        width: 85%;
-        max-width: 420px;
-        padding: 32px;
-        background: rgba(15, 23, 42, 0.85);
+        width: 88%;
+        max-width: 440px;
+        padding: 32px 28px;
+        background: rgba(15, 23, 42, 0.90);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 16px;
-        box-shadow: 0 12px 32px rgba(0, 0, 0, 0.6);
+        box-shadow: 0 16px 36px rgba(0, 0, 0, 0.65);
+        box-sizing: border-box;
 
         .provisioning-logo {
             width: 96px;
@@ -175,9 +176,13 @@ html, body {
         .provisioning-subtitle {
             color: #94a3b8;
             font-size: 13px;
-            margin: 0 0 24px 0;
+            margin: 0 0 20px 0;
             text-align: center;
             min-height: 20px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
         }
 
         .provisioning-progress-track {
@@ -187,13 +192,28 @@ html, body {
             border-radius: 999px;
             overflow: hidden;
             margin-bottom: 12px;
+            position: relative;
 
             .provisioning-progress-bar {
                 height: 100%;
                 width: 0%;
                 background: linear-gradient(90deg, #4285f4 0%, #34a853 100%);
                 border-radius: 999px;
-                transition: width 0.25s ease;
+                position: relative;
+                overflow: hidden;
+
+                &::after {
+                    content: "";
+                    position: absolute;
+                    inset: 0;
+                    background: linear-gradient(
+                        90deg,
+                        rgba(255, 255, 255, 0) 0%,
+                        rgba(255, 255, 255, 0.35) 50%,
+                        rgba(255, 255, 255, 0) 100%
+                    );
+                    animation: progressShimmer 1.8s infinite linear;
+                }
             }
         }
 
@@ -201,9 +221,41 @@ html, body {
             color: #64748b;
             font-size: 12px;
             font-weight: 600;
-            font-family: monospace;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        }
+
+        .provisioning-log-stream {
+            width: 100%;
+            margin-top: 16px;
+            padding: 8px 12px;
+            background: #0d1527;
+            border: 1px solid #1e293b;
+            border-radius: 8px;
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+            font-size: 11px;
+            color: #94a3b8;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-align: left;
+            box-sizing: border-box;
+
+            .log-prefix {
+                color: #38bdf8;
+                margin-right: 6px;
+                font-weight: 700;
+            }
+
+            .log-message {
+                color: #cbd5e1;
+            }
         }
     }
+}
+
+@keyframes progressShimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
 }
 
 @keyframes pulsePrism {

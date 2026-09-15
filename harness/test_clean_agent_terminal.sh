@@ -1,55 +1,58 @@
 #!/bin/bash
 # ==============================================================================
-# Harness Test: SPEC-035 Splash UX, OAuth Stabilizer & Progress Loader Verification
+# Harness Test: SPEC-036 Smooth Provisioning Loader & Stream Logger Verification
 # ==============================================================================
 set -e
 
-SPEC_FILE_035="specs/35-splash-ux-oauth-stabilizer-and-progress-loader.md"
-INDEX_HTML="nova-src/www/index.html"
-CLEAN_TERM_JS="nova-src/src/antigravity2/CleanAgentTerminal.js"
+SPEC_FILE_036="specs/36-smooth-provisioning-loader-and-stream-logger.md"
 PROV_LOADER_JS="nova-src/src/antigravity2/ProvisioningLoader.js"
-TOUCH_NAV_JS="nova-src/src/antigravity2/TerminalTouchNavigation.js"
-TERMINAL_JS="nova-src/src/plugins/terminal/www/Terminal.js"
+SCSS_FILE="nova-src/src/antigravity2/clean-terminal.scss"
+TERM_SRC="nova-src/src/plugins/terminal/www/Terminal.js"
+TERM_PLUGIN="nova-src/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js"
+TERM_PLATFORM="nova-src/platforms/android/platform_www/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js"
+TERM_ASSETS="nova-src/platforms/android/app/src/main/assets/www/plugins/com.foxdebug.acode.rk.exec.terminal/www/Terminal.js"
 CONFIG_XML="nova-src/config.xml"
 PACKAGE_JSON="nova-src/package.json"
 
-echo "=== INICIANDO VALIDACIÓN FORMAL DE SPEC-035 ==="
+echo "=== INICIANDO VALIDACIÓN FORMAL DE SPEC-036 ==="
 
-# 1. Verificar documento SPEC-035
-echo -n "1. Verificando documento SPEC-035... "
-[ -f "$SPEC_FILE_035" ] || { echo "FALLO: No existe $SPEC_FILE_035"; exit 1; }
+# 1. Verificar documento SPEC-036
+echo -n "1. Verificando documento SPEC-036... "
+[ -f "$SPEC_FILE_036" ] || { echo "FALLO: No existe $SPEC_FILE_036"; exit 1; }
 echo "[OK]"
 
-# 2. Verificar supresión de textos en splash (Criterio SPLASH-01)
-echo -n "2. Verificando supresión de textos en splash index.html... "
-grep -q "\.splash-version" "$INDEX_HTML" && grep -A 2 "\.splash-version" "$INDEX_HTML" | grep -q "display: none" || { echo "FALLO: .splash-version no está oculto"; exit 1; }
-grep -q "\.splash-message" "$INDEX_HTML" && grep -A 2 "\.splash-message" "$INDEX_HTML" | grep -q "display: none" || { echo "FALLO: .splash-message no está oculto"; exit 1; }
+# 2. Verificar API polimórfica y anti-NaN en ProvisioningLoader (Criterio LOADER-01)
+echo -n "2. Verificando salvaguarda anti-NaN y polimorfismo en ProvisioningLoader.js... "
+grep -q "_targetPercent" "$PROV_LOADER_JS" || { echo "FALLO: _targetPercent ausente en ProvisioningLoader"; exit 1; }
+grep -q "Number.isFinite" "$PROV_LOADER_JS" || grep -q "!isNaN" "$PROV_LOADER_JS" || { echo "FALLO: Validación numérica estricta ausente"; exit 1; }
 echo "[OK]"
 
-# 3. Verificar estabilizador de OAuth y anti-404 (Criterios OAUTH-01 y OAUTH-02)
-echo -n "3. Verificando estabilizador y validador de OAuth PKCE... "
-grep -q "validateOAuthUrl" "$CLEAN_TERM_JS" || { echo "FALLO: validateOAuthUrl no implementado"; exit 1; }
-grep -q "client_id=" "$CLEAN_TERM_JS" || { echo "FALLO: Verificación de client_id ausente"; exit 1; }
-grep -q "code_challenge=" "$CLEAN_TERM_JS" || { echo "FALLO: Verificación de code_challenge ausente"; exit 1; }
+# 3. Verificar log stream monolínea (Criterio LOADER-02)
+echo -n "3. Verificando log stream monolínea en ProvisioningLoader y SCSS... "
+grep -q "provisioning-log-stream" "$PROV_LOADER_JS" || { echo "FALLO: Contenedor .provisioning-log-stream ausente en JS"; exit 1; }
+grep -q "provisioning-log-stream" "$SCSS_FILE" || { echo "FALLO: Regla .provisioning-log-stream ausente en SCSS"; exit 1; }
+grep -q "text-overflow: ellipsis" "$SCSS_FILE" || { echo "FALLO: Recorte con elipsis ausente en SCSS"; exit 1; }
 echo "[OK]"
 
-# 4. Verificar componente ProvisioningLoader y callback de progreso (Criterios LOADER-01 y LOADER-02)
-echo -n "4. Verificando ProvisioningLoader y onProgress en Terminal.js... "
-[ -f "$PROV_LOADER_JS" ] || { echo "FALLO: No existe $PROV_LOADER_JS"; exit 1; }
-grep -q "onProgress" "$TERMINAL_JS" || { echo "FALLO: Terminal.js no soporta callback onProgress"; exit 1; }
+# 4. Verificar ticker cinemático e interpolación continua (Criterio LOADER-03)
+echo -n "4. Verificando ticker cinemático y shimmer en SCSS... "
+grep -q "_tickerTimer" "$PROV_LOADER_JS" || { echo "FALLO: _tickerTimer ausente en ProvisioningLoader"; exit 1; }
+grep -q "progressShimmer" "$SCSS_FILE" || { echo "FALLO: Animación progressShimmer ausente en SCSS"; exit 1; }
 echo "[OK]"
 
-# 5. Verificar discriminador contextual en TerminalTouchNavigation (Criterio GESTURE-01)
-echo -n "5. Verificando discriminador contextual de menú vs chat... "
-grep -q "isInteractiveMenu" "$TOUCH_NAV_JS" || { echo "FALLO: isInteractiveMenu ausente"; exit 1; }
-grep -q "alternate" "$TOUCH_NAV_JS" || { echo "FALLO: Soporte de buffer alternate ausente"; exit 1; }
+# 5. Verificar sincronización cuádruple de Terminal.js (Criterio LOADER-04)
+echo -n "5. Verificando sincronización canónica de Terminal.js en las 4 ubicaciones... "
+for f in "$TERM_SRC" "$TERM_PLUGIN" "$TERM_PLATFORM" "$TERM_ASSETS"; do
+    if [ -f "$f" ]; then
+        grep -q "async install(onProgress" "$f" || { echo "FALLO: $f no posee la firma async install(onProgress, ...)"; exit 1; }
+    fi
+done
 echo "[OK]"
 
-# 6. Verificar versionado v2.1.7 (Criterio VER-01)
-echo -n "6. Verificando versión 2.1.7 en configuración... "
-grep -q 'version="2.1.7"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.1.7"; exit 1; }
-grep -q 'android-versionCode="20107"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versionCode 20107"; exit 1; }
-grep -q '"version": "2.1.7"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.1.7"; exit 1; }
+# 6. Verificar versionado v2.1.8 (Criterio VER-01)
+echo -n "6. Verificando versión 2.1.8 en configuración... "
+grep -q 'version="2.1.8"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.1.8"; exit 1; }
+grep -q '"version": "2.1.8"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.1.8"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-035 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 HAN SIDO SUPERADAS EXITOSAMENTE ==="
