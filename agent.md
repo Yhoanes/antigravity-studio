@@ -1938,6 +1938,46 @@ Se decide adoptar la arquitectura de terminal borde a borde pura y navegación g
 
 ---
 
+### ADR-031: Sistema de Navegación Gestual Táctil Cuadridireccional (4-Way D-Pad), Bloqueo Cinemático de Eje y Supresión Definitiva de Paneles Laterales en Tablet (v2.1.3)
+
+- **Identificador:** `ADR-031` (Secuencia Repositorio: `ADR-041` / `ADR-031`)
+- **Especificación SDD Asociada:** [`SPEC-031`](specs/31-horizontal-gesture-navigation-4-way-dpad.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.125 Contexto
+Tras el despliegue de la versión `v2.1.2` en la tablet Xiaomi Pad 6, el usuario validó el correcto funcionamiento de los gestos táctiles verticales (`ArrowUp` y `ArrowDown`), pero señaló la necesidad operativa de poder desplazarse horizontalmente (izquierda y derecha):
+1. **Necesidad de Navegación Horizontal en CLI:** La interacción fluida con la CLI de Google Antigravity (`agy`) exige movimiento horizontal del cursor para editar líneas de comando (Readline cursor movement: `ArrowLeft` / `ArrowRight`), conmutar opciones en selectores en línea horizontales (`[ Yes ]  [ No ]`, `[ Cancelar ]  [ Continuar ]`) e inspeccionar diffs en herramientas paginadoras.
+2. **Riesgo de Paneles Laterales Residuales en Orientación Tablet:** En pantallas de 11 pulgadas, los deslizamientos horizontales cerca de los márgenes podían disparar eventos táctiles heredados del panel lateral de Acode (`#sidebar`), interfiriendo con la experiencia pura de terminal.
+
+#### 4.126 Decisión
+Se formaliza e implementa la solución de navegación cuadridireccional bajo el contrato formal [`SPEC-031`](specs/31-horizontal-gesture-navigation-4-way-dpad.md):
+1. **Controlador Gestual Cuadridireccional Completo (4-Way D-Pad):** Se extiende [`TerminalTouchNavigation.js`](file:///c:/Projects/antigravity/nova-src/src/antigravity2/TerminalTouchNavigation.js) con soporte completo de cuatro direcciones ANSI:
+   - Deslizar a la DERECHA ($\Delta X > 28\,\text{px}$): emite `ArrowRight` (`\x1b[C`).
+   - Deslizar a la IZQUIERDA ($\Delta X < -28\,\text{px}$): emite `ArrowLeft` (`\x1b[D`).
+   - Deslizar hacia ABAJO ($\Delta Y > 28\,\text{px}$): emite `ArrowUp` (`\x1b[A`).
+   - Deslizar hacia ARRIBA ($\Delta Y < -28\,\text{px}$): emite `ArrowDown` (`\x1b[B`).
+2. **Algoritmo de Bloqueo Cinemático de Eje (*Axis-Locking*):** Se introduce una zona muerta de $10\,\text{px}$. Al superar este umbral, el motor determina el eje dominante ($|\Delta X| > |\Delta Y| \rightarrow \text{HORIZONTAL}$, de lo contrario $\text{VERTICAL}$) y bloquea la acumulación exclusivamente sobre dicho eje durante todo el trazo (`touchmove`), impidiendo emisiones cruzadas accidentales (ej. saltos verticales al editar texto horizontal).
+3. **Supresión Forzada y Definitiva de Paneles Laterales en Tablet:** Inyección de reglas CSS estrictas en `clean-terminal.scss` (`#sidebar, .sidebar, #sidebar-toggler, [data-action="toggle-sidebar"], .sidebar-apps { display: none !important; pointer-events: none !important; }`), garantizando cero oclusiones en cualquier orientación de la Xiaomi Pad 6.
+4. **Preservación de Portapapeles y Auto-Bridge:** Se conservan intactos el pegado por pulsación prolongada ($400\,\text{ms}$) o doble toque, y el sniffer silencioso de OAuth con apertura en Chrome vía `FLAG_ACTIVITY_NEW_TASK`.
+5. **Empaquetado y Verificación de Release:** Generación del binario **`GoogleAntigravity-v2.1.3-ARM64.apk`** (36.81 MB / 38,596,401 bytes $\le 42\,\text{MB}$), versión `2.1.3` (versionCode `20103`), commit `73d38ef`, SHA256 `49f18a4507c185cf811e545b7277570568b9d39e358e2fc0fdd9ea5837624110`.
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Implementación realizada por `@android-core`.
+   - *SDD-first:* Regido por `SPEC-031` (`AC-DPAD-01` a `AC-DPAD-06`).
+   - *Bloqueo Cinemático de Eje:* Eliminación determinista de emisiones cruzadas.
+   - *Terminal Borde a Borde:* Pantalla 100% libre de paneles o barras superpuestas.
+
+#### 4.127 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Navegación Total 360° en Terminal:** Capacidad de editar comandos y navegar selectores bidimensionales con gestos táctiles naturales sin depender de teclado físico.
+  - **Cero Emisiones Cruzadas:** El bloqueo de eje garantiza estabilidad direccional absoluta durante trazos continuos.
+  - **Blindaje Total de Viewport:** Supresión irrevocable de paneles laterales de Acode.
+- **Compromisos Operativos:**
+  - Los gestos diagonales son clasificados deterministamente hacia el eje de mayor desplazamiento inicial tras la zona muerta de 10px.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -1973,6 +2013,7 @@ Se decide adoptar la arquitectura de terminal borde a borde pura y navegación g
 | **SPEC-028** | Arquitectura de Terminal Agéntica Minimalista (CleanAgentTerminal), Desmantelamiento de ChatCanvas y Empaquetado de APK Ultra-Ligero (~38 MB) | `specs/28-minimal-agent-terminal-clean-apk.md` | `APPROVED` | 9 ACs |
 | **SPEC-029** | Arquitectura de Puente OAuth hacia Navegador Externo (FLAG_ACTIVITY_NEW_TASK), Detección Reactiva de Hipervínculos OSC 8 y Barra de Acción Interactiva en Terminal Agéntica | `specs/29-oauth-browser-bridge-and-interactive-auth.md` | `APPROVED` | 8 ACs |
 | **SPEC-030** | Terminal Agéntica Pura de Borde a Borde (Zero-Decoration), Motor Gestual Táctil de Navegación (Arrow Emulation) y Portapapeles por Pulsación Prolongada | `specs/30-pure-clean-terminal-and-gesture-touch-navigation.md` | `APPROVED` | 6 ACs |
+| **SPEC-031** | Navegación Gestual Táctil Cuadridireccional (4-Way D-Pad), Bloqueo Cinemático de Eje (Axis-Locking) y Supresión Definitiva de Paneles Laterales | `specs/31-horizontal-gesture-navigation-4-way-dpad.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

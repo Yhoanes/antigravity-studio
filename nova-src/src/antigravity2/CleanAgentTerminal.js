@@ -55,11 +55,14 @@ export class CleanAgentTerminal {
         // Inicializar Xterm.js
         this.initTerminal();
 
-        // Enlazar Motor Gestual Táctil Cuadridireccional (SPEC-030 / SPEC-031: 4-Way D-Pad)
-        this.touchNav = new TerminalTouchNavigation(this.viewportEl, {
+        // Enlazar Motor Gestual Táctil Híbrido (SPEC-030, SPEC-031 & SPEC-032: Momentum Scroll + Contextual D-Pad)
+        this.touchNav = new TerminalTouchNavigation(this.terminal, this.viewportEl, {
+            terminal: this.terminal,
             swipeThreshold: 28,
             deadzone: 10,
             longPressMs: 400,
+            friction: 0.92,
+            minVelocity: 0.5,
             onArrowUp: () => {
                 if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
                     this.websocket.send("\x1b[A");
