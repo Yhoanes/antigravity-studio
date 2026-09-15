@@ -2139,6 +2139,51 @@ Se formaliza la solución integral bajo el contrato formal [`SPEC-035`](specs/35
 
 ---
 
+### ADR-036 / ADR-046: Loader Visual Dinámico con Interpolación Cinemática Continua, Salvaguarda Anti-NaN y Stream Logger Monolínea en Tiempo Real (v2.1.8)
+
+- **Identificador:** `ADR-036` (Secuencia Repositorio: `ADR-046` / `ADR-036`)
+- **Especificación SDD Asociada:** [`SPEC-036`](specs/36-smooth-provisioning-loader-and-stream-logger.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.140 Contexto
+Durante las pruebas de campo en el dispositivo físico Xiaomi Pad 6 con la versión de release `v2.1.7`, se identificó una anomalía severa en la interfaz visual de aprovisionamiento inicial (*first boot / clean install*):
+1. **Anomalía Visual de `NaN%`:** Al desplegarse la tarjeta del componente `ProvisioningLoader.js`, el indicador numérico mostraba el texto literal `NaN%`, mientras que la barra de progreso permanecía en un ancho del 0% durante todo el tiempo de descarga e instalación. La causa raíz fue que `loader.update` asumía un primer parámetro estrictamente numérico, pero `Terminal.js` emitía cadenas de texto de log (`logger("⬇️ Descargando...")`), evaluando `Math.round(string)` como `NaN`.
+2. **Desincronización Multicarpeta de `Terminal.js`:** En el entorno Cordova Android coexistían cuatro copias del archivo `Terminal.js` (`src`, `plugins`, `platform_www`, y `app/src/main/assets`), de las cuales la versión final empaquetada en los assets del APK mantenía la firma antigua `install(logger, ...)`.
+3. **Salto Abrupto del 0% al 100% y Sensación de Congelamiento:** Durante los 4 a 8 segundos que toma descomprimir el rootfs y configurar los binarios, el usuario percibía que la aplicación se había congelado en `NaN%`, seguida de una sacudida visual abrupta al 100% al finalizar la tarea.
+
+#### 4.141 Decisión
+Se formaliza e implementa la solución de aprovisionamiento cinemático dinámico bajo el contrato formal [`SPEC-036`](specs/36-smooth-provisioning-loader-and-stream-logger.md):
+1. **Salvaguarda Anti-NaN y Polimorfismo en `ProvisioningLoader.js`:**
+   - Rediseño de `update(progressOrMsg, maybeMsg)` para inspeccionar dinámicamente el tipo de argumento.
+   - Validación estricta con `Number.isFinite()` y normalización determinista: si se recibe un string sin valor numérico, se redirige al logger sin alterar el porcentaje; si se recibe un número, se limita estrictamente a $[0, 100]$. Cero apariciones de `NaN%`.
+2. **Interpolador Cinemático Continuo con Easing Exponencial:**
+   - Incorporación de un ticker a 16ms (`_tickerTimer`) optimizado para pantallas de 144Hz en la Xiaomi Pad 6.
+   - Algoritmo de easing exponencial `current += (target - current) * 0.12`, garantizando micro-incrementos visuales suaves y continuos que eliminan los saltos discretos del 0% al 100%.
+   - Animación de brillo activa en CSS (`@keyframes progressShimmer`) sobre la barra de progreso con gradiente Material 3 (`#4285F4` a `#34A853`).
+3. **Stream Logger Monolínea en Tiempo Real (`.provisioning-log-stream`):**
+   - Inyección de una consola embebida monolínea con tipografía monospace, prefijo `❯` en cian `#38bdf8`, fondo `#0d1527`, borde `#1e293b` y elipsis automática (`text-overflow: ellipsis`), mostrando la última acción ejecutada para certificar que el proceso progresa activamente.
+4. **Sincronización Canónica Cuádruple de `Terminal.js`:**
+   - Unificación estricta de la firma `install(onProgress, err_logger)` y llamadas estructuradas `report(percent, message)` en las 4 ubicaciones (`src/plugins/terminal`, `plugins/com.foxdebug...`, `platforms/android/platform_www...`, y `platforms/android/app/src/main/assets...`).
+5. **Empaquetado y Certificación Oficial v2.1.8:**
+   - Generación del instalador **`GoogleAntigravity-v2.1.8-ARM64.apk`** (36.81 MB / 38,599,249 bytes $\le 42.0\,\text{MB}$), versión `2.1.8` (versionCode `20108`), commit `c9a2637`, SHA256 `6B71F4EB598F939A4A4E969D45A49D211BECAFA45271193D8E176FDD08F2F70F`, publicado en GitHub Releases v2.1.8.
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción delegada a `@android-core`.
+   - *SDD-first:* Regido por `SPEC-036` (`AC-LOADER-01` a `AC-LOADER-04`, `AC-VER-01`).
+   - *Erradicación de NaN:* Cero textos inválidos en la UI.
+   - *Fluidez Cinemática a 144Hz:* Ticker continuo y retroalimentación en tiempo real.
+
+#### 4.142 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia Visual Pulida y Moderna:** Erradicación total de `NaN%`, sustituido por porcentaje fluido y shimmer activo.
+  - **Transparencia en Tiempo Real:** El stream logger monolínea informa al desarrollador sobre cada etapa de descompresión sin saturar la pantalla.
+  - **Robustez en Toda la Cadena Cordova:** Paridad garantizada entre fuentes y assets empaquetados en el APK.
+- **Compromisos Operativos:**
+  - El ticker a 16ms consume ciclos de requestAnimationFrame/intervalo durante la ventana inicial de aprovisionamiento (4 a 8s), deteniéndose inmediatamente tras el `fade-out`.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2179,6 +2224,7 @@ Se formaliza la solución integral bajo el contrato formal [`SPEC-035`](specs/35
 | **SPEC-033** | Supresión Total de Scrollbar (Zero-Scrollbar), Expansión de Borde a Borde y Preservación de Navegación Táctil con Inercia | `specs/33-zero-scrollbar-clean-edge-to-edge-terminal.md` | `APPROVED` | 6 ACs |
 | **SPEC-034** | Experiencia Oficial Pura Google Antigravity, Erradicación de Scrollbar DOM de Xterm y Purga Definitiva de Marcas Heredadas | `specs/34-pure-official-antigravity-experience-and-brand-purging.md` | `APPROVED` | 6 ACs |
 | **SPEC-035** | Experiencia de Splash Pura, Estabilizador de Stream OAuth Anti-404, Loader Visual de Aprovisionamiento y Discriminador de Gestos | `specs/35-splash-ux-oauth-stabilizer-and-progress-loader.md` | `APPROVED` | 8 ACs |
+| **SPEC-036** | Loader Visual Dinámico de Aprovisionamiento, Interpolación Cinemática Continua y Stream Logger Monolínea Anti-NaN | `specs/36-smooth-provisioning-loader-and-stream-logger.md` | `APPROVED` | 5 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
