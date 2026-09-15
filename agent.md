@@ -2262,6 +2262,59 @@ Se formaliza e implementa el saneamiento integral de la raíz y la arquitectura 
 
 ---
 
+### ADR-049: Reparación de Descarga de Subsistema ARM64, Progreso Progresivo y Resiliencia en CleanAgentTerminal (Release v2.2.0)
+
+- **Identificador:** `ADR-049`
+- **Especificación SDD Asociada:** [`SPEC-038`](specs/38-repair-arm64-subsystem-download-and-smooth-loader.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.149 Contexto
+Durante la validación de campo tras una instalación limpia (*first boot*) de las versiones v2.1.8 y v2.1.9 en el dispositivo físico Xiaomi Pad 6 (`arm64-v8a`), la aplicación experimentó un fallo crítico de aprovisionamiento:
+1. **Salto Prematuro del Loader:** La tarjeta de aprovisionamiento `ProvisioningLoader` se montaba, pero en menos de un segundo saltaba súbitamente del 0% al 100% y se desvanecía.
+2. **Colapso de Terminal en Negro y Falso Positivo:** La pantalla quedaba en negro con Xterm.js desplegando:
+   ```
+   [SISTEMA] Iniciando daemon AXS...
+   [ERROR] No se pudo conectar con el daemon AXS: [object Object]
+   ```
+3. **Causa Raíz Forense:** En `Terminal.js`, se había sustituido la descarga por red del sistema base Linux por llamadas a `system.extractAsset("antigravity/rootfs/ubuntu_arm64.tar.gz")` asumiendo erróneamente que el tarball venía empaquetado en los assets del APK. Dado que el APK de 36.8 MB solo contiene scripts livianos para preservar el límite presupuestario ($\le 42.0\,\text{MB}$), `extractAsset` fallaba en milisegundos. El bloque `finally` en `CleanAgentTerminal.js` forzaba `loader.finish()` fingiendo un éxito inexistente con el directorio `${filesDir}/alpine` totalmente vacío. Al arrancar AXS sin binarios de Linux, la conexión fallaba y la serialización por defecto arrojaba `[object Object]`.
+
+#### 4.150 Decisión
+Se formaliza e implementa la solución de aprovisionamiento resiliente bajo el contrato formal [`SPEC-038`](specs/38-repair-arm64-subsystem-download-and-smooth-loader.md):
+1. **Restauración de Descarga por Red en `Terminal.js`:**
+   - Incorporación de las URLs canónicas: Ubuntu ARM64 rootfs (`UBUNTU_ARM64_URL`) y Google Antigravity CLI oficial (`GOOGLE_ANTIGRAVITY_CLI_URL`).
+   - Implementación de `downloadFileWithProgress` empleando `cordova.plugin.http.downloadFile`, conectado al flujo de progreso estructurado:
+     - 10% a 45%: Descarga del subsistema base Linux Ubuntu ARM64.
+     - 45% a 70%: Descarga de Google Antigravity CLI (`cli_linux_arm64.tar.gz`).
+     - 70% a 85%: Descompresión e instalación de paquetes en `${alpineDir}`.
+     - 85% a 95%: Descompresión y enlace simbólico de `agy` en `/usr/local/bin`.
+     - 95% a 100%: Purga de tarballs temporales y finalización exitosa.
+2. **Validación Estricta de Éxito en `CleanAgentTerminal.js`:**
+   - Captura explícita del resultado booleano en `ensureAxsRunning()`: si `terminalPlugin.install()` retorna `false` o lanza un error, se aborta inmediatamente con excepción tipada, impidiendo que el sistema intente conectar el daemon AXS sobre un sandbox vacío.
+3. **Erradicación de `[object Object]` con `formatErrorMessage()`:**
+   - Función robusta de formateo defensivo que inspecciona cadenas, instancias `Error`, propiedades `error.message`, `error.statusText` y serialización fallback con `JSON.stringify(error)`.
+4. **Sincronización Canónica Cuádruple:**
+   - Replicación uniforme en `src`, `plugins`, `platform_www` y `assets/www`, preservando rigurosamente la macro `cordova.define("com.foxdebug.acode.rk.exec.terminal.Terminal", ...)` en las copias de Android.
+5. **Empaquetado y Publicación Oficial v2.2.0:**
+   - Actualización formal de versión a `2.2.0` (versionCode `20200`) en `config.xml` y `package.json`.
+   - Compilación del frontend y empaquetado del APK de release: **`GoogleAntigravity-v2.2.0-ARM64.apk`** (36.81 MB / 38,599,989 bytes $\le 42.0\,\text{MB}$, SHA256 `D3DFE57735364623C918F27D2BA5121F87BC42D0F1E2FF3D003A29BF73A1A119`).
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción realizada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-038` (`AC-REPAIR-01` a `AC-REPAIR-06`).
+   - *Presupuesto de Binario:* Mantenimiento estricto por debajo de 42 MB delegando rootfs a descarga en primer inicio.
+   - *Transparencia Diagnóstica:* Cero apariciones de `[object Object]` ante fallas de red o socket.
+
+#### 4.151 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Aprovisionamiento Real y Robusto:** Primer inicio en frío descarga progresivamente el entorno Linux ARM64 completo con retroalimentación visual continua.
+  - **Cero Falsos Positivos:** El loader no disimula fallas de red ni salta en 1s; reporta exactamente el estado de las tareas.
+  - **Diagnóstico Transparente:** En caso de contingencia en la red, el desarrollador recibe el mensaje descriptivo exacto en terminal.
+- **Compromisos Operativos:**
+  - El primer inicio en frío tras una instalación limpia requiere conectividad a internet para descargar el subsistema (~50 MB totales).
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2304,6 +2357,7 @@ Se formaliza e implementa el saneamiento integral de la raíz y la arquitectura 
 | **SPEC-035** | Experiencia de Splash Pura, Estabilizador de Stream OAuth Anti-404, Loader Visual de Aprovisionamiento y Discriminador de Gestos | `specs/35-splash-ux-oauth-stabilizer-and-progress-loader.md` | `APPROVED` | 8 ACs |
 | **SPEC-036** | Loader Visual Dinámico de Aprovisionamiento, Interpolación Cinemática Continua y Stream Logger Monolínea Anti-NaN | `specs/36-smooth-provisioning-loader-and-stream-logger.md` | `APPROVED` | 5 ACs |
 | **SPEC-037** | Reparación de Envoltura Cordova Terminal, Elevación Visual de Loader y Descarte Incondicional de Splash Screen | `specs/37-fix-cordova-terminal-wrapper-and-splash-dismissal.md` | `APPROVED` | 6 ACs |
+| **SPEC-038** | Reparación de Descarga de Subsistema ARM64, Progreso Progresivo y Resiliencia en CleanAgentTerminal | `specs/38-repair-arm64-subsystem-download-and-smooth-loader.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
