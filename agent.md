@@ -2660,6 +2660,50 @@ Se diseña e implementa la arquitectura de autenticación first-party pura y pal
 
 ---
 
+### ADR-057: Transiciones Optimistas Inmediatas, Disipación en Términos y Erradicación Total de Emojis (Release v2.4.3)
+
+- **Identificador:** `ADR-057`
+- **Especificación SDD Asociada:** [`SPEC-046`](specs/46-smooth-optimistic-wizard-transitions-and-emoji-purging.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.173 Contexto
+En pruebas de campo en la Xiaomi Pad 6, se identificaron tres fricciones de experiencia de usuario y sincronización de eventos:
+1. **Emojis Informales en UI Oficial:** El uso de caracteres como `⏳` (espera de autorización) y `🚀` (botón de términos) desentonaba con los estándares corporativos Material 3 de Google y se renderizaba de forma heterogénea según la fuente del sistema Android/HyperOS.
+2. **Transición Bloqueada y Despacho Duplicado en Paso 3:** Al pulsar *"Continuar"* en el selector de temas, la vista no avanzaba de inmediato, esperando pasivamente fragmentos de texto del stream PTY. Además, se invocaban dos callbacks simultáneos (`onSelectTheme` y `onAction`), despachando secuencias ANSI redundantes (hasta 14 flechas abajo) que saturaban el búfer del CLI `agy`.
+3. **Overlay Congelado sobre la Terminal en Paso 4:** Al tocar *"Comenzar a programar"*, el wizard quedaba flotando indefinidamente con fondo opaco sobre la terminal, dado que esperaba una confirmación `Logged in as ...` que el CLI ya había emitido previamente en el Paso 2 y no volvía a generar tras el consentimiento legal.
+
+#### 4.174 Decisión
+Se formaliza e implementa la arquitectura de transiciones optimistas fluidas e higiene visual gobernada por [`SPEC-046`](specs/46-smooth-optimistic-wizard-transitions-and-emoji-purging.md):
+1. **Erradicación Total de Emojis (Zero-Emoji Policy):**
+   - Sustitución de `⏳` por el indicador de carga puro CSS Material 3 `.auth-spinner-dot` con animación continua `@keyframes auth-spin`.
+   - Neutralización del texto del botón de consentimiento a la leyenda ejecutiva sobria `Comenzar a programar`.
+2. **Transición Optimista Inmediata en Selector de Temas (Paso 3):**
+   - Al pulsar *"Continuar"*, el wizard transiciona inmediatamente al Paso 4 (`step-terms-telemetry`) mediante `goToStep()`, deshabilita el botón para mitigar toques accidentales y unifica el despacho PTY a un único canal sin duplicidad.
+3. **Secuencia Atómica Espaciada de Inquirer y Disipación Inmediata (Paso 4):**
+   - El botón *"Comenzar a programar"* ejecuta la secuencia espaciada: `\t` $\to$ $80\,\text{ms}$ $\to$ `\x1b[C` $\to$ $80\,\text{ms}$ $\to$ `\r` (Tab $\to$ Flecha Derecha $\to$ Enter sobre `[Done]`).
+   - Al pulsar el botón, el asistente invoca `this.fadeOut(350)`, disolviéndose suavemente a 144Hz y liberando la terminal Xterm.js completamente activa y lista para el trabajo agéntico.
+4. **Empaquetado y Certificación Oficial v2.4.3:**
+   - Versión `2.4.3` (versionCode `20403`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.4.3-ARM64.apk`** (36.82 MB / 38,608,501 bytes $\le 42.0\,\text{MB}$, SHA256 `dc1a0451ea53fad465ccc2d9b130986e321b682f43f531b329230da0dbcafe26`).
+5. **Invariantes Reafirmados:**
+   - *Zero-emoji policy:* Diseño corporativo estricto sin glifos informales.
+   - *Optimistic UI step advancement:* Transiciones visuales instantáneas al toque del usuario.
+   - *Atomic spaced Inquirer sequence:* Cadencia determinista de 80ms entre teclas ANSI.
+   - *Immediate wizard fade-out:* Desmontaje del overlay al confirmar términos.
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-046` (`AC-UX-01` a `AC-UX-06`).
+
+#### 4.175 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia de Usuario de Primer Nivel:** Sensación de inmediatez táctil sin bloqueos aparentes en pantalla 144Hz.
+  - **Sobriedad y Elegancia:** Cumplimiento riguroso de directrices visuales oficiales de Google.
+  - **Terminal Despejada y Operativa:** Cero capas residuales ocultando la consola Xterm.js una vez completado el onboarding.
+- **Compromisos Operativos:**
+  - La disipación del wizard en el Paso 4 es optimista; la secuencia espaciada de 80ms garantiza fiabilidad en el procesamiento del CLI en el subsistema Linux.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2710,6 +2754,7 @@ Se diseña e implementa la arquitectura de autenticación first-party pura y pal
 | **SPEC-043** | Asistente Visual Multi-Paso Nativo (Material 3 Onboarding Wizard) y Enmascaramiento Opaco de Terminal | `specs/43-native-material3-multi-step-onboarding-wizard.md` | `APPROVED` | 6 ACs |
 | **SPEC-044** | Corrección del Ciclo de Vida del Loader de Aprovisionamiento y Orden de Montaje Diferido del Onboarding Wizard | `specs/44-fix-provisioning-loader-lifecycle-and-wizard-mount-order.md` | `APPROVED` | 6 ACs |
 | **SPEC-045** | Autenticación First-Party Pura de Google y Selector Visual Multi-Tema para Google Antigravity Mobile | `specs/45-pure-google-auth-and-multi-theme-palette-selector.md` | `APPROVED` | 6 ACs |
+| **SPEC-046** | Transiciones Optimistas Fluidas en Onboarding Wizard y Erradicación de Emojis | `specs/46-smooth-optimistic-wizard-transitions-and-emoji-purging.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
