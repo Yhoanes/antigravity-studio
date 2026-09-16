@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.4.2 y android-versionCode 20402 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.4.2 y versionCode 20402 en configuración... "
-grep -q 'version="2.4.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.2"; exit 1; }
-grep -q 'android-versionCode="20402"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20402"; exit 1; }
-grep -q '"version": "2.4.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.2"; exit 1; }
+# 16. Verificar versionado v2.4.3 y android-versionCode 20403 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.4.3 y versionCode 20403 en configuración... "
+grep -q 'version="2.4.3"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.3"; exit 1; }
+grep -q 'android-versionCode="20403"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20403"; exit 1; }
+grep -q '"version": "2.4.3"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.3"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -290,6 +290,48 @@ grep -q "1000010" "$SCSS_FILE" || { echo "FALLO: z-index 1000010 del loader ause
 grep -q "background: #0b0f19 !important" "$SCSS_FILE" || { echo "FALLO: Opacidad sólida del wizard ausente"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-045 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 41. Verificar SPEC-046 (Criterios AC-UX-01 a AC-UX-06)
+SPEC_FILE_046="specs/46-smooth-optimistic-wizard-transitions-and-emoji-purging.md"
+
+echo -n "41. Verificando documento SPEC-046... "
+[ -f "$SPEC_FILE_046" ] || { echo "FALLO: No existe $SPEC_FILE_046"; exit 1; }
+echo "[OK]"
+
+echo -n "42. Verificando erradicación de emojis y spinner CSS en OnboardingWizard.js y SCSS (AC-UX-01)... "
+grep -q "auth-spinner-dot" "$WIZARD_JS" || { echo "FALLO: .auth-spinner-dot ausente en OnboardingWizard.js"; exit 1; }
+grep -q "auth-spinner-dot" "$SCSS_FILE" || { echo "FALLO: .auth-spinner-dot ausente en SCSS"; exit 1; }
+grep -q "auth-spin" "$SCSS_FILE" || { echo "FALLO: @keyframes auth-spin ausente en SCSS"; exit 1; }
+grep -q "Comenzar a programar" "$WIZARD_JS" || { echo "FALLO: Texto sobrio 'Comenzar a programar' ausente en OnboardingWizard.js"; exit 1; }
+echo "[OK]"
+
+echo -n "43. Verificando transición optimista en Paso 3 (AC-UX-02)... "
+grep -A 10 "btn-confirm-theme" "$WIZARD_JS" | grep -q "step-terms-telemetry" || {
+    echo "FALLO: Transición optimista a step-terms-telemetry ausente en click de btnTheme"; exit 1;
+}
+echo "[OK]"
+
+echo -n "44. Verificando despacho único sin llamadas duplicadas a onAction (AC-UX-03)... "
+grep -A 20 "btn-confirm-theme" "$WIZARD_JS" | grep -q "this.onAction(\"confirm_theme\"" && {
+    echo "FALLO: Invocación duplicada a this.onAction detectada en btnTheme"; exit 1;
+}
+echo "[OK]"
+
+echo -n "45. Verificando secuencia espaciada de Inquirer y disipación inmediata fadeOut(350) (AC-UX-04)... "
+grep -A 25 "onAcceptTerms" "$CLEAN_TERM_JS" | grep -q "setTimeout" || {
+    echo "FALLO: Retardo setTimeout espaciado ausente en onAcceptTerms"; exit 1;
+}
+grep -A 15 "btn-start-coding" "$WIZARD_JS" | grep -q "fadeOut(350)" || {
+    echo "FALLO: fadeOut(350) inmediato ausente en click de btnTerms"; exit 1;
+}
+echo "[OK]"
+
+echo -n "46. Verificando soporte de secuencia ANSI en onSelectTheme de CleanAgentTerminal.js (AC-UX-05 / AC-UX-06)... "
+grep -A 5 "onSelectTheme" "$CLEAN_TERM_JS" | grep -q "seq" || {
+    echo "FALLO: Parámetro seq ausente en onSelectTheme de CleanAgentTerminal.js"; exit 1;
+}
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-046 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+
 
 

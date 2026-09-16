@@ -478,16 +478,24 @@ export class CleanAgentTerminal {
                 this._hasAutoOpenedBrowser = true;
                 this.openInBrowser(url);
             },
-            onSelectTheme: (themeIndex) => {
-                const idx = typeof themeIndex === "number" ? themeIndex : 4;
-                const seq = "\x1b[B".repeat(idx) + "\r";
+            onSelectTheme: (agyIndex, seq) => {
                 if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                    this.websocket.send(seq);
+                    const finalSeq = seq || ("\x1b[B".repeat(typeof agyIndex === "number" ? agyIndex : 4) + "\r");
+                    this.websocket.send(finalSeq);
                 }
             },
-            onAcceptTerms: () => {
+            onAcceptTerms: async () => {
                 if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                    this.websocket.send("\t\x1b[C\r");
+                    // UX-04: Secuencia atómica espaciada: Tab -> 80ms -> Flecha Derecha -> 80ms -> Enter
+                    this.websocket.send("\t");
+                    await new Promise((r) => setTimeout(r, 80));
+                    if (this.websocket?.readyState === WebSocket.OPEN) {
+                        this.websocket.send("\x1b[C");
+                        await new Promise((r) => setTimeout(r, 80));
+                        if (this.websocket?.readyState === WebSocket.OPEN) {
+                            this.websocket.send("\r");
+                        }
+                    }
                 }
             }
         });

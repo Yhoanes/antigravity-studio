@@ -1,6 +1,7 @@
 /**
  * OnboardingWizard - Asistente Visual Multi-Paso Nativo para Google Antigravity
- * Conforme a SPEC-043, SPEC-044 & SPEC-045: Pure Google Auth & Multi-Theme Palette Selector
+ * Conforme a SPEC-043, SPEC-044, SPEC-045 & SPEC-046:
+ * Transiciones Optimistas Fluidas, Despacho Único a PTY y Erradicación de Emojis
  */
 
 export const THEME_PRESETS = [
@@ -61,11 +62,12 @@ export class OnboardingWizard {
         this.onAction = options.onAction || (() => {});
         this.onSelectAuthMethod = options.onSelectAuthMethod || (() => this.onAction("select_auth", "\r"));
         this.onOpenBrowser = options.onOpenBrowser || ((url) => this.onAction("open_browser", url));
-        this.onSelectTheme = options.onSelectTheme || ((agyIndex) => {
+        this.onSelectTheme = options.onSelectTheme || ((agyIndex, seq) => {
             const idx = typeof agyIndex === "number" ? agyIndex : 4;
-            const seq = "\x1b[B".repeat(idx) + "\r";
-            this.onAction("confirm_theme", seq);
+            const finalSeq = seq || ("\x1b[B".repeat(idx) + "\r");
+            this.onAction("confirm_theme", finalSeq);
         });
+        // SPEC-043 / SPEC-046: Secuencia de aceptación de términos
         this.onAcceptTerms = options.onAcceptTerms || (() => this.onAction("accept_terms", "\t\x1b[C\r"));
 
         this.containerEl = null;
@@ -113,7 +115,7 @@ export class OnboardingWizard {
                     </div>
                 </div>
 
-                <!-- Paso 2: Código de Autorización -->
+                <!-- Paso 2: Código de Autorización (SPEC-046: Spinner Material 3 sin Emojis) -->
                 <div class="wizard-step" id="step-auth-code" style="display: none;">
                     <div class="wizard-logo-wrap">
                         <svg class="wizard-logo" viewBox="0 0 48 48" width="56" height="56">
@@ -126,7 +128,7 @@ export class OnboardingWizard {
                     <h2 class="wizard-title">Autorización de Cuenta</h2>
                     <p class="wizard-subtitle">Completa la autorización en Google Chrome y copia tu código de acceso</p>
                     <div class="auth-waiting-box" id="auth-waiting-box">
-                        <span class="auth-spinner" id="auth-spinner-icon">⏳</span>
+                        <span class="auth-spinner-dot" id="auth-spinner-icon"></span>
                         <span id="auth-code-status">Esperando código del portapapeles...</span>
                     </div>
                     <button class="btn-open-browser" id="btn-open-browser">Abrir navegador de nuevo</button>
@@ -181,7 +183,7 @@ export class OnboardingWizard {
                     <button class="btn-wizard-next" id="btn-confirm-theme">Continuar</button>
                 </div>
 
-                <!-- Paso 4: Términos y Telemetría -->
+                <!-- Paso 4: Términos y Telemetría (SPEC-046: Texto Plano sin Emojis) -->
                 <div class="wizard-step" id="step-terms-telemetry" style="display: none;">
                     <h2 class="wizard-title">Términos y Privacidad</h2>
                     <p class="wizard-subtitle">Revisa las condiciones del servicio y opciones de datos</p>
@@ -191,7 +193,7 @@ export class OnboardingWizard {
                             <span>Permitir datos de interacción para mejorar Antigravity (opcional)</span>
                         </label>
                     </div>
-                    <button class="btn-start-coding" id="btn-start-coding">Comenzar a Programar 🚀</button>
+                    <button class="btn-start-coding" id="btn-start-coding">Comenzar a programar</button>
                 </div>
             </div>
         `;
@@ -201,23 +203,23 @@ export class OnboardingWizard {
     }
 
     _bindEvents() {
-        // Paso 1: Pure Google First-Party
+        // Paso 1: Pure Google First-Party (Despacho Único)
         const btnGoogle = this.containerEl.querySelector("#btn-auth-google, #btn-wizard-google");
         btnGoogle?.addEventListener("click", () => {
+            if (btnGoogle.disabled) return;
+            btnGoogle.disabled = true;
             this.onSelectAuthMethod();
-            this.onAction("select_auth", "\r");
         });
 
-        // Paso 2
+        // Paso 2: Reapertura manual de navegador
         const btnBrowser = this.containerEl.querySelector("#btn-open-browser, #btn-wizard-reopen-browser");
         btnBrowser?.addEventListener("click", () => {
             if (this.authUrl) {
                 this.onOpenBrowser(this.authUrl);
-                this.onAction("open_browser", this.authUrl);
             }
         });
 
-        // Paso 3: SPEC-045 Selección de 5 temas
+        // Paso 3: SPEC-045 & SPEC-046 Selector de Temas con Transición Optimista Inmediata
         const themeCards = this.containerEl.querySelectorAll(".theme-card");
         themeCards.forEach(card => {
             card.addEventListener("click", () => {
@@ -233,16 +235,29 @@ export class OnboardingWizard {
 
         const btnTheme = this.containerEl.querySelector("#btn-confirm-theme, #btn-wizard-theme-continue");
         btnTheme?.addEventListener("click", () => {
+            if (btnTheme.disabled) return;
+            btnTheme.disabled = true;
+            btnTheme.style.opacity = "0.6";
+
+            // AC-UX-02: Transición optimista inmediata al Paso 4 sin esperar respuesta PTY
+            this.goToStep("step-terms-telemetry");
+
+            // AC-UX-03: Despacho único sin duplicación
             const seq = this._getThemeAnsiSequence(this.selectedThemeIndex);
-            this.onSelectTheme(this.selectedThemeIndex);
-            this.onAction("confirm_theme", seq);
+            this.onSelectTheme(this.selectedThemeIndex, seq);
         });
 
-        // Paso 4: WIZ-05 - Secuencia exacta de Inquirer: Tab -> Flecha Derecha -> Enter
+        // Paso 4: SPEC-046 Aceptación de Términos y Disipación Inmediata (fadeOut 350ms)
         const btnTerms = this.containerEl.querySelector("#btn-start-coding, #btn-wizard-terms-done");
         btnTerms?.addEventListener("click", () => {
+            if (btnTerms.disabled) return;
+            btnTerms.disabled = true;
+            btnTerms.style.opacity = "0.7";
+            btnTerms.innerHTML = `<span class="auth-spinner-dot"></span> Iniciando Google Antigravity...`;
+
+            // AC-UX-04: Transmitir secuencia espaciada y disipar wizard inmediatamente
             this.onAcceptTerms();
-            this.onAction("accept_terms", "\t\x1b[C\r");
+            this.fadeOut(350);
         });
     }
 
@@ -286,9 +301,11 @@ export class OnboardingWizard {
             statusEl.textContent = msg;
             statusEl.style.color = "#34a853";
         }
-        const spinner = this.containerEl?.querySelector("#auth-spinner-icon, .auth-spinner");
+        // AC-UX-01: Erradicación de emojis: usar .auth-spinner-dot sin emojis
+        const spinner = this.containerEl?.querySelector("#auth-spinner-icon, .auth-spinner, .auth-spinner-dot");
         if (spinner) {
-            spinner.textContent = "⏳";
+            spinner.className = "auth-spinner-dot";
+            spinner.textContent = "";
         }
     }
 

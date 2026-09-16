@@ -68,7 +68,7 @@ export class GoogleAuthCard {
         }
         const hint = this.cardEl?.querySelector("#auth-status-hint");
         if (hint) {
-            hint.innerHTML = `<span class="auth-spinner">⏳</span> ${msg}`;
+            hint.innerHTML = `<span class="auth-spinner-dot"></span> ${msg}`;
             hint.style.color = "#8ab4f8";
             hint.classList.add("authenticating");
         }
