@@ -113,6 +113,9 @@ export class CleanAgentTerminal {
         this._modelDropdownEl = null;
         this._hasAutoCleared = false;
 
+        // SPEC-054: vista nativa de chat, montada en diferido (AC-COEX-002)
+        this.agentChatView = null;
+
         this._setupClipboardAutoInjection();
     }
 
@@ -139,12 +142,23 @@ export class CleanAgentTerminal {
                     </svg>
                 </button>
             </div>
-            <div class="top-bar-right" id="top-bar-account-container"></div>
+            <div class="top-bar-right">
+                <button class="top-bar-view-switch" id="top-bar-to-chat" type="button" aria-label="Cambiar a vista de chat nativa">
+                    <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
+                    </svg>
+                </button>
+                <span id="top-bar-account-container"></span>
+            </div>
         `;
         this.containerEl.appendChild(this.topBarEl);
 
         // SPEC-051: Enlazar el Selector de Modelo (MODEL-02)
         this._renderModelSelector();
+
+        // SPEC-054: Conmutador a la vista nativa de chat (AC-COEX-002)
+        this.topBarEl.querySelector("#top-bar-to-chat")
+            ?.addEventListener("click", () => this.switchToChatView());
 
         // Viewport de terminal desplazado por debajo de la barra (SPEC-048: Anti-colisión)
         this.viewportEl = document.createElement("main");
@@ -1302,8 +1316,62 @@ export class CleanAgentTerminal {
         await this.connect();
     }
 
+    /**
+     * SPEC-054 (AC-COEX-002): conmuta a la interfaz nativa sobre `stream-json`.
+     *
+     * El modulo se carga en diferido a proposito: el arranque de la app no debe
+     * pagar el coste de la vista nativa ni de su renderer de markdown mientras la
+     * terminal siga siendo la vista por defecto.
+     */
+    async switchToChatView() {
+        this._hideModelDropdown();
+
+        if (!this.agentChatView) {
+            try {
+                const mod = await import("./AgentChatView.js");
+                const AgentChatView = mod.AgentChatView || mod.default;
+                this.agentChatView = new AgentChatView({
+                    userEmail: this.authenticatedUser,
+                    modelId: this._currentModelId || null,
+                    modelLabel: this.topBarEl?.querySelector("#model-selector-label")?.textContent || "3.8 Flash",
+                    onSwitchToTerminal: () => this.switchToTerminalView(),
+                });
+                this.agentChatView.mount(document.body);
+            } catch (err) {
+                console.warn("[SPEC-054] No se pudo montar la vista nativa:", err);
+                return false;
+            }
+        }
+
+        this.floatingPill?.hide();
+        if (this.containerEl) this.containerEl.style.display = "none";
+        this.agentChatView.show();
+        return true;
+    }
+
+    /**
+     * SPEC-054 (AC-COEX-001): regresa a la terminal, que conserva intacto su
+     * comportamiento y sigue siendo el camino de retorno verificado.
+     */
+    switchToTerminalView() {
+        this.agentChatView?.hide();
+        if (this.containerEl) this.containerEl.style.display = "";
+        this.floatingPill?.show();
+        if (this.fitAddon) {
+            setTimeout(() => {
+                try { this.fitAddon.fit(); } catch (_) {}
+            }, 50);
+        }
+        this.terminal?.focus();
+        return true;
+    }
+
     destroy() {
         this._hideModelDropdown();
+        if (this.agentChatView) {
+            this.agentChatView.destroy();
+            this.agentChatView = null;
+        }
         if (this.onboardingWizard) {
             this.onboardingWizard.dismiss(0);
             this.onboardingWizard = null;

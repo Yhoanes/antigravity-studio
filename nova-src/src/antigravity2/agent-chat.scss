@@ -1,0 +1,433 @@
+/**
+ * agent-chat.scss - Interfaz Nativa de Chat de Agente
+ * Conforme a SPEC-054. Paleta alineada con clean-terminal.scss (SPEC-048).
+ */
+
+$bg-base: #0b0f19;
+$bg-surface: #1e2332;
+$bg-surface-alt: #161b28;
+$accent: #8ab4f8;
+$fg-primary: #f8fafc;
+$fg-secondary: #e2e8f0;
+$fg-muted: rgba(255, 255, 255, 0.45);
+$border-subtle: rgba(255, 255, 255, 0.08);
+$danger: #f28b82;
+
+.agent-chat-container {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    background: $bg-base;
+    z-index: 900;
+
+    &.hidden {
+        display: none;
+    }
+}
+
+/* ===== Top App Bar (48px, coherente con SPEC-048) ===== */
+.agent-chat-top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    height: 48px;
+    min-height: 48px;
+    padding: 0 16px;
+    box-sizing: border-box;
+    background: $bg-base;
+    border-bottom: 1px solid $border-subtle;
+    user-select: none;
+
+    .agent-chat-bar-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        min-width: 0;
+    }
+
+    .agent-chat-logo {
+        width: 22px;
+        height: 22px;
+        flex-shrink: 0;
+    }
+
+    .agent-chat-title {
+        color: $fg-primary;
+        font-size: 14px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        white-space: nowrap;
+    }
+
+    .agent-chat-model-chip {
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(138, 180, 248, 0.25);
+        border-radius: 16px;
+        padding: 4px 10px;
+        font-size: 12px;
+        font-weight: 500;
+        color: $accent;
+        white-space: nowrap;
+        flex-shrink: 0;
+    }
+
+    .agent-chat-view-switch {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 50%;
+        background: transparent;
+        color: $fg-muted;
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background 0.15s ease, color 0.15s ease;
+
+        &:hover,
+        &:active {
+            background: rgba(255, 255, 255, 0.08);
+            color: $fg-secondary;
+        }
+    }
+}
+
+/* ===== Lista de mensajes ===== */
+.agent-chat-list {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 16px 16px calc(88px + env(safe-area-inset-bottom, 0px));
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+
+    /* Zero-scrollbar, coherente con SPEC-033 */
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+        width: 0;
+        height: 0;
+    }
+}
+
+.agent-chat-empty {
+    margin: auto;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+
+    .agent-chat-empty-title {
+        color: $fg-primary;
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.02em;
+    }
+
+    .agent-chat-empty-hint {
+        color: $fg-muted;
+        font-size: 14px;
+        max-width: 32ch;
+    }
+}
+
+.agent-chat-turn {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+/* ===== Burbujas ===== */
+.agent-chat-msg {
+    display: flex;
+    max-width: 100%;
+}
+
+.agent-chat-msg-user {
+    justify-content: flex-end;
+
+    .agent-chat-bubble {
+        background: rgba(138, 180, 248, 0.14);
+        border: 1px solid rgba(138, 180, 248, 0.2);
+        border-radius: 18px 18px 4px 18px;
+        padding: 10px 14px;
+        color: $fg-primary;
+        font-size: 15px;
+        line-height: 1.5;
+        max-width: 78%;
+        white-space: pre-wrap;
+        word-break: break-word;
+    }
+}
+
+.agent-chat-msg-agent {
+    display: block;
+
+    &.is-streaming .agent-chat-markdown > :last-child::after {
+        content: "";
+        display: inline-block;
+        width: 7px;
+        height: 1em;
+        margin-left: 2px;
+        vertical-align: text-bottom;
+        background: $accent;
+        animation: agent-chat-caret 1s steps(2, start) infinite;
+    }
+}
+
+@keyframes agent-chat-caret {
+    to {
+        visibility: hidden;
+    }
+}
+
+/* ===== Markdown renderizado ===== */
+.agent-chat-markdown {
+    color: $fg-secondary;
+    font-size: 15px;
+    line-height: 1.6;
+    word-break: break-word;
+
+    > :first-child { margin-top: 0; }
+    > :last-child { margin-bottom: 0; }
+
+    p { margin: 0 0 10px; }
+
+    a {
+        color: $accent;
+        text-decoration: underline;
+        text-underline-offset: 2px;
+    }
+
+    strong { color: $fg-primary; font-weight: 600; }
+
+    code {
+        background: rgba(255, 255, 255, 0.07);
+        border-radius: 4px;
+        padding: 1px 5px;
+        font-family: 'MesloLGS NF', 'Fira Code', monospace;
+        font-size: 13px;
+        color: $accent;
+    }
+
+    pre {
+        background: $bg-surface-alt;
+        border: 1px solid $border-subtle;
+        border-radius: 10px;
+        padding: 12px 14px;
+        margin: 0 0 10px;
+        overflow-x: auto;
+
+        code {
+            background: none;
+            padding: 0;
+            color: $fg-secondary;
+            font-size: 13px;
+            line-height: 1.5;
+        }
+    }
+
+    ul, ol { margin: 0 0 10px; padding-left: 22px; }
+    li { margin-bottom: 4px; }
+
+    h1, h2, h3, h4 {
+        color: $fg-primary;
+        margin: 14px 0 8px;
+        line-height: 1.3;
+    }
+    h1 { font-size: 19px; }
+    h2 { font-size: 17px; }
+    h3 { font-size: 15px; }
+    h4 { font-size: 14px; }
+
+    blockquote {
+        margin: 0 0 10px;
+        padding-left: 12px;
+        border-left: 3px solid rgba(138, 180, 248, 0.35);
+        color: $fg-muted;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 0 0 10px;
+        font-size: 13px;
+    }
+    th, td {
+        border: 1px solid $border-subtle;
+        padding: 6px 10px;
+        text-align: left;
+    }
+    th { color: $fg-primary; background: rgba(255, 255, 255, 0.04); }
+
+    hr { border: none; border-top: 1px solid $border-subtle; margin: 14px 0; }
+}
+
+/* ===== Paso de razonamiento (agent_response sin text_delta) ===== */
+.agent-chat-thinking {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: $fg-muted;
+    font-size: 12.5px;
+
+    .agent-chat-thinking-icon {
+        flex-shrink: 0;
+        opacity: 0.7;
+    }
+}
+
+/* ===== Tarjeta de herramienta ===== */
+.agent-chat-tool {
+    background: $bg-surface-alt;
+    border: 1px solid $border-subtle;
+    border-radius: 10px;
+    overflow: hidden;
+
+    .agent-chat-tool-head {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        padding: 9px 12px;
+        background: transparent;
+        border: none;
+        color: $fg-secondary;
+        font-size: 13px;
+        font-family: inherit;
+        text-align: left;
+        cursor: pointer;
+
+        &:hover { background: rgba(255, 255, 255, 0.04); }
+    }
+
+    .agent-chat-tool-icon {
+        flex-shrink: 0;
+        color: $accent;
+        opacity: 0.85;
+    }
+
+    .agent-chat-tool-name {
+        font-family: 'MesloLGS NF', 'Fira Code', monospace;
+        font-size: 12.5px;
+        color: $fg-primary;
+    }
+
+    .agent-chat-tool-meta {
+        margin-left: auto;
+        color: $fg-muted;
+        font-size: 11.5px;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .agent-chat-tool-chevron {
+        flex-shrink: 0;
+        color: $fg-muted;
+        transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    &.is-open .agent-chat-tool-chevron {
+        transform: rotate(180deg);
+    }
+
+    .agent-chat-tool-params {
+        margin: 0;
+        padding: 10px 12px 12px;
+        border-top: 1px solid $border-subtle;
+        background: rgba(0, 0, 0, 0.25);
+        color: $fg-secondary;
+        font-family: 'MesloLGS NF', 'Fira Code', monospace;
+        font-size: 12px;
+        line-height: 1.5;
+        overflow-x: auto;
+        white-space: pre;
+    }
+
+    /* Barrido sutil mientras la herramienta está en curso */
+    &.is-running {
+        border-color: rgba(138, 180, 248, 0.3);
+
+        .agent-chat-tool-icon {
+            animation: agent-chat-pulse 1.2s ease-in-out infinite;
+        }
+    }
+}
+
+@keyframes agent-chat-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
+}
+
+/* ===== Paso con error y avisos ===== */
+.agent-chat-step-error {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    color: $danger;
+    font-size: 12.5px;
+    opacity: 0.85;
+}
+
+.agent-chat-step-unknown {
+    color: $fg-muted;
+    font-size: 12.5px;
+    font-style: italic;
+}
+
+.agent-chat-notice {
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 13px;
+    line-height: 1.5;
+    word-break: break-word;
+
+    &.agent-chat-notice-error {
+        background: rgba(242, 139, 130, 0.1);
+        border: 1px solid rgba(242, 139, 130, 0.28);
+        color: $danger;
+    }
+
+    &.agent-chat-notice-info {
+        background: rgba(255, 255, 255, 0.05);
+        border: 1px solid $border-subtle;
+        color: $fg-muted;
+    }
+}
+
+.agent-chat-turn-footer {
+    color: $fg-muted;
+    font-size: 11.5px;
+    font-variant-numeric: tabular-nums;
+    padding-top: 2px;
+}
+
+/* ===== Indicador de turno en curso ===== */
+.agent-chat-pending {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 0;
+
+    .agent-chat-dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: $accent;
+        opacity: 0.35;
+        animation: agent-chat-bounce 1.3s ease-in-out infinite;
+
+        &:nth-child(2) { animation-delay: 0.16s; }
+        &:nth-child(3) { animation-delay: 0.32s; }
+    }
+}
+
+@keyframes agent-chat-bounce {
+    0%, 60%, 100% { opacity: 0.3; transform: translateY(0); }
+    30% { opacity: 1; transform: translateY(-3px); }
+}

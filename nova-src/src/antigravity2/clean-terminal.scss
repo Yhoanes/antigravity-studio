@@ -447,6 +447,30 @@ html, body {
     .top-bar-right {
         display: flex;
         align-items: center;
+        gap: 4px;
+    }
+
+    // SPEC-054: Conmutador a la vista nativa de chat (AC-COEX-002)
+    .top-bar-view-switch {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 50%;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.45);
+        cursor: pointer;
+        flex-shrink: 0;
+        padding: 0;
+        transition: background 0.15s ease, color 0.15s ease;
+
+        &:hover,
+        &:active {
+            background: rgba(255, 255, 255, 0.08);
+            color: #e2e8f0;
+        }
     }
 }
 
