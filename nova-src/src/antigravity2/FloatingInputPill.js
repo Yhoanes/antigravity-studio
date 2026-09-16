@@ -1,6 +1,7 @@
 /**
  * FloatingInputPill - Barra de Entrada Flotante Minimalista para Google Antigravity
  * Conforme a SPEC-050: Píldora de Chat Ergonómica, Despacho PTY Directo y Cero Emojis
+ * Conforme a SPEC-051 (PILL-09/PILL-10): Anclaje sobre el teclado virtual via visualViewport
  */
 
 export class FloatingInputPill {
@@ -9,6 +10,7 @@ export class FloatingInputPill {
         this.containerEl = null;
         this.inputEl = null;
         this.visible = false;
+        this._viewportHandler = null;
     }
 
     mount(parentEl = document.body) {
@@ -47,6 +49,35 @@ export class FloatingInputPill {
         });
 
         parentEl.appendChild(this.containerEl);
+
+        this._attachViewportTracking();
+    }
+
+    /**
+     * SPEC-051 (PILL-09): Reposiciona la píldora por encima del teclado virtual de Android.
+     * visualViewport expone la altura útil real cuando el IME ocupa pantalla; el desplazamiento
+     * inferior resultante se aplica como offset nunca menor al margen base de 16px.
+     */
+    _attachViewportTracking() {
+        if (!window.visualViewport) return;
+
+        this._viewportHandler = () => {
+            if (!this.containerEl) return;
+            const vv = window.visualViewport;
+            const bottomOffset = window.innerHeight - vv.height - vv.offsetTop;
+            this.containerEl.style.bottom = `calc(${Math.max(bottomOffset, 16)}px + env(safe-area-inset-bottom, 0px))`;
+        };
+
+        window.visualViewport.addEventListener("resize", this._viewportHandler);
+        window.visualViewport.addEventListener("scroll", this._viewportHandler);
+    }
+
+    _detachViewportTracking() {
+        if (window.visualViewport && this._viewportHandler) {
+            window.visualViewport.removeEventListener("resize", this._viewportHandler);
+            window.visualViewport.removeEventListener("scroll", this._viewportHandler);
+        }
+        this._viewportHandler = null;
     }
 
     _handleSend() {
@@ -83,6 +114,7 @@ export class FloatingInputPill {
     }
 
     dismiss() {
+        this._detachViewportTracking();
         if (!this.containerEl) return;
         if (this.containerEl.parentNode) {
             this.containerEl.parentNode.removeChild(this.containerEl);

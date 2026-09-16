@@ -23,6 +23,7 @@ CONFIG_XML="nova-src/config.xml"
 PACKAGE_JSON="nova-src/package.json"
 PILL_JS="nova-src/src/antigravity2/FloatingInputPill.js"
 SPEC_FILE_050="specs/50-floating-input-pill.md"
+SPEC_FILE_051="specs/51-model-selector-autoclear-banner-polished-pill.md"
 
 echo "=== INICIANDO VALIDACIÓN FORMAL DE TERMINAL Y BOOTSTRAP (SPEC-036 / SPEC-037 / SPEC-038 / SPEC-039) ==="
 
@@ -132,11 +133,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.5.0 y android-versionCode 20500 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.5.0 y versionCode 20500 en configuración... "
-grep -q 'version="2.5.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.5.0"; exit 1; }
-grep -q 'android-versionCode="20500"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20500"; exit 1; }
-grep -q '"version": "2.5.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.5.0"; exit 1; }
+# 16. Verificar versionado v2.6.0 y android-versionCode 20600 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.6.0 y versionCode 20600 en configuración... "
+grep -q 'version="2.6.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.0"; exit 1; }
+grep -q 'android-versionCode="20600"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20600"; exit 1; }
+grep -q '"version": "2.6.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.0"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -480,13 +481,96 @@ grep -q "has-input-pill" "$SCSS_FILE" || { echo "FALLO: Regla .has-input-pill au
 grep -q "pill-send-btn" "$SCSS_FILE" || { echo "FALLO: Regla .pill-send-btn ausente en SCSS"; exit 1; }
 echo "[OK]"
 
-echo -n "68. Verificando versión 2.5.0 y versionCode 20500 en configuración (PILL-08)... "
-grep -q 'version="2.5.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.5.0"; exit 1; }
-grep -q 'android-versionCode="20500"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20500"; exit 1; }
-grep -q '"version": "2.5.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.5.0"; exit 1; }
+echo -n "68. Verificando versión 2.6.0 y versionCode 20600 en configuración (PILL-08)... "
+grep -q 'version="2.6.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.0"; exit 1; }
+grep -q 'android-versionCode="20600"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20600"; exit 1; }
+grep -q '"version": "2.6.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.0"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-050 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# ==============================================================================
+# 69-75. Verificar SPEC-051 (Criterios MODEL-01 a MODEL-06, CLEAR-01/02, PILL-09 a PILL-11)
+# ==============================================================================
+echo -n "69. Verificando documento SPEC-051... "
+[ -f "$SPEC_FILE_051" ] || { echo "FALLO: No existe $SPEC_FILE_051"; exit 1; }
+echo "[OK]"
+
+echo -n "70. Verificando catálogo AGY_MODELS y comandos /model (MODEL-01)... "
+grep -q "AGY_MODELS" "$CLEAN_TERM_JS" || { echo "FALLO: Catálogo AGY_MODELS ausente en CleanAgentTerminal.js"; exit 1; }
+grep -qF '"/model flash\r"' "$CLEAN_TERM_JS" || { echo "FALLO: Comando /model flash ausente"; exit 1; }
+grep -qF '"/model pro\r"' "$CLEAN_TERM_JS" || { echo "FALLO: Comando /model pro ausente"; exit 1; }
+grep -qF '"/model flash-lite\r"' "$CLEAN_TERM_JS" || { echo "FALLO: Comando /model flash-lite ausente"; exit 1; }
+echo "[OK]"
+
+echo -n "71. Verificando chip selector en el markup de la Top App Bar (MODEL-02)... "
+grep -q "model-selector-btn" "$CLEAN_TERM_JS" || { echo "FALLO: model-selector-btn ausente en el markup del top bar"; exit 1; }
+grep -q "model-selector-label" "$CLEAN_TERM_JS" || { echo "FALLO: model-selector-label ausente en el markup del top bar"; exit 1; }
+grep -q "model-selector-chevron" "$CLEAN_TERM_JS" || { echo "FALLO: model-selector-chevron ausente en el markup del top bar"; exit 1; }
+grep -q "_renderModelSelector" "$CLEAN_TERM_JS" || { echo "FALLO: Método _renderModelSelector ausente"; exit 1; }
+echo "[OK]"
+
+echo -n "72. Verificando ciclo de vida del menú de modelos y despacho PTY (MODEL-03, MODEL-04, MODEL-06)... "
+grep -q "_showModelDropdown" "$CLEAN_TERM_JS" || { echo "FALLO: Método _showModelDropdown ausente"; exit 1; }
+grep -q "_hideModelDropdown" "$CLEAN_TERM_JS" || { echo "FALLO: Método _hideModelDropdown ausente"; exit 1; }
+grep -q "model-selector-scrim" "$CLEAN_TERM_JS" || { echo "FALLO: Scrim de cierre táctil ausente"; exit 1; }
+grep -A 8 "_selectModel(model)" "$CLEAN_TERM_JS" | grep -q "websocket.send(model.command)" || {
+    echo "FALLO: Despacho de model.command al WebSocket ausente en _selectModel"; exit 1;
+}
+grep -A 12 "_showModelDropdown()" "$CLEAN_TERM_JS" | grep -q "floatingPill?.hide()" || {
+    echo "FALLO: La píldora no cede el foco al abrir el menú de modelos"; exit 1;
+}
+echo "[OK]"
+
+echo -n "73. Verificando detección del modelo activo y anti-truncamiento de Flash Lite (MODEL-05)... "
+grep -q "MODEL_STREAM_REGEX" "$CLEAN_TERM_JS" || { echo "FALLO: MODEL_STREAM_REGEX ausente"; exit 1; }
+grep -q "_updateModelLabel" "$CLEAN_TERM_JS" || { echo "FALLO: Método _updateModelLabel ausente"; exit 1; }
+grep -q "Flash Lite|Flash|Pro" "$CLEAN_TERM_JS" || {
+    echo "FALLO: Orden de alternancia incorrecto. 'Flash Lite' debe preceder a 'Flash' o se truncará"; exit 1;
+}
+echo "[OK]"
+
+echo -n "74. Verificando auto-limpieza one-shot del banner de arranque (CLEAR-01, CLEAR-02)... "
+grep -q "_hasAutoCleared = false" "$CLEAN_TERM_JS" || { echo "FALLO: Bandera _hasAutoCleared ausente en el constructor"; exit 1; }
+[ "$(grep -c '_hasAutoCleared = false' "$CLEAN_TERM_JS")" -ge 2 ] || {
+    echo "FALLO: _hasAutoCleared no se rearma en restartSession (CLEAR-02)"; exit 1;
+}
+grep -q "AGY_PROMPT_READY_REGEX" "$CLEAN_TERM_JS" || { echo "FALLO: AGY_PROMPT_READY_REGEX ausente"; exit 1; }
+grep -A 10 "!this._hasAutoCleared" "$CLEAN_TERM_JS" | grep -q "this.terminal.clear()" || {
+    echo "FALLO: Invocación de terminal.clear() ausente en el bloque de auto-limpieza"; exit 1;
+}
+grep -A 4 "!this._hasAutoCleared" "$CLEAN_TERM_JS" | grep -q "_termsAccepted || this.authenticatedUser" || {
+    echo "FALLO: Compuerta de onboarding ausente; el disparo one-shot se consumiría con los menús previos al login"; exit 1;
+}
+echo "[OK]"
+
+echo -n "75. Verificando anclaje visualViewport de la píldora sobre el teclado virtual (PILL-09, PILL-10)... "
+grep -q "visualViewport" "$PILL_JS" || { echo "FALLO: Suscripción a visualViewport ausente en FloatingInputPill.js"; exit 1; }
+grep -q "_attachViewportTracking" "$PILL_JS" || { echo "FALLO: Método _attachViewportTracking ausente"; exit 1; }
+grep -q "_detachViewportTracking" "$PILL_JS" || { echo "FALLO: Método _detachViewportTracking ausente"; exit 1; }
+grep -q 'addEventListener("resize"' "$PILL_JS" || { echo "FALLO: Listener resize ausente"; exit 1; }
+grep -q 'addEventListener("scroll"' "$PILL_JS" || { echo "FALLO: Listener scroll ausente"; exit 1; }
+grep -q 'removeEventListener("resize"' "$PILL_JS" || { echo "FALLO: Desuscripción de resize ausente en dismiss"; exit 1; }
+grep -q 'removeEventListener("scroll"' "$PILL_JS" || { echo "FALLO: Desuscripción de scroll ausente en dismiss"; exit 1; }
+grep -q "env(safe-area-inset-bottom" "$PILL_JS" || { echo "FALLO: Compensación de safe-area ausente en el reanclaje"; exit 1; }
+echo "[OK]"
+
+echo -n "76. Verificando estilos del selector de modelo y pulido de la píldora en SCSS (MODEL-02, MODEL-03, PILL-10, PILL-11)... "
+grep -q ".model-selector-btn" "$SCSS_FILE" || { echo "FALLO: Regla .model-selector-btn ausente en SCSS"; exit 1; }
+grep -q ".model-selector-menu" "$SCSS_FILE" || { echo "FALLO: Regla .model-selector-menu ausente en SCSS"; exit 1; }
+grep -q ".model-option" "$SCSS_FILE" || { echo "FALLO: Regla .model-option ausente en SCSS"; exit 1; }
+grep -q "z-index: 1100" "$SCSS_FILE" || { echo "FALLO: z-index 1100 ausente en el overlay del menú de modelos"; exit 1; }
+grep -q "focus-within" "$SCSS_FILE" || { echo "FALLO: Regla :focus-within ausente en SCSS (PILL-11)"; exit 1; }
+grep -q "bottom 0.15s ease" "$SCSS_FILE" || { echo "FALLO: Transición de reanclaje 'bottom' ausente en SCSS (PILL-10)"; exit 1; }
+echo "[OK]"
+
+echo -n "77. Verificando ausencia total de emojis en el código de producción (AC-UIX-001)... "
+for f in "$CLEAN_TERM_JS" "$PILL_JS" "$SCSS_FILE"; do
+    if LC_ALL=C grep -qP '\xF0\x9F[\x8C-\xAB]|\xE2[\x98-\x9E]|\xEF\xB8\x8F' "$f"; then
+        echo "FALLO: Emoji detectado en $f"; exit 1;
+    fi
+done
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-051 HAN SIDO SUPERADAS EXITOSAMENTE ==="
 
 
 

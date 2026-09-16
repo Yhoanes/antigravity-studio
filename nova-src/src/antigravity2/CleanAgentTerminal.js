@@ -21,6 +21,22 @@ import "./clean-terminal.scss";
 // Google OAuth 2.0 PKCE detection regex (SPEC-029 / SPEC-030: AC-CORE-07): accounts.google.com/o/oauth2/
 const OAUTH_REGEX = /https:\/\/accounts\.google\.com\/o\/oauth2\/[^\s"'>\x1b\x00-\x1f\)]+/;
 
+// SPEC-051: Catálogo de modelos despachables al CLI agy (MODEL-01)
+const AGY_MODELS = [
+    { id: "flash", label: "Gemini 3.8 Flash", command: "/model flash\r" },
+    { id: "pro", label: "Gemini 3.8 Pro", command: "/model pro\r" },
+    { id: "flash-lite", label: "Gemini 3.8 Flash Lite", command: "/model flash-lite\r" },
+];
+
+// SPEC-051: Detección del modelo activo en el flujo PTY (MODEL-05).
+// El orden de la alternancia es significativo: "Flash Lite" debe precederse a "Flash",
+// de lo contrario "Gemini 3.8 Flash Lite" se truncaría a "Gemini 3.8 Flash".
+const MODEL_STREAM_REGEX = /Gemini\s+[\d.]+\s+(?:Flash Lite|Flash|Pro)(?:\s+\([^)]*\))?/i;
+
+// SPEC-051: Prompt interactivo de agy listo (CLEAR-01). El lookahead descarta los menús
+// numerados del onboarding ("> 1. Google OAuth"), que también comienzan por "> ".
+const AGY_PROMPT_READY_REGEX = /^>(?:\s*$|\s(?!\s*\d+\.))/m;
+
 function formatErrorMessage(error) {
     if (!error) return "Error desconocido";
     if (typeof error === "string") return error;
@@ -82,6 +98,11 @@ export class CleanAgentTerminal {
         this.currentThemeId = "dark";
         this.floatingPill = null;
 
+        // SPEC-051: Selector de Modelo en Top App Bar y auto-limpieza del banner de arranque
+        this._currentModel = null;
+        this._modelDropdownEl = null;
+        this._hasAutoCleared = false;
+
         this._setupClipboardAutoInjection();
     }
 
@@ -101,10 +122,19 @@ export class CleanAgentTerminal {
                     <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
                 </svg>
                 <span class="top-bar-title">Antigravity</span>
+                <button class="model-selector-btn" id="model-selector-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Seleccionar modelo">
+                    <span class="model-selector-label" id="model-selector-label">Flash</span>
+                    <svg class="model-selector-chevron" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
+                        <path d="M7 10l5 5 5-5z"/>
+                    </svg>
+                </button>
             </div>
             <div class="top-bar-right" id="top-bar-account-container"></div>
         `;
         this.containerEl.appendChild(this.topBarEl);
+
+        // SPEC-051: Enlazar el Selector de Modelo (MODEL-02)
+        this._renderModelSelector();
 
         // Viewport de terminal desplazado por debajo de la barra (SPEC-048: Anti-colisión)
         this.viewportEl = document.createElement("main");
@@ -569,6 +599,145 @@ export class CleanAgentTerminal {
     }
 
     /**
+     * SPEC-051: Selector de Modelo en la Top App Bar (MODEL-02).
+     * Enlaza el botón-chip que despliega el menú de modelos despachables a agy.
+     */
+    _renderModelSelector() {
+        const btn = this.topBarEl?.querySelector("#model-selector-btn");
+        if (!btn) return;
+        btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (this._modelDropdownEl) {
+                this._hideModelDropdown();
+            } else {
+                this._showModelDropdown();
+            }
+        });
+    }
+
+    /**
+     * SPEC-051: Despliega el menú de modelos con scrim de cierre táctil (MODEL-03).
+     */
+    _showModelDropdown() {
+        if (this._modelDropdownEl) return;
+        const btn = this.topBarEl?.querySelector("#model-selector-btn");
+        if (!btn) return;
+
+        // MODEL-06: La píldora cede el foco mientras el menú está abierto
+        this.floatingPill?.hide();
+
+        this._modelDropdownEl = document.createElement("div");
+        this._modelDropdownEl.className = "model-selector-overlay";
+        this._modelDropdownEl.id = "model-selector-overlay";
+
+        const items = AGY_MODELS.map((model) => {
+            const isActive = this._isModelActive(model);
+            return `
+                <button class="model-option${isActive ? " active" : ""}" type="button" role="menuitemradio" aria-checked="${isActive}" data-model-id="${model.id}">
+                    <span class="model-option-label">${model.label}</span>
+                    <svg class="model-option-check" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+                    </svg>
+                </button>
+            `;
+        }).join("");
+
+        this._modelDropdownEl.innerHTML = `
+            <div class="model-selector-scrim" id="model-selector-scrim"></div>
+            <div class="model-selector-menu" role="menu" aria-label="Modelos disponibles">${items}</div>
+        `;
+
+        const parent = this.containerEl || document.body;
+        parent.appendChild(this._modelDropdownEl);
+
+        // Anclar el menú justo debajo del chip
+        const menu = this._modelDropdownEl.querySelector(".model-selector-menu");
+        const rect = btn.getBoundingClientRect();
+        if (menu) {
+            menu.style.top = `${rect.bottom + 6}px`;
+            menu.style.left = `${rect.left}px`;
+        }
+
+        this._modelDropdownEl.querySelector("#model-selector-scrim")?.addEventListener("click", () => {
+            this._hideModelDropdown();
+        });
+
+        this._modelDropdownEl.querySelectorAll(".model-option").forEach((optionEl) => {
+            optionEl.addEventListener("click", (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const model = AGY_MODELS.find((m) => m.id === optionEl.dataset.modelId);
+                if (model) this._selectModel(model);
+            });
+        });
+
+        btn.setAttribute("aria-expanded", "true");
+        btn.classList.add("open");
+    }
+
+    /**
+     * SPEC-051: Repliega el menú de modelos y restituye la píldora (MODEL-03, MODEL-06).
+     */
+    _hideModelDropdown() {
+        if (this._modelDropdownEl) {
+            if (this._modelDropdownEl.parentNode) {
+                this._modelDropdownEl.parentNode.removeChild(this._modelDropdownEl);
+            }
+            this._modelDropdownEl = null;
+        }
+        const btn = this.topBarEl?.querySelector("#model-selector-btn");
+        if (btn) {
+            btn.setAttribute("aria-expanded", "false");
+            btn.classList.remove("open");
+        }
+        if (this.floatingPill) {
+            this.floatingPill.show();
+        }
+    }
+
+    /**
+     * SPEC-051: Despacha /model <nombre> al PTY y actualiza el chip de forma optimista (MODEL-04).
+     */
+    _selectModel(model) {
+        if (!model) return;
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            this.websocket.send(model.command);
+        }
+        this._currentModel = model.label;
+        this._updateModelLabel(model.label);
+        this._hideModelDropdown();
+    }
+
+    /**
+     * SPEC-051: Determina si un modelo del catálogo corresponde al modelo activo detectado.
+     */
+    _isModelActive(model) {
+        if (!this._currentModel) return model.id === "flash";
+        return this._shortModelName(this._currentModel).toLowerCase() === this._shortModelName(model.label).toLowerCase();
+    }
+
+    /**
+     * SPEC-051: Reduce "Gemini 3.8 Flash Lite (High)" a "Flash Lite" para el chip de 12px.
+     */
+    _shortModelName(fullName) {
+        return String(fullName || "")
+            .replace(/Gemini\s+[\d.]+\s+/i, "")
+            .replace(/\s*\([^)]*\)/, "")
+            .trim();
+    }
+
+    /**
+     * SPEC-051: Sincroniza la etiqueta visible del chip selector (MODEL-05).
+     */
+    _updateModelLabel(fullName) {
+        const label = this.topBarEl?.querySelector("#model-selector-label")
+            || document.getElementById("model-selector-label");
+        if (!label) return;
+        label.textContent = this._shortModelName(fullName) || "Flash";
+    }
+
+    /**
      * SPEC-050: Barra de Entrada Flotante (Floating Input Pill)
      */
     _mountFloatingPill() {
@@ -715,6 +884,28 @@ export class CleanAgentTerminal {
                 this.onboardingWizard.fadeOut(350);
                 this.onboardingWizard = null;
             }
+        }
+
+        // SPEC-051: Sincronización del chip selector con el modelo activo anunciado por agy (MODEL-05)
+        const modelMatch = text.match(MODEL_STREAM_REGEX);
+        if (modelMatch) {
+            this._currentModel = modelMatch[0];
+            this._updateModelLabel(this._currentModel);
+        }
+
+        // SPEC-051: Auto-limpieza one-shot del banner de arranque al primer prompt listo (CLEAR-01).
+        // Se exige onboarding superado para no consumir el disparo con los menús previos al login.
+        if (!this._hasAutoCleared
+            && (this._termsAccepted || this.authenticatedUser)
+            && AGY_PROMPT_READY_REGEX.test(text)) {
+            this._hasAutoCleared = true;
+            console.log("[AUTO-CLEAR] Primer prompt de agy detectado. Purgando banner de arranque...");
+            setTimeout(() => {
+                if (this.terminal) {
+                    // Xterm.clear() descarta el scrollback y preserva la línea de prompt vigente
+                    this.terminal.clear();
+                }
+            }, 100);
         }
     }
 
@@ -988,6 +1179,7 @@ export class CleanAgentTerminal {
 
     async restartSession() {
         localStorage.removeItem(this.sessionStorageKey);
+        this._hideModelDropdown();
         if (this.onboardingWizard) {
             this.onboardingWizard.dismiss(0);
             this.onboardingWizard = null;
@@ -1022,6 +1214,8 @@ export class CleanAgentTerminal {
         this._hasAutoConfirmedTerms = false;
         this._hasInjectedOAuthCode = false;
         this._termsAccepted = false;
+        // SPEC-051: Rearmar el disparo one-shot de auto-limpieza para la nueva sesión (CLEAR-02)
+        this._hasAutoCleared = false;
         if (this.terminal) {
             this.terminal.clear();
         }
@@ -1034,6 +1228,7 @@ export class CleanAgentTerminal {
     }
 
     destroy() {
+        this._hideModelDropdown();
         if (this.onboardingWizard) {
             this.onboardingWizard.dismiss(0);
             this.onboardingWizard = null;

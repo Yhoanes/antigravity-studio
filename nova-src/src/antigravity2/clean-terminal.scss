@@ -394,11 +394,125 @@ html, body {
             font-weight: 600;
             letter-spacing: -0.01em;
         }
+
+        // SPEC-051: Chip Selector de Modelo (MODEL-02)
+        .model-selector-btn {
+            display: flex;
+            align-items: center;
+            gap: 3px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(138, 180, 248, 0.25);
+            border-radius: 16px;
+            padding: 4px 10px;
+            font-size: 12px;
+            font-family: 'Google Sans', 'Segoe UI', system-ui, sans-serif;
+            font-weight: 500;
+            color: #8ab4f8;
+            cursor: pointer;
+            flex-shrink: 0;
+            line-height: 1.2;
+            transition: background 0.15s ease, border-color 0.15s ease;
+
+            &:hover,
+            &:active,
+            &.open {
+                background: rgba(255, 255, 255, 0.14);
+            }
+
+            .model-selector-chevron {
+                width: 14px;
+                height: 14px;
+                flex-shrink: 0;
+                transition: transform 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+
+            &.open .model-selector-chevron {
+                transform: rotate(180deg);
+            }
+        }
     }
 
     .top-bar-right {
         display: flex;
         align-items: center;
+    }
+}
+
+// SPEC-051: Menú desplegable del Selector de Modelo (MODEL-03)
+.model-selector-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1100;
+
+    .model-selector-scrim {
+        position: absolute;
+        inset: 0;
+        background: transparent;
+    }
+
+    .model-selector-menu {
+        position: absolute;
+        min-width: 208px;
+        background: #1e2332;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+        padding: 6px;
+        box-sizing: border-box;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        animation: model-menu-in 0.16s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .model-option {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        width: 100%;
+        background: transparent;
+        border: none;
+        border-radius: 8px;
+        padding: 10px 12px;
+        font-size: 13px;
+        font-family: 'Google Sans', 'Segoe UI', system-ui, sans-serif;
+        color: #e2e8f0;
+        text-align: left;
+        cursor: pointer;
+        transition: background 0.12s ease;
+
+        &:hover,
+        &:active {
+            background: rgba(255, 255, 255, 0.07);
+        }
+
+        .model-option-check {
+            width: 16px;
+            height: 16px;
+            flex-shrink: 0;
+            opacity: 0;
+            color: #8ab4f8;
+        }
+
+        &.active {
+            color: #8ab4f8;
+
+            .model-option-check {
+                opacity: 1;
+            }
+        }
+    }
+}
+
+@keyframes model-menu-in {
+    from {
+        opacity: 0;
+        transform: translateY(-6px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
     }
 }
 
@@ -1055,7 +1169,12 @@ html, body {
     align-items: center;
     padding: 0 8px 0 16px;
     z-index: 999;
-    transition: opacity 0.2s ease, transform 0.2s ease;
+    /* SPEC-051 (PILL-10): Slide-up suave y reanclaje ágil sobre el teclado virtual */
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                transform 0.25s cubic-bezier(0.4, 0, 0.2, 1),
+                border-color 0.2s ease,
+                box-shadow 0.2s ease,
+                bottom 0.15s ease;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
 }
 
@@ -1063,6 +1182,13 @@ html, body {
     opacity: 0;
     transform: translateY(20px);
     pointer-events: none;
+}
+
+/* SPEC-051 (PILL-11): Glow sutil de foco */
+.floating-input-pill:focus-within {
+    border-color: rgba(138, 180, 248, 0.35);
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4),
+                0 0 0 1px rgba(138, 180, 248, 0.15);
 }
 
 .floating-input-pill input {
