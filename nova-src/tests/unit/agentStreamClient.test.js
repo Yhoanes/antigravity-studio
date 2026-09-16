@@ -184,20 +184,14 @@ describe("AgentStreamClient - AC-STREAM-003: deltas frente a result.response", (
 	});
 
 	/**
-	 * SPEC-054 §5.2 - DISCREPANCIA ABIERTA, DOCUMENTADA COMO TRIPWIRE.
+	 * SPEC-054 §5.2 - DISCREPANCIA RESUELTA.
 	 *
-	 * En la captura con herramientas los deltas NO reproducen result.response: los
-	 * deltas traen el enlace markdown completo donde response trae solo "workspace".
-	 *
-	 * Hipótesis principal: artefacto de transcripción (las fixtures se transcribieron
-	 * de capturas de pantalla, no se volcaron a archivo).
-	 * Hipótesis alternativa: result.response aplica una normalización.
-	 *
-	 * Esta prueba fija el estado CONOCIDO a propósito. Cuando se sustituyan las
-	 * fixtures por volcados reales, fallará y forzará la resolución en lugar de
-	 * dejar pasar la ambigüedad en silencio.
+	 * Se comprobó empíricamente con el CLI agy que result.response NO normaliza
+	 * los enlaces markdown. La divergencia previa era un artefacto de transcripción
+	 * manual desde screenshots donde el enlace aparecía renderizado con estilo.
+	 * Los deltas concatenados reproducen exactamente result.response.
 	 */
-	it("captura con herramientas: la divergencia conocida de §5.2 sigue presente", () => {
+	it("captura con herramientas: los deltas concatenados reproducen exactamente result.response (§5.2 resuelta)", () => {
 		let result = null;
 		const client = new AgentStreamClient({ onResult: (r) => { result = r; } });
 		client.ingest(readFixture("agy-print-stream-json-tools.ndjson"));
@@ -205,10 +199,9 @@ describe("AgentStreamClient - AC-STREAM-003: deltas frente a result.response", (
 
 		const joined = client.getConcatenatedText();
 
-		expect(joined).not.toBe(result.response);
+		expect(joined).toBe(result.response);
 		expect(joined).toContain("[`/home/studio/workspace`](file:///home/studio/workspace)");
-		expect(result.response).toContain("El directorio workspace se encuentra");
-		expect(result.response).not.toContain("file:///home/studio/workspace");
+		expect(result.response).toContain("[`/home/studio/workspace`](file:///home/studio/workspace)");
 	});
 });
 

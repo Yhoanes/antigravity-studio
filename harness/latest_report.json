@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-16T16:41:18.135593+00:00",
+  "timestamp": "2026-09-16T19:54:54.805647+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,20 +7,20 @@
     "passed_suites": 3,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 3647.18
+    "total_duration_ms": 4047.09
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 232.55,
-      "summary": "54/54 especificaciones SDD válidas | 420 Criterios de Aceptación (AC) verificados",
+      "duration_ms": 231.58,
+      "summary": "55/55 especificaciones SDD válidas | 435 Criterios de Aceptación (AC) verificados",
       "details": {
-        "total_specs": 54,
-        "passed_specs": 54,
+        "total_specs": 55,
+        "passed_specs": 55,
         "failed_specs": 0,
-        "total_acceptance_criteria": 420,
+        "total_acceptance_criteria": 435,
         "reports": [
           {
             "file_path": "specs/00-system-architecture.md",
@@ -3933,6 +3933,129 @@
             "contract_count": 2,
             "errors": [],
             "warnings": []
+          },
+          {
+            "file_path": "specs/54-native-agent-ui-over-stream-json.md",
+            "is_valid": true,
+            "metadata": {
+              "id": "SPEC-054",
+              "title": "Interfaz Nativa de Agente sobre el Protocolo `stream-json` de `agy` (Erradicación del Raspado de TUI)",
+              "author": "@spec-architect",
+              "status": "APPROVED FOR IMPLEMENTATION",
+              "target_device": "Xiaomi Pad 6 (Qualcomm Snapdragon 870, ARM64-v8a, 6-8 GB RAM, 11\" 2.8K $2880\\times 1800$, 144Hz, Xiaomi HyperOS / Android 13/14) y Ecosistema Android Móvil (API 26+)",
+              "runtime_target": "Cordova Android WebView / PRoot Linux Sandbox / AXS PTY Daemon (puerto 8767) / Antigravity CLI (`agy`) 1.2.4 en modo `--print`"
+            },
+            "acceptance_criteria": [
+              {
+                "id": "AC-STREAM-001",
+                "module": "AgentStreamClient.js",
+                "description": "`ingest()` decodifica las fixtures normativas completas emitiendo la secuencia exacta de eventos esperada.",
+                "verification_method": "Test unitario (vitest) contra `harness/fixtures/*.ndjson`.",
+                "line_number": 237
+              },
+              {
+                "id": "AC-STREAM-002",
+                "module": "AgentStreamClient.js",
+                "description": "`ingest()` reconstruye eventos partidos en límite de línea arbitrario: alimentar la fixture byte a byte produce idéntica secuencia que alimentarla de una vez.",
+                "verification_method": "Test unitario con troceado aleatorio y semilla fija.",
+                "line_number": 238
+              },
+              {
+                "id": "AC-STREAM-003",
+                "module": "AgentStreamClient.js",
+                "description": "Los `text_delta` de un mismo `step_index` concatenan exactamente el `response` del evento `result`, incluyendo enlaces markdown (`file://`).",
+                "verification_method": "Test unitario (vitest) sobre `agy-print-stream-json*.ndjson` (verificado: coincide en todo el corpus).",
+                "line_number": 239
+              },
+              {
+                "id": "AC-STREAM-004",
+                "module": "AgentStreamClient.js",
+                "description": "`status:\"ERROR\"` con `response` no vacío propaga **ambos**: contenido y error.",
+                "verification_method": "Test unitario sobre `agy-print-stream-json-tools.ndjson`.",
+                "line_number": 240
+              },
+              {
+                "id": "AC-STREAM-005",
+                "module": "AgentStreamClient.js",
+                "description": "El `conversation_id` del primer turno se reinyecta como `--conversation` en el argv del turno siguiente.",
+                "verification_method": "Test unitario de `buildArgv`.",
+                "line_number": 241
+              },
+              {
+                "id": "AC-STREAM-006",
+                "module": "AgentStreamClient.js",
+                "description": "Una línea malformada o no-JSON se descarta sin abortar el flujo ni perder eventos posteriores.",
+                "verification_method": "Test unitario con fixture corrupta inyectada.",
+                "line_number": 242
+              },
+              {
+                "id": "AC-VIEW-001",
+                "module": "AgentChatView.js",
+                "description": "Eventos con `step_index` repetido actualizan el mismo elemento; no se duplican burbujas.",
+                "verification_method": "Test de componente con DOM virtual.",
+                "line_number": 243
+              },
+              {
+                "id": "AC-VIEW-002",
+                "module": "AgentChatView.js",
+                "description": "`step_type:\"tool\"` renderiza tarjeta plegable con `tool_name`, `parameters` y duración; `ACTIVE` muestra actividad, `DONE` la retira.",
+                "verification_method": "Test de componente.",
+                "line_number": 244
+              },
+              {
+                "id": "AC-VIEW-003",
+                "module": "AgentChatView.js",
+                "description": "`agent_response` sin `text_delta` no genera burbuja vacía; se refleja como actividad de razonamiento.",
+                "verification_method": "Test de componente.",
+                "line_number": 245
+              },
+              {
+                "id": "AC-VIEW-004",
+                "module": "AgentChatView.js",
+                "description": "Markdown renderizado con enlaces `file://` navegables (observados en los deltas reales).",
+                "verification_method": "Test de componente.",
+                "line_number": 246
+              },
+              {
+                "id": "AC-VIEW-005",
+                "module": "AgentChatView.js",
+                "description": "Cero Xterm.js en el árbol de la vista nativa.",
+                "verification_method": "Inspección estática del módulo.",
+                "line_number": 247
+              },
+              {
+                "id": "AC-COEX-001",
+                "module": "CleanAgentTerminal.js",
+                "description": "La vista de terminal conserva su comportamiento de `v2.7.1` sin regresión.",
+                "verification_method": "Ejecución completa de `test_clean_agent_terminal.sh`.",
+                "line_number": 248
+              },
+              {
+                "id": "AC-COEX-002",
+                "module": "Global",
+                "description": "Conmutador de vista entre interfaz nativa y terminal; la terminal permanece alcanzable.",
+                "verification_method": "Verificación en dispositivo.",
+                "line_number": 249
+              },
+              {
+                "id": "AC-UIX-001",
+                "module": "Global",
+                "description": "Cero emojis: exclusivamente SVG vectorial.",
+                "verification_method": "Barrido por rangos de bytes UTF-8.",
+                "line_number": 250
+              },
+              {
+                "id": "AC-BUILD-001",
+                "module": "Build System",
+                "description": "Versión `2.8.0` (versionCode `20800`), APK $\\le 42.0\\,\\text{MB}$, sin dependencias de producción nuevas.",
+                "verification_method": "Build Gradle y medición binaria.",
+                "line_number": 251
+              }
+            ],
+            "diagram_count": 1,
+            "contract_count": 4,
+            "errors": [],
+            "warnings": []
           }
         ]
       },
@@ -3944,7 +4067,7 @@
       "name": "code_linter",
       "display_name": "Static Analysis & Syntax Linter Suite",
       "status": "PASS",
-      "duration_ms": 18.61,
+      "duration_ms": 19.06,
       "summary": "Análisis sintáctico completado sin errores en 8 archivos",
       "details": {
         "scanned_files": 8
@@ -3957,7 +4080,7 @@
       "name": "test_suite",
       "display_name": "Automated Unit & Regression Test Suite",
       "status": "PASS",
-      "duration_ms": 3395.37,
+      "duration_ms": 3795.72,
       "summary": "16 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
       "details": {
         "tests_run": 16,

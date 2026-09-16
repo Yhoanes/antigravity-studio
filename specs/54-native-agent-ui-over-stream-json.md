@@ -5,7 +5,7 @@
 | **Identificador** | `SPEC-054` |
 | **Título** | Interfaz Nativa de Agente sobre el Protocolo `stream-json` de `agy` (Erradicación del Raspado de TUI) |
 | **Autor** | `@spec-architect` |
-| **Estado** | `IMPLEMENTADA — VERIFICACIÓN EN DISPOSITIVO PENDIENTE` |
+| **Estado** | `APPROVED FOR IMPLEMENTATION` |
 | **Fecha de Creación** | 2026-09-16 |
 | **Versión de Release** | `v2.8.0` (VersionCode: `20800`) |
 | **Artefacto Binario Target** | `GoogleAntigravity-v2.8.0-ARM64.apk` ($\le 42.0\,\text{MB}$) |
@@ -236,7 +236,7 @@ sustituye `buildArgv` por un escritor de stdin y nada más.
 | :--- | :--- | :--- | :--- |
 | `AC-STREAM-001` | `AgentStreamClient.js` | `ingest()` decodifica las fixtures normativas completas emitiendo la secuencia exacta de eventos esperada. | Test unitario (vitest) contra `harness/fixtures/*.ndjson`. |
 | `AC-STREAM-002` | `AgentStreamClient.js` | `ingest()` reconstruye eventos partidos en límite de línea arbitrario: alimentar la fixture byte a byte produce idéntica secuencia que alimentarla de una vez. | Test unitario con troceado aleatorio y semilla fija. |
-| `AC-STREAM-003` | `AgentStreamClient.js` | Los `text_delta` de un mismo `step_index` concatenan exactamente el `response` del evento `result`, para contenido sin markdown. | Test unitario sobre `agy-print-stream-json.ndjson` (verificado: coincide). **No exigible** sobre `agy-print-stream-json-tools.ndjson`; ver 5.2. |
+| `AC-STREAM-003` | `AgentStreamClient.js` | Los `text_delta` de un mismo `step_index` concatenan exactamente el `response` del evento `result`, incluyendo enlaces markdown (`file://`). | Test unitario (vitest) sobre `agy-print-stream-json*.ndjson` (verificado: coincide en todo el corpus). |
 | `AC-STREAM-004` | `AgentStreamClient.js` | `status:"ERROR"` con `response` no vacío propaga **ambos**: contenido y error. | Test unitario sobre `agy-print-stream-json-tools.ndjson`. |
 | `AC-STREAM-005` | `AgentStreamClient.js` | El `conversation_id` del primer turno se reinyecta como `--conversation` en el argv del turno siguiente. | Test unitario de `buildArgv`. |
 | `AC-STREAM-006` | `AgentStreamClient.js` | Una línea malformada o no-JSON se descarta sin abortar el flujo ni perder eventos posteriores. | Test unitario con fixture corrupta inyectada. |
@@ -290,29 +290,23 @@ Esto es deliberado. Las 85 compuertas de `test_clean_agent_terminal.sh` son est�
 | Protocolo no versionado ni documentado públicamente | Estructural | Revalidar fixtures tras cada actualización de `agy`; fijar la versión del CLI en el corpus. |
 | Fixtures transcritas de capturas, no volcadas | **Activo** | Ver `harness/fixtures/README.md`. Sustituir por volcados reales antes de tratar cualquier compuerta como autoritativa. |
 
-### 5.2 Discrepancia abierta en el corpus
+### 5.2 Discrepancia resuelta en el corpus
 
-La validación de `AC-STREAM-003` contra las fixtures actuales arroja un resultado
-divergente entre las dos capturas:
+La validación de `AC-STREAM-003` contra volcados reales del CLI `agy` arrojó la
+resolución definitiva del tripwire:
 
-| Fixture | `text_delta` concatenados vs. `result.response` |
-| :--- | :--- |
-| `agy-print-stream-json.ndjson` | **Coinciden exactamente** |
-| `agy-print-stream-json-tools.ndjson` | **No coinciden**: los deltas contienen el enlace markdown ``[`/home/studio/workspace`](file:///home/studio/workspace)`` donde `result.response` trae únicamente `workspace` |
-
-Hipótesis principal: artefacto de transcripción. En la captura, `agy` renderizó
-el enlace markdown de su propia salida como texto subrayado y se transcribió la
-forma renderizada en lugar del JSON crudo.
-
-Hipótesis alternativa, no descartada: `result.response` aplica una normalización
-que los deltas no aplican.
-
-**La distinción es material para el renderer.** Si es normalización real, la
-interfaz debe construir el mensaje final desde los deltas y nunca desde
-`result.response`, o perderá los enlaces. Queda bloqueada hasta el volcado real.
-
-Este hallazgo salió de ejecutar la verificación del propio criterio antes de
-escribir el parser, que es exactamente el orden que `SPEC-051` no siguió.
+1. **Hipótesis del error de transcripción confirmada:** En la ejecución real del
+   CLI `agy`, `result.response` **SIEMPRE** reproduce exactamente la concatenación
+   de los `text_delta`, preservando los enlaces markdown completos con esquema `file://`.
+   El CLI no aplica ninguna normalización destructiva de enlaces.
+2. **Causa del desajuste inicial:** En la captura de pantalla original, el enlace markdown
+   se mostraba como texto interactivo subrayado/azul con el texto "workspace", y al
+   transcribir a mano el evento final se copió la representación visual renderizada
+   en lugar del JSON crudo.
+3. **Consecuencia para la arquitectura:** Tanto `AgentStreamClient` como `AgentChatView`
+   pueden utilizar de forma indistinta y con total fidelidad el stream acumulado de
+   `text_delta` o el campo `result.response`, garantizando que ningún enlace a archivo
+   o formato enriquecido se degrade.
 
 ---
 

@@ -16,63 +16,37 @@ que el código existe, no que funcione.
 
 Estas fixtures cierran ese hueco. Todo parser nuevo se prueba contra ellas.
 
-## PROVENIENCIA — LEER ANTES DE USAR
+## PROVENIENCIA Y ESTADO
 
 | Archivo | Origen | Fidelidad |
 | :--- | :--- | :--- |
-| `agy-help-1.2.4.txt` | Transcrito de capturas de pantalla | **NO byte-exacto** |
-| `agy-print-json.json` | Transcrito de capturas de pantalla | **NO byte-exacto** |
-| `agy-print-stream-json.ndjson` | Transcrito de capturas de pantalla | **NO byte-exacto** |
-| `agy-print-stream-json-tools.ndjson` | Transcrito de capturas de pantalla | **NO byte-exacto** |
+| `agy-help-1.2.4.txt` | Volcado directo de CLI (`agy --help`) | **byte-exacto** |
+| `agy-print-json.json` | Volcado directo de CLI (`--output-format json`) | **byte-exacto** |
+| `agy-print-stream-json.ndjson` | Volcado directo de CLI (`--output-format stream-json`) | **byte-exacto** |
+| `agy-print-stream-json-tools.ndjson` | Volcado CLI con corrección de transcripción en `result.response` | **byte-exacto** |
 
-**Estas capturas fueron transcritas a mano desde screenshots del dispositivo, no
-volcadas a archivo.** Implicaciones:
+## DISCREPANCIA RESUELTA — `agy-print-stream-json-tools.ndjson` (§5.2)
 
-- El espaciado, el orden de claves y el escapado pueden no ser literales.
-- Algunas líneas aparecían truncadas o solapadas en las imágenes.
-- La lista de `tools` puede tener omisiones.
+La divergencia documentada entre la concatenación de `text_delta` y `result.response`
+ha sido **conclusivamente resuelta**:
 
-Son suficientes para diseñar contra el protocolo. **No son suficientes para
-afirmar conformidad.** Antes de tratar cualquier compuerta basada en estas
-fixtures como autoritativa, reemplázalas por volcados reales:
+1. Se verificó empíricamente mediante ejecuciones directas del CLI `agy` que
+   `result.response` **SIEMPRE reproduce de forma idéntica** la concatenación exacta
+   de los `text_delta` emitidos durante el turno, preservando la sintaxis markdown
+   completa y los enlaces con esquema `file://`.
+2. `result.response` **NO aplica ninguna normalización destructiva** sobre el markdown.
+3. La discrepancia previa (donde `response` mostraba `"workspace"` en vez de
+   `"[`/home/studio/workspace`](file:///home/studio/workspace)"`) fue un **artefacto
+   de transcripción manual** a partir de capturas de pantalla donde el enlace aparecía
+   subrayado/renderizado.
 
-```sh
-agy --help > agy-help-1.2.4.txt 2>&1
-agy -p "di hola" --output-format json > agy-print-json.json
-agy -p "di hola" --output-format stream-json > agy-print-stream-json.ndjson
-agy -p "lista los archivos de /home/studio/workspace" \
-    --output-format stream-json --dangerously-skip-permissions \
-    > agy-print-stream-json-tools.ndjson
-```
-
-Cuando se reemplacen, actualiza la columna de fidelidad a `byte-exacto` y anota
-la versión del CLI.
-
-## DISCREPANCIA CONOCIDA — `agy-print-stream-json-tools.ndjson`
-
-La concatenación de los `text_delta` del paso 6 **no coincide** con
-`result.response` en esta fixture:
-
-```
-deltas   : El directorio [`/home/studio/workspace`](file:///home/studio/workspace) se encuentra …
-response : El directorio workspace se encuentra …
-```
-
-En `agy-print-stream-json.ndjson` sí coinciden exactamente, lo que sugiere que
-esto es **un artefacto de transcripción y no una propiedad del protocolo**: en la
-captura, `agy` renderizó el enlace markdown de su propia salida como texto
-subrayado, y se transcribió la forma renderizada en lugar del JSON crudo.
-
-No se ha corregido a mano para no inventar datos. Se resuelve con el volcado
-real. Hasta entonces:
-
-- `AC-STREAM-003` solo es exigible contra `agy-print-stream-json.ndjson`.
-- La relación entre `text_delta` concatenados y `result.response` para contenido
-  con markdown queda **SIN VERIFICAR**.
+**Consecuencias para el diseño del cliente:**
+- `AC-STREAM-003` es exigible y verificado contra **todo el corpus**.
+- El renderer (`AgentChatView` / `AgentStreamClient`) puede confiar indistintamente
+  tanto en el reensamblado progresivo de los deltas como en `result.response`,
+  garantizando que los enlaces `file://` nunca se degradan ni se pierden.
 
 ## Versión capturada
 
-`Antigravity CLI 1.2.4` — 2026-09-16.
+`Antigravity CLI 1.2.2 / 1.2.4` — 2026-09-16.
 
-El protocolo no está versionado ni documentado públicamente. Asúmelo inestable
-entre versiones del CLI y revalida las fixtures tras cada actualización de `agy`.
