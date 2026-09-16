@@ -2844,6 +2844,55 @@ Se formaliza e implementa la arquitectura de transición continua sin destello y
 
 ---
 
+### ADR-061: Eliminación de Falso Positivo SEAM-02 por Banner "Antigravity" y Guardia de Términos Aceptados (Release v2.4.7)
+
+- **Identificador:** `ADR-061`
+- **Especificación SDD Asociada:** [`SPEC-049`](specs/49-seamless-onboarding-transition-and-deep-logout.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.185 Contexto
+Durante el despliegue y validación del release `v2.4.6`, se detectó un comportamiento anómalo en el flujo de incorporación de `OnboardingWizard`:
+En la implementación inicial del detector reactivo SEAM-02 (`CleanAgentTerminal.js`), la condición para identificar el prompt de bienvenida incluía `text.includes("Antigravity")`. Debido a que el CLI oficial `agy` emite un banner decorativo ASCII que incluye la palabra *"Antigravity"* en etapas tempranas de su arranque (durante el aprovisionamiento o el despliegue del Paso 1/2), la condición reactiva se evaluaba como verdadera antes de tiempo, disipando el asistente prematuramente mientras el usuario aún se encontraba configurando su cuenta o leyendo los términos.
+
+Asimismo, la ausencia de una guardia de estado explícita permitía que cualquier ráfaga de texto en la PTY activara la disipación del asistente sin validar si el usuario había hecho clic efectivamente en *"Comenzar a programar"* en el Paso 4.
+
+#### 4.186 Decisión
+Se formaliza e implementa la corrección crítica (hotfix) bajo el contrato formal [`SPEC-049`](specs/49-seamless-onboarding-transition-and-deep-logout.md):
+
+1. **Erradicación del Falso Positivo "Antigravity":**
+   - Se suprime incondicionalmente el patrón `"Antigravity"` tanto de la comprobación `.includes()` como de la expresión regular en `_handleAutoResponderStream(text)`.
+   - La detección reactiva se restringe rigurosamente a prompts inequívocos de entrada interactiva: `What would you like to do`, `? What would`, `agy>` y `/(?:What would you like to do|agy>)/i`.
+
+2. **Guardia de Estado Mandatoria `_termsAccepted`:**
+   - Se introduce la propiedad de instancia booleana `this._termsAccepted = false` en el constructor de `CleanAgentTerminal`.
+   - Dicha bandera se establece en `true` estrictamente dentro del manejador `onAcceptTerms`, cuando el usuario pulsa *"Comenzar a programar"* en el Paso 4.
+   - El detector reactivo SEAM-02 condiciona la disipación del wizard a:
+     `if (this._termsAccepted && (...))`
+     bloqueando de forma absoluta cualquier cierre anticipado del asistente en los Pasos 1, 2 o 3.
+
+3. **Restablecimiento Determinista del Ciclo de Vida:**
+   - La bandera `_termsAccepted` se restablece a `false` en los métodos `logout()` y `restartSession()`, asegurando que futuras sesiones o reinicios comiencen en un estado estricto de protección.
+
+4. **Empaquetado y Certificación Oficial v2.4.7:**
+   - Versión `2.4.7` (versionCode `20407`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.4.7-ARM64.apk`** (36.82 MB / 38,612,933 bytes $\le 42.0\,\text{MB}$, SHA256 `254693fabc81389db34f414d2d58db86967a5bcaa0538e53acfdcd3c3c06dd2f`).
+
+5. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-049` (`AC-SEAM-01` a `AC-SEAM-06`).
+   - *Deterministic Lifecycle Guarding:* Cero disipaciones prematuras o no autorizadas del wizard.
+   - *APK Slimness:* Tamaño de 36.82 MB, dentro del umbral estricto $\le 42.0\,\text{MB}$.
+
+#### 4.187 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Estabilidad Total del Wizard:** El usuario completa los Pasos 1 a 4 con certidumbre visual absoluta; el wizard solo se desvanece tras la aceptación explícita de términos y la detección de `agy ready`.
+  - **Eliminación de Falsos Positivos:** Banners o trazas con la palabra "Antigravity" son inocuos y no interfieren en la experiencia táctil a 144Hz.
+- **Compromisos Operativos:**
+  - Ninguno. La adición de una bandera booleana añade costo de CPU despreciable ($<0.01\,\text{ms}$).
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
