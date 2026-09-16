@@ -2944,6 +2944,59 @@ Se formaliza e implementa la arquitectura de purga diferida en shell fresco y fo
 
 ---
 
+### ADR-063: Barra de Entrada Flotante (Floating Input Pill) para Experiencia de Chat sobre Terminal Oculta (Release v2.5.0)
+
+- **Identificador:** `ADR-063`
+- **Especificación SDD Asociada:** [`SPEC-050`](specs/50-floating-input-pill.md)
+- **Fecha:** 2026-09-16
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.191 Contexto
+En las versiones previas de Google Antigravity Mobile (`v2.1.0` a `v2.4.8`), la interacción táctil con el agente CLI `agy` requería pulsar directamente sobre el canvas o área de texto de Xterm.js para activar el input oculto de la terminal y disparar el teclado en pantalla. En un dispositivo de 11" 2.8K como la Xiaomi Pad 6, esta interacción presentaba fricciones de usabilidad:
+1. Obligaba al desarrollador a localizar manualmente el cursor parpadeante en la consola para escribir comandos o prompts.
+2. No proporcionaba una interfaz contemporánea tipo chat inspirada en Google Gemini, alejándose de las expectativas ergonómicas de una estación móvil de última generación.
+3. Carecía de un botón táctil explícito para despachar mensajes con una mano sin recurrir a la tecla física/virtual Enter.
+
+#### 4.192 Decisión
+Se formaliza e implementa la arquitectura de la Barra de Entrada Flotante (`FloatingInputPill`) bajo el contrato formal [`SPEC-050`](specs/50-floating-input-pill.md):
+
+1. **Componente Nativo Flotante Material 3 (`FloatingInputPill.js`):**
+   - Inyección en el DOM de una píldora inferior flotante (`.floating-input-pill`) con posición fija (`fixed; bottom: 16px; left: 50%; transform: translateX(-50%); height: 48px; border-radius: 28px; z-index: 999`).
+   - Campo de texto nativo con placeholder sobrio institucional `Pregúntale a Antigravity...` y atributos de sanitización (`autocorrect="off"`, `autocapitalize="off"`, `spellcheck="false"`).
+   - Botón táctil de envío `.pill-send-btn` con icono SVG vectorial minimalista (`fill: #0b0f19`), visibilidad dinámica reactiva al contenido (`classList.toggle("visible", hasText)`) y cero emojis.
+   - Manejo de teclado con soporte para la tecla `Enter`, suprimiendo de forma estricta eventos durante la composición IME (`isComposing === true` o `keyCode === 229`) para prevenir envíos truncados en teclados táctiles avanzados de Android.
+
+2. **Despacho PTY Directo y Anti-Colisión:**
+   - Al dispararse `onSend(text.trim())`, `CleanAgentTerminal` despacha `text + "\r"` de manera inmediata al WebSocket abierto conectado a la PTY de Linux (`:8767`), garantizando respuesta instantánea del CLI `agy`.
+   - Tras el envío exitoso, el campo se vacía automáticamente y se desenfoca (`inputEl.blur()`).
+   - Anti-colisión visual del viewport de terminal: se inyecta la clase CSS `.has-input-pill` en el contenedor de Xterm (`bottom: 72px`), recalculando las filas útiles mediante `fitAddon.fit()` para que el contenido de la consola jamás quede cubierto por la píldora.
+
+3. **Control Estricto de Visibilidad y Ciclo de Vida:**
+   - La píldora se mantiene oculta (`hide()`) durante el `OnboardingWizard`, la tarjeta de autenticación de Google (`GoogleAuthCard`) y el modal de cuenta (`AccountMenuModal`).
+   - Se muestra (`show()`) únicamente cuando la sesión interactiva de `agy` está lista para recibir comandos.
+   - Es desmontada y purgada limpiamente (`dismiss()`) en `logout()` y `restartSession()`.
+
+4. **Empaquetado y Certificación Oficial v2.5.0:**
+   - Versión `2.5.0` (versionCode `20500`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.5.0-ARM64.apk`** (36.83 MB / 38,614,489 bytes $\le 42.0\,\text{MB}$, SHA256 `8bf439c057e4c281aff1c9ff56c55b3413a6cbeb6db1801b22200575703f1d46`).
+
+5. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-050` (`AC-PILL-001` a `AC-PILL-008`).
+   - *Gemini-Class Mobile Ergonomics:* Experiencia de chat táctil fluida sobre terminal POSIX sin romper compatibilidad con comandos interactivos.
+   - *Zero-Collision Viewport:* Ajuste dinámico de geometría Xterm.js con `fitAddon.fit()`.
+   - *APK Slimness:* Tamaño de 36.83 MB, dentro del umbral estricto $\le 42.0\,\text{MB}$.
+
+#### 4.193 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Ergonomía de Entrada Superior:** Escribir prompts a `agy` es intuitivo y rápido como en Gemini Web / Android, sin tener que hacer foco manual en la consola.
+  - **Compatibilidad Dual:** La consola Xterm.js permanece 100% interactiva para atajos de teclado, flechas y secuencias de escape ANSI.
+  - **Estética Pulida:** Diseño de píldora flotante con sombra suave y micro-interacciones a 144Hz en la Xiaomi Pad 6.
+- **Compromisos Operativos:**
+  - Se reservan 24px adicionales en la parte inferior de la pantalla para evitar colisiones cuando la píldora está activa, compensados automáticamente por el add-on `fit()` de Xterm.js.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2998,6 +3051,7 @@ Se formaliza e implementa la arquitectura de purga diferida en shell fresco y fo
 | **SPEC-047** | Avance Automático a Google OAuth y Lanzamiento Instantáneo de Navegador | `specs/47-auto-advance-google-auth-and-instant-browser-launch.md` | `APPROVED` | 6 ACs |
 | **SPEC-048** | Top App Bar Dedicada de 48px y Menú de Cuenta Material 3 para Google Antigravity Mobile | `specs/48-top-app-bar-and-material3-account-menu.md` | `APPROVED` | 6 ACs |
 | **SPEC-049** | Transición Continua sin Fuga Visual en Onboarding y Purga Profunda en Cierre de Sesión | `specs/49-seamless-onboarding-transition-and-deep-logout.md` | `APPROVED` | 6 ACs |
+| **SPEC-050** | Barra de Entrada Flotante (Floating Input Pill) para Google Antigravity Mobile | `specs/50-floating-input-pill.md` | `APPROVED` | 8 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
