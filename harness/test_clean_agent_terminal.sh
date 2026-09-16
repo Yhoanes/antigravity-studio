@@ -133,11 +133,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.6.2 y android-versionCode 20602 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.6.2 y versionCode 20602 en configuración... "
-grep -q 'version="2.6.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.2"; exit 1; }
-grep -q 'android-versionCode="20602"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20602"; exit 1; }
-grep -q '"version": "2.6.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.2"; exit 1; }
+# 16. Verificar versionado v2.7.0 y android-versionCode 20700 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.7.0 y versionCode 20700 en configuración... "
+grep -q 'version="2.7.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.7.0"; exit 1; }
+grep -q 'android-versionCode="20700"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20700"; exit 1; }
+grep -q '"version": "2.7.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.7.0"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -481,10 +481,10 @@ grep -q "has-input-pill" "$SCSS_FILE" || { echo "FALLO: Regla .has-input-pill au
 grep -q "pill-send-btn" "$SCSS_FILE" || { echo "FALLO: Regla .pill-send-btn ausente en SCSS"; exit 1; }
 echo "[OK]"
 
-echo -n "68. Verificando versión 2.6.2 y versionCode 20602 en configuración (MODEL-FIX)... "
-grep -q 'version="2.6.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.2"; exit 1; }
-grep -q 'android-versionCode="20602"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20602"; exit 1; }
-grep -q '"version": "2.6.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.2"; exit 1; }
+echo -n "68. Verificando versión 2.7.0 y versionCode 20700 en configuración (MODEL-FIX)... "
+grep -q 'version="2.7.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.7.0"; exit 1; }
+grep -q 'android-versionCode="20700"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20700"; exit 1; }
+grep -q '"version": "2.7.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.7.0"; exit 1; }
 echo "[OK]"
 
 # ==============================================================================
@@ -569,6 +569,34 @@ done
 echo "[OK]"
 
 echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-051 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+
+# ==============================================================================
+# 78-83. Verificar SPEC-052 (Criterios de SCROLL, MENU, 2F, VISUAL y VERSIONADO)
+# ==============================================================================
+echo -n "78. Verificando versión 2.7.0 y versionCode 20700 en configuración (VERSIONADO)... "
+grep -q 'version="2.7.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.7.0"; exit 1; }
+grep -q 'android-versionCode="20700"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20700"; exit 1; }
+grep -q '"version": "2.7.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.7.0"; exit 1; }
+echo "[OK]"
+
+echo -n "79. Verificando polaridad de scroll en scrollByPixels (SCROLL)... "
+grep -q "this.terminal.scrollLines(lines);" "$CLEAN_TERM_JS" || grep -q "this.terminal.scrollLines(lines);" "nova-src/src/antigravity2/TerminalTouchNavigation.js" || { echo "FALLO: scrollLines(lines) sin negación ausente"; exit 1; }
+echo "[OK]"
+
+echo -n "80. Verificando limpieza de EXPLICIT_PATTERNS (MENU)... "
+grep -A 10 "EXPLICIT_PATTERNS =" "nova-src/src/antigravity2/TerminalTouchNavigation.js" | grep -q "●|○" && { echo "FALLO: EXPLICIT_PATTERNS contiene ● o ○"; exit 1; }
+echo "[OK]"
+
+echo -n "81. Verificando ventana de 100ms y guard de 15px en 2 dedos (2F)... "
+grep -q "> 100" "nova-src/src/antigravity2/TerminalTouchNavigation.js" || { echo "FALLO: Ventana temporal de 100ms ausente"; exit 1; }
+grep -q "< 15" "nova-src/src/antigravity2/TerminalTouchNavigation.js" || { echo "FALLO: Guard de borde de 15px ausente"; exit 1; }
+echo "[OK]"
+
+echo -n "82. Verificando scroll-indicator visual (VISUAL)... "
+grep -q ".scroll-indicator" "$SCSS_FILE" || { echo "FALLO: .scroll-indicator ausente en SCSS"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-052 HAN SIDO SUPERADAS EXITOSAMENTE ==="
 
 
 

@@ -53,7 +53,16 @@ export class TerminalTouchNavigation {
         this.isTwoFingerGesture = false;
         this.longPressTimer = null;
         this.isLongPressTriggered = false;
+        this.firstTouchTime = 0;
         this.lastTapTime = 0;
+
+        // Visual Scroll Indicator
+        this.scrollIndicator = document.createElement("div");
+        this.scrollIndicator.className = "scroll-indicator";
+        if (this.element) {
+            this.element.appendChild(this.scrollIndicator);
+        }
+        this.scrollIndicatorTimer = null;
 
         // Física de Inercia (Momentum Scrolling)
         this.velocity = 0;
@@ -104,8 +113,9 @@ export class TerminalTouchNavigation {
         // Si el usuario se ha desplazado hacia arriba en el búfer, está leyendo chat
         if (buffer.viewportY < buffer.baseY) return false;
 
-        const startLine = Math.max(0, buffer.baseY);
-        const endLine = buffer.baseY + (this.terminal.rows || 24);
+        const rows = this.terminal.rows || 24;
+        const endLine = buffer.baseY + rows;
+        const startLine = Math.max(0, endLine - 5);
         const lines = [];
 
         for (let i = startLine; i < endLine; i++) {
@@ -122,8 +132,7 @@ export class TerminalTouchNavigation {
             /\? Select/i,
             /\? Choose/i,
             /\[y\/N\]/i,
-            /\[Y\/n\]/i,
-            /●|○/
+            /\[Y\/n\]/i
         ];
 
         if (EXPLICIT_PATTERNS.some(p => p.test(fullText))) {
@@ -154,6 +163,16 @@ export class TerminalTouchNavigation {
 
         // Gesto con 2 Dedos: Modo Historial Intencional
         if (e.touches.length === 2) {
+            const timeSinceFirst = performance.now() - this.firstTouchTime;
+            if (timeSinceFirst > 100) return;
+
+            const touch1 = e.touches[0];
+            const touch2 = e.touches[1];
+            if (touch1.clientX < 15 || touch1.clientX > window.innerWidth - 15 ||
+                touch2.clientX < 15 || touch2.clientX > window.innerWidth - 15) {
+                return;
+            }
+
             this.cancelLongPress();
             this.isTwoFingerGesture = true;
             this.startY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
@@ -164,6 +183,7 @@ export class TerminalTouchNavigation {
 
         if (e.touches.length !== 1) return;
         this.isTwoFingerGesture = false;
+        this.firstTouchTime = performance.now();
 
         const touch = e.touches[0];
         this.startX = touch.clientX;
@@ -204,12 +224,12 @@ export class TerminalTouchNavigation {
             this.lastY = currentY;
 
             while (Math.abs(this.accumulatedDeltaY) >= this.options.swipeThreshold) {
-                if (this.accumulatedDeltaY > 0) {
+                if (this.accumulatedDeltaY < 0) {
                     this.options.onArrowUp();
-                    this.accumulatedDeltaY -= this.options.swipeThreshold;
+                    this.accumulatedDeltaY += this.options.swipeThreshold;
                 } else {
                     this.options.onArrowDown();
-                    this.accumulatedDeltaY += this.options.swipeThreshold;
+                    this.accumulatedDeltaY -= this.options.swipeThreshold;
                 }
             }
             return;
@@ -333,9 +353,34 @@ export class TerminalTouchNavigation {
         const lines = Math.trunc(this.scrollRemainder / cellHeight);
         if (lines === 0) return;
 
-        // Deslizar hacia abajo (deltaY > 0) -> scroll hacia arriba en historial (-lines)
-        this.terminal.scrollLines(-lines);
+        // Deslizar hacia abajo (deltaY > 0) -> scroll hacia arriba en historial (lines)
+        this.terminal.scrollLines(lines);
         this.scrollRemainder -= lines * cellHeight;
+
+        this.showScrollIndicator();
+    }
+
+    showScrollIndicator() {
+        if (!this.terminal || !this.terminal.buffer || !this.terminal.buffer.active) return;
+        const buffer = this.terminal.buffer.active;
+        if (buffer.viewportY >= buffer.baseY) return;
+
+        const totalRows = buffer.baseY + this.terminal.rows;
+        if (totalRows <= this.terminal.rows) return;
+
+        const viewportY = buffer.viewportY;
+        const scrollHeight = this.element.clientHeight || window.innerHeight;
+        const thumbHeight = Math.max(20, (this.terminal.rows / totalRows) * scrollHeight);
+        const thumbTop = (viewportY / buffer.baseY) * (scrollHeight - thumbHeight);
+
+        this.scrollIndicator.style.height = `${thumbHeight}px`;
+        this.scrollIndicator.style.top = `${thumbTop}px`;
+        this.scrollIndicator.style.opacity = "1";
+
+        if (this.scrollIndicatorTimer) clearTimeout(this.scrollIndicatorTimer);
+        this.scrollIndicatorTimer = setTimeout(() => {
+            this.scrollIndicator.style.opacity = "0";
+        }, 1500);
     }
 
     startMomentum() {

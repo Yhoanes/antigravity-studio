@@ -134,6 +134,18 @@ html, body {
                 touch-action: none; // Control gestual total por TerminalTouchNavigation (SPEC-030 / SPEC-031)
             }
         }
+
+        .scroll-indicator {
+            position: absolute;
+            right: 2px;
+            width: 3px;
+            border-radius: 1.5px;
+            background: rgba(138,180,248,0.4);
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 100;
+        }
     }
 }
 
