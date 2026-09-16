@@ -2746,6 +2746,51 @@ Se formaliza e implementa la arquitectura de auto-avance incondicional y pre-cá
 
 ---
 
+### ADR-059: Barra Superior Dedicada de 48px con Margen Anti-Colisión y Menú de Cuenta Material 3 (Release v2.4.5)
+
+- **Identificador:** `ADR-059`
+- **Especificación SDD Asociada:** [`SPEC-048`](specs/48-top-app-bar-and-material3-account-menu.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.179 Contexto
+En las versiones previas (`v2.4.1` a `v2.4.4`), la píldora flotante de cuenta (`.clean-agent-account-badge`) se montaba con posición fija absoluta en `top: 12px; left: 16px;` directamente sobre el contenedor de la terminal Xterm.js que abarcaba la totalidad de la pantalla (`100vh`). Esto provocaba que las dos primeras líneas emitidas por el CLI oficial `agy` (como la versión del sistema y el prompt de bienvenida) quedaran colisionadas y tapadas por la píldora.
+
+Asimismo, al pulsar el badge de cuenta, el sistema invocaba un diálogo nativo primitivo `window.confirm("¿Deseas cerrar sesión?")`. Este diálogo bloqueaba el hilo de ejecución principal de Cordova/WebView, congelaba las animaciones a 144Hz, rompía las pautas estéticas de Google Material 3 y no ofrecía ninguna utilidad de inspección contextual ni la posibilidad de conmutar temas en caliente, obligando al usuario a purgar datos del paquete (`pm clear`) para cambiar de esquema de color.
+
+#### 4.180 Decisión
+Se formaliza e implementa la arquitectura de Top App Bar dedicada y modal de cuenta Material 3 bajo el contrato formal [`SPEC-048`](specs/48-top-app-bar-and-material3-account-menu.md):
+1. **Top App Bar Fija y Dedicada de 48px (`.clean-agent-top-bar`):**
+   - Inyección estructural de una barra superior permanente (`height: 48px; z-index: 1000;`) con el logotipo SVG vectorial oficial de Google Antigravity y título institucional a la izquierda, y el contenedor de cuenta `#top-bar-account-container` a la derecha.
+2. **Desplazamiento Anti-Colisión del Viewport Xterm.js (`.has-top-bar`):**
+   - Desplazamiento físico del área de terminal mediante `top: 48px` y `height: calc(100vh - 48px)` (con soporte para `100dvh`), asegurando que el búfer de texto de `agy` comience estrictamente por debajo de la barra y eliminando cualquier solapamiento.
+3. **Erradicación Definitiva de `window.confirm()`:**
+   - Supresión incondicional de llamadas síncronas bloqueantes en el WebView, sustituyéndolas por el diálogo visual nativo `AccountMenuModal.js`.
+4. **Modal de Gestión de Cuenta Material 3 (`AccountMenuModal.js`):**
+   - Fondo semi-transparente con desenfoque gaussiano (*backdrop blur 8px* en `rgba(0, 0, 0, 0.65)`).
+   - Tarjeta centrada de elevación alta con avatar inicial, correo de usuario (`shadrick1212@gmail.com`), chip de nivel (`Google AI Ultra`) y botón táctil de descarte (`✕`).
+   - Bloque de contexto agéntico informativo con modelo activo (`Gemini 3.8 Flash High`) y directorio de trabajo (`/home/studio/workspace`).
+   - Menú de acciones táctiles sobrias sin emojis: selector y conmutador en caliente de los 5 temas canónicos (`dark`, `tokyo-night`, `solarized-dark`, `terminal`, `light`), reinicio de sesión PTY y cierre de sesión seguro.
+5. **Empaquetado y Certificación Oficial v2.4.5:**
+   - Versión `2.4.5` (versionCode `20405`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.4.5-ARM64.apk`** (36.82 MB / 38,612,585 bytes $\le 42.0\,\text{MB}$, SHA256 `a773d4a0281cf0e067c7fca834412fc737d9af6882077b8e6873697e3a34bffd`).
+6. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-048` (`AC-BAR-01` a `AC-BAR-06`).
+   - *Zero-collision UX:* Desplazamiento exacto a `calc(100vh - 48px)`.
+   - *Material 3 First:* Modal con backdrop blur 8px y cero emojis.
+   - *144Hz tablet ergonomics:* Rendimiento óptimo en pantalla 2.8K de Xiaomi Pad 6.
+
+#### 4.181 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Legibilidad Total:** Visibilidad limpia y despejada de las primeras líneas del CLI `agy` sin elementos flotantes superpuestos.
+  - **Gestión de Sesión de Clase Mundial:** Inspección de estado, reinicio y cambio de temas en caliente sin reiniciar la aplicación ni borrar datos.
+  - **Fluidez y Ergonomía:** Respeto estricto del refresco a 144Hz sin bloqueos de hilo por diálogos arcaicos del navegador.
+- **Compromisos Operativos:**
+  - El viewport de terminal reduce su altura útil en exactamente 48px, dimensión compensada automáticamente por el redimensionamiento de filas en el add-on `fit()` de Xterm.js.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2798,6 +2843,7 @@ Se formaliza e implementa la arquitectura de auto-avance incondicional y pre-cá
 | **SPEC-045** | Autenticación First-Party Pura de Google y Selector Visual Multi-Tema para Google Antigravity Mobile | `specs/45-pure-google-auth-and-multi-theme-palette-selector.md` | `APPROVED` | 6 ACs |
 | **SPEC-046** | Transiciones Optimistas Fluidas en Onboarding Wizard y Erradicación de Emojis | `specs/46-smooth-optimistic-wizard-transitions-and-emoji-purging.md` | `APPROVED` | 6 ACs |
 | **SPEC-047** | Avance Automático a Google OAuth y Lanzamiento Instantáneo de Navegador | `specs/47-auto-advance-google-auth-and-instant-browser-launch.md` | `APPROVED` | 6 ACs |
+| **SPEC-048** | Top App Bar Dedicada de 48px y Menú de Cuenta Material 3 para Google Antigravity Mobile | `specs/48-top-app-bar-and-material3-account-menu.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
