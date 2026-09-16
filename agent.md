@@ -3164,6 +3164,35 @@ Se formaliza e implementa la sincronización canónica del selector bajo el cont
 
 ---
 
+### ADR-067: Scroll Tradicional, Endurecimiento del Detector de Menú y Scrollbar Efímero (Release v2.7.0)
+
+- **Identificador:** `ADR-067`
+- **Especificación SDD Asociada:** [`SPEC-052`](specs/52-traditional-scroll-and-menu-detector-hardening.md)
+- **Fecha:** 2026-09-16
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@android-core` (Implementación), `@spec-architect` (Especificación)
+
+#### 4.203 Contexto
+El usuario reportó que al deslizar hacia arriba en la terminal no podía ver el historial del chat. Diagnóstico reveló Natural Scrolling invertido y falsos positivos en `isInteractiveMenu()`.
+
+#### 4.204 Decisión
+Se formaliza e implementa la estabilización bajo el contrato formal [`SPEC-052`](specs/52-traditional-scroll-and-menu-detector-hardening.md):
+
+1. **Inversión de Polaridad de Scroll:** Se implementó scroll tradicional en lugar de natural scrolling y mapeo invertido en gestos de historial de 2 dedos.
+2. **Endurecimiento del Detector de Menú:** Se eliminó el patrón ambiguo `●|○` y el análisis se acotó a las últimas 5 líneas visibles del buffer.
+3. **Robusteza en Detección de Dos Dedos:** Se añadió una ventana de 100ms y un guard de márgenes de 15px.
+4. **Scrollbar Efímero Visual:** Se introdujo un indicador nativo `.scroll-indicator` de opacidad transitoria y debounced fade.
+5. **Empaquetado y Certificación Oficial v2.7.0:**
+   - Versión `2.7.0` (versionCode `20700`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.7.0-ARM64.apk`** (36.83 MB / 38,616,569 bytes $\le 42.0\,\text{MB}$, SHA256 `5B736F3C9291F9CBABDFD2E68F75B41CBFCE71334A655198FCE88C4BFB412F58`).
+
+#### 4.205 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Usabilidad Mejorada:** Se revierte a scroll tradicional intuitivo. Se resuelven falsos positivos en prompts interactivos y toques ambiguos.
+- **Compromisos Operativos:**
+  - Ninguno.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -3220,6 +3249,7 @@ Se formaliza e implementa la sincronización canónica del selector bajo el cont
 | **SPEC-049** | Transición Continua sin Fuga Visual en Onboarding y Purga Profunda en Cierre de Sesión | `specs/49-seamless-onboarding-transition-and-deep-logout.md` | `APPROVED` | 6 ACs |
 | **SPEC-050** | Barra de Entrada Flotante (Floating Input Pill) para Google Antigravity Mobile | `specs/50-floating-input-pill.md` | `APPROVED` | 8 ACs |
 | **SPEC-051** | Selector de Modelo en Top App Bar, Auto-Limpieza del Banner de Arranque y Pulido de la Píldora de Entrada | `specs/51-model-selector-autoclear-banner-polished-pill.md` | `APPROVED` | 14 ACs |
+| **SPEC-052** | Scroll Tradicional, Endurecimiento del Detector de Menú Interactivo y Scrollbar Efímero | `specs/52-traditional-scroll-and-menu-detector-hardening.md` | `APPROVED` | 15 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
