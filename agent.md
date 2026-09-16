@@ -3053,26 +3053,64 @@ Se formaliza e implementa la arquitectura de interfaz de usuario mejorada bajo e
 - **Compromisos Operativos:**
   - `AGY_MODELS` se mantiene estático en esta versión; la introspección dinámica de modelos desde `agy` se diferirá a releases futuros.
 
-### 4.197 Registro de Decisión Arquitectónica (ADR-052): Hotfix v2.6.1 (Model IDs, Anti-Accidental Paste & Robust Auto-Clear)
+---
+
+### ADR-065: Corrección de IDs de Modelos, Supresión de Pegado Accidental y Auto-Limpieza Robusta del Banner (Release v2.6.1)
+
+- **Identificador:** `ADR-065`
+- **Especificación SDD Asociada:** [`SPEC-051`](specs/51-model-selector-autoclear-banner-polished-pill.md)
 - **Fecha:** 2026-09-16
-- **Estado:** `APPROVED` / `IMPLEMENTED`
-- **Contexto:** En validación real en Xiaomi Pad 6, se identificaron 3 fricciones operativas críticas:
-  1. Los IDs de modelo en `AGY_MODELS` (`flash`, `pro`, `flash-lite`) eran alias no reconocidos directamente por el comando `/model` del CLI `agy`, provocando rechazo.
-  2. La función `pasteFromClipboard()` emitía automáticamente un retorno de carro (`\r`), despachando accidentalmente prompts incompletos, complementado por falsos positivos del doble toque táctil.
-  3. El auto-limpiador del banner ASCII dependía de evaluar secuencias de texto raw sin retirar códigos de escape ANSI y exigía flags que diferían el limpiado.
-- **Decisiones Quirúrgicas Aplicadas:**
-  1. **Catálogo Oficial de IDs de Modelos:** Sustitución de `AGY_MODELS` por identificadores canónicos aceptados por `agy` (`gemini-3.8-flash-high`, `gemini-3.8-flash-medium`, `gemini-3.1-pro-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium`), despacho de `/model ${model.id}\r` y visualización del `shortLabel` en el Top Bar chip.
-  2. **Erradicación de Pegado Accidental:**
-     - Eliminación del `\r` automático en `pasteFromClipboard()` (despacha texto raw recortado).
-     - Elevación del umbral de pulsación prolongada `longPressMs` de 400ms a 800ms.
-     - Supresión total de la rama de doble toque para pegado rápido en `TerminalTouchNavigation.js`.
-  3. **Auto-Limpieza Resiliente de Banner con Purga ANSI:**
-     - Inserción de detector previo a SEAM-02 con saneamiento regex `cleanText = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")`.
-     - Detección inmediata mediante `/^>\s/m.test(cleanText) || /\n>\s/m.test(cleanText)`.
-     - Disparo determinista de `terminal.clear()` y rearme de `_hasAutoCleared = false` en `restartSession()`.
-- **Empaquetado y Certificación Oficial v2.6.1:**
-  - Versión `2.6.1` (versionCode `20601`), targetSdkVersion 36.
-  - Binario: `GoogleAntigravity-v2.6.1-ARM64.apk` (36.83 MB / 38,616,509 bytes $\le 42.0\,\text{MB}$, SHA256 `f5ea589f8c3685a5270d72b91df32631138e540feefbb916e7a1609454786bee`).
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@ui-designer` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.197 Contexto
+Durante la validación de campo en la Xiaomi Pad 6 ejecutando la versión `v2.6.0`, se identificaron tres fricciones operativas críticas:
+1. **Rechazo de Comandos `/model` por IDs No Canónicos:** En `v2.6.0`, los identificadores del catálogo `AGY_MODELS` (`flash`, `pro`, `flash-lite`) eran alias simplificados no aceptados por el CLI `agy`, provocando que el comando fuera rechazado por el agente.
+2. **Pegado Accidental por Doble Toque y Ejecución Automática:** La interacción táctil en la pantalla de 11" a 144Hz disparaba falsos positivos de doble toque (`<300ms`), invocando `pasteFromClipboard()` y despachando el portapapeles con un retorno de carro automático (`\r`), ejecutando de inmediato comandos o prompts incompletos sin confirmación del desarrollador. Asimismo, el umbral de `longPressMs` (400ms) era hipersensible.
+3. **Fallo en Detección del Banner por Secuencias de Escape ANSI:** El detector de prompt listo `AGY_PROMPT_READY_REGEX` evaluaba el texto crudo sin depurar las secuencias de escape ANSI emitidas por el emulador VT100 de la terminal, impidiendo el disparo de `terminal.clear()` y dejando el banner ASCII visible en pantalla.
+
+#### 4.198 Decisión
+Se formaliza e implementa la corrección crítica (hotfix) bajo el contrato formal [`SPEC-051`](specs/51-model-selector-autoclear-banner-polished-pill.md):
+
+1. **Catálogo Oficial con IDs Reales de Modelos:**
+   - Sustitución integral de `AGY_MODELS` en `CleanAgentTerminal.js` por los identificadores canónicos reconocidos por `agy`:
+     - `gemini-3.8-flash-high` ("Gemini 3.8 Flash", shortLabel: "Flash")
+     - `gemini-3.8-flash-medium` ("Gemini 3.8 Flash (Med)", shortLabel: "Flash Med")
+     - `gemini-3.1-pro-high` ("Gemini 3.1 Pro", shortLabel: "Pro")
+     - `gemini-3.1-pro-low` ("Gemini 3.1 Pro (Low)", shortLabel: "Pro Low")
+     - `claude-sonnet-4-6` ("Claude Sonnet 4.6", shortLabel: "Sonnet")
+     - `claude-opus-4-6-thinking` ("Claude Opus 4.6", shortLabel: "Opus")
+     - `gpt-oss-120b-medium` ("GPT-OSS 120B", shortLabel: "GPT-OSS")
+   - Despacho explícito de `/model ${model.id}\r` a la PTY y visualización del `shortLabel` en `#model-selector-label`.
+
+2. **Erradicación Definitiva de Pegado Accidental:**
+   - Eliminación del retorno de carro automático (`\r`) en `pasteFromClipboard()`, enviando texto raw recortado para permitir la edición o revisión del desarrollador.
+   - Elevación del umbral de pulsación prolongada `longPressMs` de 400ms a 800ms (estándar nativo de Android para gestos deliberados).
+   - Supresión incondicional de la rama de doble toque para pegado rápido en `TerminalTouchNavigation.js`.
+
+3. **Auto-Limpieza Resiliente de Banner con Purga ANSI:**
+   - Depuración previa de secuencias de escape ANSI en `_handleAutoResponderStream()`:
+     `const cleanText = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")`
+   - Detección reactiva inmediata del prompt interactivo mediante `/^>\s/m.test(cleanText) || /\n>\s/m.test(cleanText)`.
+   - Ejecución determinista de `terminal.clear()` tras una ventana de $100\,\text{ms}$, purgando el banner ASCII de arranque, y rearme de `_hasAutoCleared = false` en `restartSession()`.
+
+4. **Empaquetado y Certificación Oficial v2.6.1:**
+   - Versión `2.6.1` (versionCode `20601`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.6.1-ARM64.apk`** (36.83 MB / 38,616,509 bytes $\le 42.0\,\text{MB}$, SHA256 `f5ea589f8c3685a5270d72b91df32631138e540feefbb916e7a1609454786bee`).
+
+5. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-051` (`AC-MODEL-001` a `AC-MODEL-006`, `AC-CLEAR-001` a `AC-CLEAR-002`, `AC-PILL-009` a `AC-PILL-011`).
+   - *Zero Unintentional Execution:* Ningún pegado dispara ejecución de comando automática.
+   - *Canonical CLI Model Protocol:* IDs 100% compatibles con la API de `agy`.
+   - *APK Slimness:* Tamaño de 36.83 MB, dentro del umbral estricto $\le 42.0\,\text{MB}$.
+
+#### 4.199 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Interacción Segura y Libre de Falsos Positivos:** Fin de ejecuciones de comandos accidentales por taps rápidos en pantalla.
+  - **Conmutación Real de Modelos:** Compatibilidad completa con el motor de inferencia de `agy` al utilizar los nombres canónicos de los modelos.
+  - **Consola 100% Despejada:** Auto-limpieza efectiva del banner ASCII en todos los casos de arranque.
+- **Compromisos Operativos:**
+  - El pegado por pulsación prolongada ahora requiere presionar durante 800ms, proporcionando mayor control a cambio de una fracción de segundo de retardo intencional.
 
 ---
 
