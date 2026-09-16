@@ -14,6 +14,7 @@ import { ProvisioningLoader } from "./ProvisioningLoader.js";
 import { GoogleAuthCard } from "./GoogleAuthCard.js";
 import { OnboardingWizard, THEME_PRESETS } from "./OnboardingWizard.js";
 import { AccountMenuModal } from "./AccountMenuModal.js";
+import { FloatingInputPill } from "./FloatingInputPill.js";
 import "@xterm/xterm/css/xterm.css";
 import "./clean-terminal.scss";
 
@@ -79,6 +80,7 @@ export class CleanAgentTerminal {
         this._termsAccepted = false;
         this._pendingCredentialPurge = false;
         this.currentThemeId = "dark";
+        this.floatingPill = null;
 
         this._setupClipboardAutoInjection();
     }
@@ -337,6 +339,11 @@ export class CleanAgentTerminal {
                 if (!this.authenticatedUser && !this.onboardingWizard) {
                     this._setupOnboardingWizard();
                 }
+
+                // SPEC-050: Montar Floating Input Pill si el usuario ya está autenticado
+                if (this.authenticatedUser && !this.floatingPill) {
+                    this._mountFloatingPill();
+                }
             }, 350);
         } catch (error) {
             console.error("Fallo en inicialización de sesión:", error);
@@ -550,9 +557,41 @@ export class CleanAgentTerminal {
                 if (this.terminal) {
                     this.terminal.focus();
                 }
+                if (!this.floatingPill) {
+                    this._mountFloatingPill();
+                } else {
+                    this.floatingPill.show();
+                }
             }
         });
         this.onboardingWizard.mount(this.containerEl || document.body);
+        this.floatingPill?.hide();
+    }
+
+    /**
+     * SPEC-050: Barra de Entrada Flotante (Floating Input Pill)
+     */
+    _mountFloatingPill() {
+        if (this.floatingPill) return;
+        this.floatingPill = new FloatingInputPill({
+            onSend: (text) => {
+                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send(text + "\r");
+                    return true;
+                }
+                return false;
+            }
+        });
+        this.floatingPill.mount(this.containerEl || document.body);
+        this.floatingPill.show();
+        // Anti-colisión: reservar espacio abajo
+        if (this.viewportEl) {
+            this.viewportEl.classList.add("has-input-pill");
+        }
+        // Recalcular filas de la terminal
+        if (this.fitAddon) {
+            setTimeout(() => this.fitAddon.fit(), 50);
+        }
     }
 
     /**
@@ -719,6 +758,11 @@ export class CleanAgentTerminal {
                 if (this.terminal) {
                     this.terminal.focus();
                 }
+                if (!this.floatingPill) {
+                    this._mountFloatingPill();
+                } else {
+                    this.floatingPill.show();
+                }
             }
 
             if (text.includes("accounts.google.com") || (this._streamBuffer && !this._hasAutoOpenedBrowser)) {
@@ -863,6 +907,7 @@ export class CleanAgentTerminal {
      * SPEC-048: Menú de Cuenta Material 3 (Erradicación total de confirm nativo)
      */
     handleAccountMenu() {
+        this.floatingPill?.hide();
         const modal = new AccountMenuModal({
             userEmail: this.authenticatedUser || "shadrick1212@gmail.com",
             userTier: "Google AI Ultra",
@@ -871,7 +916,10 @@ export class CleanAgentTerminal {
             currentThemeId: this.currentThemeId || "dark",
             onSelectTheme: (theme) => this.applyTheme(theme),
             onRestartSession: () => this.restartSession(),
-            onLogout: () => this.logout()
+            onLogout: () => this.logout(),
+            onDismiss: () => {
+                this.floatingPill?.show();
+            }
         });
         modal.mount(this.containerEl || document.body);
     }
@@ -948,6 +996,13 @@ export class CleanAgentTerminal {
             this.authCard.dismiss();
             this.authCard = null;
         }
+        if (this.floatingPill) {
+            this.floatingPill.dismiss();
+            this.floatingPill = null;
+        }
+        if (this.viewportEl) {
+            this.viewportEl.classList.remove("has-input-pill");
+        }
         if (this.attachAddon) {
             try { this.attachAddon.dispose(); } catch (e) {}
             this.attachAddon = null;
@@ -986,6 +1041,13 @@ export class CleanAgentTerminal {
         if (this.authCard) {
             this.authCard.dismiss();
             this.authCard = null;
+        }
+        if (this.floatingPill) {
+            this.floatingPill.dismiss();
+            this.floatingPill = null;
+        }
+        if (this.viewportEl) {
+            this.viewportEl.classList.remove("has-input-pill");
         }
         if (this.accountBadgeEl && this.accountBadgeEl.parentNode) {
             this.accountBadgeEl.parentNode.removeChild(this.accountBadgeEl);

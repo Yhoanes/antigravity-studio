@@ -21,6 +21,8 @@ INIT_SANDBOX_SH="nova-src/src/plugins/terminal/scripts/init-sandbox.sh"
 PROCESS_MANAGER_JAVA="nova-src/src/plugins/terminal/src/android/ProcessManager.java"
 CONFIG_XML="nova-src/config.xml"
 PACKAGE_JSON="nova-src/package.json"
+PILL_JS="nova-src/src/antigravity2/FloatingInputPill.js"
+SPEC_FILE_050="specs/50-floating-input-pill.md"
 
 echo "=== INICIANDO VALIDACIÓN FORMAL DE TERMINAL Y BOOTSTRAP (SPEC-036 / SPEC-037 / SPEC-038 / SPEC-039) ==="
 
@@ -130,11 +132,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.4.8 y android-versionCode 20408 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.4.8 y versionCode 20408 en configuración... "
-grep -q 'version="2.4.8"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.8"; exit 1; }
-grep -q 'android-versionCode="20408"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20408"; exit 1; }
-grep -q '"version": "2.4.8"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.8"; exit 1; }
+# 16. Verificar versionado v2.5.0 y android-versionCode 20500 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.5.0 y versionCode 20500 en configuración... "
+grep -q 'version="2.5.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.5.0"; exit 1; }
+grep -q 'android-versionCode="20500"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20500"; exit 1; }
+grep -q '"version": "2.5.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.5.0"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -452,13 +454,39 @@ grep -A 20 "async logout()" "$CLEAN_TERM_JS" | grep -q "clipboard.copy" || {
 }
 echo "[OK]"
 
-echo -n "64. Verificando versión 2.4.8 y versionCode 20408 en configuración (SEAM-06)... "
-grep -q 'version="2.4.8"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.8"; exit 1; }
-grep -q 'android-versionCode="20408"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20408"; exit 1; }
-grep -q '"version": "2.4.8"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.8"; exit 1; }
+# ==============================================================================
+# 64-68. Verificar SPEC-050 (Criterios PILL-01 a PILL-08)
+# ==============================================================================
+echo -n "64. Verificando documento SPEC-050... "
+[ -f "$SPEC_FILE_050" ] || { echo "FALLO: No existe $SPEC_FILE_050"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-049 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+echo -n "65. Verificando componente FloatingInputPill.js (PILL-01, PILL-02, PILL-03)... "
+[ -f "$PILL_JS" ] || { echo "FALLO: No existe $PILL_JS"; exit 1; }
+grep -q "FloatingInputPill" "$PILL_JS" || { echo "FALLO: Clase FloatingInputPill ausente"; exit 1; }
+grep -q "Pregúntale a Antigravity..." "$PILL_JS" || { echo "FALLO: Placeholder exacto ausente en FloatingInputPill.js"; exit 1; }
+grep -q "isComposing" "$PILL_JS" || { echo "FALLO: Salvaguarda IME isComposing ausente"; exit 1; }
+echo "[OK]"
+
+echo -n "66. Verificando integración y ciclo de vida de FloatingInputPill en CleanAgentTerminal.js (PILL-04, PILL-05)... "
+grep -q "FloatingInputPill" "$CLEAN_TERM_JS" || { echo "FALLO: FloatingInputPill no importado en CleanAgentTerminal.js"; exit 1; }
+grep -q "_mountFloatingPill" "$CLEAN_TERM_JS" || { echo "FALLO: Método _mountFloatingPill ausente"; exit 1; }
+grep -q "has-input-pill" "$CLEAN_TERM_JS" || { echo "FALLO: Clase has-input-pill ausente en CleanAgentTerminal.js"; exit 1; }
+echo "[OK]"
+
+echo -n "67. Verificando estilos de píldora flotante y anti-colisión en clean-terminal.scss (PILL-06)... "
+grep -q "floating-input-pill" "$SCSS_FILE" || { echo "FALLO: Regla .floating-input-pill ausente en SCSS"; exit 1; }
+grep -q "has-input-pill" "$SCSS_FILE" || { echo "FALLO: Regla .has-input-pill ausente en SCSS"; exit 1; }
+grep -q "pill-send-btn" "$SCSS_FILE" || { echo "FALLO: Regla .pill-send-btn ausente en SCSS"; exit 1; }
+echo "[OK]"
+
+echo -n "68. Verificando versión 2.5.0 y versionCode 20500 en configuración (PILL-08)... "
+grep -q 'version="2.5.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.5.0"; exit 1; }
+grep -q 'android-versionCode="20500"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20500"; exit 1; }
+grep -q '"version": "2.5.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.5.0"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-050 HAN SIDO SUPERADAS EXITOSAMENTE ==="
 
 
 

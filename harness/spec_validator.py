@@ -62,6 +62,7 @@ class ValidationWarning:
     category: str
     message: str
     line_number: Optional[int] = None
+    suggestion: Optional[str] = None
 
 
 @dataclass

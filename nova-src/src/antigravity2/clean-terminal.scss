@@ -1038,3 +1038,81 @@ html, body {
         transform: rotate(360deg);
     }
 }
+
+/* ===== FLOATING INPUT PILL (SPEC-050) ===== */
+.floating-input-pill {
+    position: fixed;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    left: 16px;
+    right: 16px;
+    height: 48px;
+    background: rgba(30, 35, 50, 0.95);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 28px;
+    display: flex;
+    align-items: center;
+    padding: 0 8px 0 16px;
+    z-index: 999;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+}
+
+.floating-input-pill.hidden {
+    opacity: 0;
+    transform: translateY(20px);
+    pointer-events: none;
+}
+
+.floating-input-pill input {
+    flex: 1;
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #f8fafc;
+    font-size: 15px;
+    font-family: 'Google Sans', 'Segoe UI', system-ui, sans-serif;
+    padding: 0 12px;
+    height: 100%;
+    min-width: 0;
+}
+
+.floating-input-pill input::placeholder {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+.floating-input-pill .pill-send-btn {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    border-radius: 50%;
+    background: #8ab4f8;
+    border: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    flex-shrink: 0;
+    padding: 0;
+}
+
+.floating-input-pill .pill-send-btn.visible {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.floating-input-pill .pill-send-btn svg {
+    width: 18px;
+    height: 18px;
+    fill: #0b0f19;
+}
+
+/* Anti-colisión viewport con pill */
+.clean-agent-viewport.has-input-pill {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom, 0px));
+}
+
