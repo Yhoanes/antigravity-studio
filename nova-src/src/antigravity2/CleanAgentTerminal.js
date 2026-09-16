@@ -68,6 +68,11 @@ export class CleanAgentTerminal {
         this.touchNav = null;
         this.isConnecting = false;
         this.isConnected = false;
+        this.connectionStartTime = 0;
+        this.reconnectingSavedPid = false;
+        this.isIntentionalClose = false;
+        this.reconnectAttempts = 0;
+        this.maxReconnectAttempts = 5;
         this._resizeObserver = null;
         this._cleanupResize = null;
 
@@ -328,6 +333,7 @@ export class CleanAgentTerminal {
             if (savedPid) {
                 try {
                     console.log(`[SESSION] Intentando reenganche a PID previo: ${savedPid}`);
+                    this.reconnectingSavedPid = true;
                     await this.openWebSocket(savedPid);
                     this.pid = savedPid;
                     reattached = true;
@@ -339,6 +345,7 @@ export class CleanAgentTerminal {
             }
 
             if (!reattached) {
+                this.reconnectingSavedPid = false;
                 this.pid = await this.createSession();
                 localStorage.setItem(this.sessionStorageKey, String(this.pid));
                 await this.openWebSocket(this.pid);
@@ -472,6 +479,7 @@ export class CleanAgentTerminal {
 
     openWebSocket(pid) {
         return new Promise((resolve, reject) => {
+            this.connectionStartTime = Date.now();
             const wsUrl = `ws://127.0.0.1:${this.port}/terminals/${pid}`;
             let opened = false;
             this.websocket = new WebSocket(wsUrl);
@@ -482,6 +490,7 @@ export class CleanAgentTerminal {
             });
 
             this.websocket.onopen = () => {
+                this.reconnectAttempts = 0;
                 opened = true;
                 if (this.attachAddon) {
                     try { this.attachAddon.dispose(); } catch (e) {}
@@ -498,12 +507,36 @@ export class CleanAgentTerminal {
             };
 
             this.websocket.onclose = () => {
-                this.isConnected = false;
-                this.isConnecting = false;
-                if (!opened) {
-                    reject(new Error(`No se pudo conectar al WebSocket para PID ${pid}`));
+                const duration = Date.now() - this.connectionStartTime;
+                localStorage.removeItem(this.sessionStorageKey);
+                
+                if (this.isIntentionalClose) {
+                    this.isConnected = false;
+                    this.isConnecting = false;
+                    if (!opened) {
+                        reject(new Error(`No se pudo conectar al WebSocket para PID ${pid}`));
+                    } else {
+                        this.terminal?.writeln("\r\n\x1b[33m[SESIÓN TERMINADA]\x1b[0m Conexión WebSocket con la terminal cerrada.");
+                    }
+                    return;
+                }
+
+                if (this.reconnectingSavedPid && duration < 2000) {
+                    this.reconnectingSavedPid = false;
+                    this.reconnectAttempts = 0;
+                    setTimeout(() => { this._autoRecoverSession(); }, 300);
+                    return;
+                }
+
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                    this.reconnectAttempts++;
+                    this.terminal?.writeln("\r\n\x1b[33m[CONEXIÓN PERDIDA]\x1b[0m Reconectando terminal en limpio...");
+                    setTimeout(() => { this._autoRecoverSession(); }, 800);
                 } else {
-                    this.terminal?.writeln("\r\n\x1b[33m[SESIÓN TERMINADA]\x1b[0m Conexión WebSocket con la terminal cerrada.");
+                    this.isConnected = false;
+                    this.isConnecting = false;
+                    this.terminal?.writeln("\r\n\x1b[31m[ERROR]\x1b[0m No se pudo restablecer la conexión.");
+                    if (!opened) reject(new Error(`No se pudo conectar al WebSocket para PID ${pid}`));
                 }
             };
 
@@ -514,6 +547,21 @@ export class CleanAgentTerminal {
                 }
             };
         });
+    }
+
+    async _autoRecoverSession() {
+        this.isConnected = false;
+        this.isConnecting = false;
+        this.pid = null;
+        await this.connect();
+        if (this.authenticatedUser) {
+            if (!this.floatingPill) {
+                this._mountFloatingPill();
+            } else {
+                this.floatingPill.mount(this.containerEl || document.body);
+                this.floatingPill.show();
+            }
+        }
     }
 
     /**

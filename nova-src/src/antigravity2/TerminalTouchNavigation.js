@@ -224,12 +224,12 @@ export class TerminalTouchNavigation {
             this.lastY = currentY;
 
             while (Math.abs(this.accumulatedDeltaY) >= this.options.swipeThreshold) {
-                if (this.accumulatedDeltaY < 0) {
+                if (this.accumulatedDeltaY > 0) {
                     this.options.onArrowUp();
-                    this.accumulatedDeltaY += this.options.swipeThreshold;
+                    this.accumulatedDeltaY -= this.options.swipeThreshold;
                 } else {
                     this.options.onArrowDown();
-                    this.accumulatedDeltaY -= this.options.swipeThreshold;
+                    this.accumulatedDeltaY += this.options.swipeThreshold;
                 }
             }
             return;
@@ -354,7 +354,7 @@ export class TerminalTouchNavigation {
         if (lines === 0) return;
 
         // Deslizar hacia abajo (deltaY > 0) -> scroll hacia arriba en historial (lines)
-        this.terminal.scrollLines(lines);
+        this.terminal.scrollLines(-lines);
         this.scrollRemainder -= lines * cellHeight;
 
         this.showScrollIndicator();

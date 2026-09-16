@@ -3261,3 +3261,5 @@ Se formaliza e implementa la estabilizaciÃ³n bajo el contrato formal [`SPEC-052`
 ## Architectural Decision Records (ADRs)
 
 - **ADR-068**: Saneamiento Profundo del Repositorio, Eliminación de Residuos y Blindaje del Pipeline Canónico de Compilación (`scripts/build_release.ps1`)
+- **ADR-069**: Implementación de Natural Touch Scrolling Invertido y Recuperación Resiliente de Sesión (SPEC-053)
+

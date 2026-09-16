@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-16T16:20:17.673253+00:00",
+  "timestamp": "2026-09-16T16:41:18.135593+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,20 +7,20 @@
     "passed_suites": 3,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 5634.98
+    "total_duration_ms": 3647.18
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 230.69,
-      "summary": "53/53 especificaciones SDD válidas | 414 Criterios de Aceptación (AC) verificados",
+      "duration_ms": 232.55,
+      "summary": "54/54 especificaciones SDD válidas | 420 Criterios de Aceptación (AC) verificados",
       "details": {
-        "total_specs": 53,
-        "passed_specs": 53,
+        "total_specs": 54,
+        "passed_specs": 54,
         "failed_specs": 0,
-        "total_acceptance_criteria": 414,
+        "total_acceptance_criteria": 420,
         "reports": [
           {
             "file_path": "specs/00-system-architecture.md",
@@ -3873,6 +3873,66 @@
             "contract_count": 1,
             "errors": [],
             "warnings": []
+          },
+          {
+            "file_path": "specs/53-natural-touch-scrolling-and-session-auto-recovery.md",
+            "is_valid": true,
+            "metadata": {
+              "id": "SPEC-053",
+              "title": "Natural Touch Scrolling & Session Auto-Recovery",
+              "status": "APPROVED FOR IMPLEMENTATION",
+              "author": "@spec-architect",
+              "target_device": "Xiaomi Pad 6",
+              "runtime_target": "Kotlin / NDK / PRoot Linux"
+            },
+            "acceptance_criteria": [
+              {
+                "id": "AC-SCROLL-01",
+                "module": null,
+                "description": "| `AC-SCROLL-01` | `scrollByPixels(deltaY)` en `TerminalTouchNavigation.js` debe invocar `this.terminal.scrollLines(-lines)` (signo negativo invertido). | Inspección estática del código. |",
+                "verification_method": null,
+                "line_number": 149
+              },
+              {
+                "id": "AC-SCROLL-02",
+                "module": null,
+                "description": "| `AC-SCROLL-02` | En gestos de dos dedos, `accumulatedDeltaY > 0` dispara `onArrowUp()` y `< 0` dispara `onArrowDown()`. | Inspección estática del código. |",
+                "verification_method": null,
+                "line_number": 150
+              },
+              {
+                "id": "AC-RECOVER-01",
+                "module": null,
+                "description": "| `AC-RECOVER-01` | Cierre inesperado del WebSocket en `CleanAgentTerminal.js` purga `localStorage`, espera 500ms, y llama a `createSession()` seguida del relanzamiento del comando. | Inspección estática y ejecución en Android. |",
+                "verification_method": null,
+                "line_number": 151
+              },
+              {
+                "id": "AC-RECOVER-02",
+                "module": null,
+                "description": "| `AC-RECOVER-02` | Si el WebSocket cierra en `< 1500ms` al reenganchar, se descarta silenciosamente sin mostrar `[SESIÓN TERMINADA]`, y se reinicia el flujo. | Inspección estática y simulación de PID obsoleto. |",
+                "verification_method": null,
+                "line_number": 152
+              },
+              {
+                "id": "AC-UIX-01",
+                "module": null,
+                "description": "| `AC-UIX-01` | Cero uso de emojis en los archivos modificados. | Escaneo RegExp estático de caracteres Unicode fuera del plano básico. |",
+                "verification_method": null,
+                "line_number": 153
+              },
+              {
+                "id": "AC-BUILD-01",
+                "module": null,
+                "description": "| `AC-BUILD-01` | Archivos `config.xml` y `package.json` actualizados a versión `2.7.1` (versionCode `20701`). | Inspección estática. |",
+                "verification_method": null,
+                "line_number": 154
+              }
+            ],
+            "diagram_count": 2,
+            "contract_count": 2,
+            "errors": [],
+            "warnings": []
           }
         ]
       },
@@ -3884,7 +3944,7 @@
       "name": "code_linter",
       "display_name": "Static Analysis & Syntax Linter Suite",
       "status": "PASS",
-      "duration_ms": 18.53,
+      "duration_ms": 18.61,
       "summary": "Análisis sintáctico completado sin errores en 8 archivos",
       "details": {
         "scanned_files": 8
@@ -3897,7 +3957,7 @@
       "name": "test_suite",
       "display_name": "Automated Unit & Regression Test Suite",
       "status": "PASS",
-      "duration_ms": 5385.1,
+      "duration_ms": 3395.37,
       "summary": "16 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
       "details": {
         "tests_run": 16,

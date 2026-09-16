@@ -133,11 +133,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.7.0 y android-versionCode 20700 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.7.0 y versionCode 20700 en configuración... "
-grep -q 'version="2.7.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.7.0"; exit 1; }
-grep -q 'android-versionCode="20700"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20700"; exit 1; }
-grep -q '"version": "2.7.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.7.0"; exit 1; }
+# 16. Verificar versionado v2.7.1 y android-versionCode 20701 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.7.1 y versionCode 20701 en configuración... "
+grep -q 'version="2.7.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.7.1"; exit 1; }
+grep -q 'android-versionCode="20701"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20701"; exit 1; }
+grep -q '"version": "2.7.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.7.1"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -481,10 +481,10 @@ grep -q "has-input-pill" "$SCSS_FILE" || { echo "FALLO: Regla .has-input-pill au
 grep -q "pill-send-btn" "$SCSS_FILE" || { echo "FALLO: Regla .pill-send-btn ausente en SCSS"; exit 1; }
 echo "[OK]"
 
-echo -n "68. Verificando versión 2.7.0 y versionCode 20700 en configuración (MODEL-FIX)... "
-grep -q 'version="2.7.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.7.0"; exit 1; }
-grep -q 'android-versionCode="20700"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20700"; exit 1; }
-grep -q '"version": "2.7.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.7.0"; exit 1; }
+echo -n "68. Verificando versión 2.7.1 y versionCode 20701 en configuración (MODEL-FIX)... "
+grep -q 'version="2.7.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.7.1"; exit 1; }
+grep -q 'android-versionCode="20701"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20701"; exit 1; }
+grep -q '"version": "2.7.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.7.1"; exit 1; }
 echo "[OK]"
 
 # ==============================================================================
@@ -573,14 +573,14 @@ echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-051 HAN SIDO SUPERA
 # ==============================================================================
 # 78-83. Verificar SPEC-052 (Criterios de SCROLL, MENU, 2F, VISUAL y VERSIONADO)
 # ==============================================================================
-echo -n "78. Verificando versión 2.7.0 y versionCode 20700 en configuración (VERSIONADO)... "
-grep -q 'version="2.7.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.7.0"; exit 1; }
-grep -q 'android-versionCode="20700"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20700"; exit 1; }
-grep -q '"version": "2.7.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.7.0"; exit 1; }
+echo -n "78. Verificando versión 2.7.1 y versionCode 20701 en configuración (VERSIONADO)... "
+grep -q 'version="2.7.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.7.1"; exit 1; }
+grep -q 'android-versionCode="20701"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20701"; exit 1; }
+grep -q '"version": "2.7.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.7.1"; exit 1; }
 echo "[OK]"
 
 echo -n "79. Verificando polaridad de scroll en scrollByPixels (SCROLL)... "
-grep -q "this.terminal.scrollLines(lines);" "$CLEAN_TERM_JS" || grep -q "this.terminal.scrollLines(lines);" "nova-src/src/antigravity2/TerminalTouchNavigation.js" || { echo "FALLO: scrollLines(lines) sin negación ausente"; exit 1; }
+grep -q "this.terminal.scrollLines(-lines);" "$CLEAN_TERM_JS" || grep -q "this.terminal.scrollLines(-lines);" "nova-src/src/antigravity2/TerminalTouchNavigation.js" || { echo "FALLO: scrollLines(lines) sin negación ausente"; exit 1; }
 echo "[OK]"
 
 echo -n "80. Verificando limpieza de EXPLICIT_PATTERNS (MENU)... "
@@ -602,3 +602,24 @@ echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-052 HAN SIDO SUPERADAS EXITOSA
 
 
 
+
+
+# ==============================================================================
+# 84-86. Verificar SPEC-053
+# ==============================================================================
+echo -n "83. Verificando scrollLines(-lines) en TerminalTouchNavigation.js... "
+grep -q "this.terminal.scrollLines(-lines);" "nova-src/src/antigravity2/TerminalTouchNavigation.js" || { echo "FALLO: scrollLines(-lines) ausente"; exit 1; }
+echo "[OK]"
+
+echo -n "84. Verificando _autoRecoverSession en CleanAgentTerminal.js... "
+grep -q "_autoRecoverSession" "nova-src/src/antigravity2/CleanAgentTerminal.js" || { echo "FALLO: _autoRecoverSession ausente"; exit 1; }
+grep -q "localStorage.removeItem(this.sessionStorageKey);" "nova-src/src/antigravity2/CleanAgentTerminal.js" || { echo "FALLO: localStorage.removeItem ausente en onclose"; exit 1; }
+echo "[OK]"
+
+echo -n "85. Verificando version 2.7.1 en config y package... "
+grep -q 'version="2.7.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi�n 2.7.1"; exit 1; }
+grep -q 'android-versionCode="20701"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20701"; exit 1; }
+grep -q '"version": "2.7.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi�n 2.7.1"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS EST�TICAS DE SPEC-053 HAN SIDO SUPERADAS EXITOSAMENTE ==="
