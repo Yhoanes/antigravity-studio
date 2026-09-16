@@ -2997,6 +2997,64 @@ Se formaliza e implementa la arquitectura de la Barra de Entrada Flotante (`Floa
 
 ---
 
+### ADR-064: Selector de Modelo en Top App Bar, Auto-Limpieza del Banner de Arranque y Píldora de Entrada Pulida (Release v2.6.0)
+
+- **Identificador:** `ADR-064`
+- **Especificación SDD Asociada:** [`SPEC-051`](specs/51-model-selector-autoclear-banner-polished-pill.md)
+- **Fecha:** 2026-09-16
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@ui-designer` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.194 Contexto
+Tras la entrega de la versión `v2.5.0`, se consolidaron la Top App Bar de 48px y la Barra de Entrada Flotante (`FloatingInputPill`). Sin embargo, en pruebas de campo con la Xiaomi Pad 6 se detectaron tres fricciones de experiencia de usuario:
+1. **Ausencia de Selector Rápido de Modelo:** El modelo activo sólo podía ser consultado dentro del modal secundario `AccountMenuModal`, obligando a teclear comandos manuales `/model` en la consola para conmutar entre Gemini 3.8 Flash, Pro o Flash Lite.
+2. **Banner ASCII de Arranque Intrusivo:** El CLI `agy` emite un extenso banner ASCII ("Antigravity") junto a metadatos técnicos redundantes que delatan la consola de fondo y consumen espacio vertical valioso de la pantalla.
+3. **Píldora Sepultada por el Teclado Virtual (IME Unaware):** El componente `FloatingInputPill` poseía un anclaje fijo (`bottom: fixed`), quedando tapado por el teclado virtual de Android al enfocar el campo de texto.
+
+#### 4.195 Decisión
+Se formaliza e implementa la arquitectura de interfaz de usuario mejorada bajo el contrato formal [`SPEC-051`](specs/51-model-selector-autoclear-banner-polished-pill.md):
+
+1. **Selector de Modelo en la Top App Bar (`#model-selector-btn`):**
+   - Inyección de un chip interactivo en el bloque izquierdo de la barra superior junto al título institucional (`border-radius: 16px; padding: 4px 10px; font-size: 12px; color: #8ab4f8`).
+   - Menú desplegable flotante (`#model-selector-menu`, `z-index: 1100`, `background: #1e2332; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.5)`) con catálogo canónico `AGY_MODELS`:
+     - `flash`: "Gemini 3.8 Flash" $\to$ `/model flash\r`
+     - `pro`: "Gemini 3.8 Pro" $\to$ `/model pro\r`
+     - `flash-lite`: "Gemini 3.8 Flash Lite" $\to$ `/model flash-lite\r`
+   - Scrim táctil a pantalla completa para descartar el menú al tocar fuera.
+   - Sincronización optimista y reactiva del chip ante el stream PTY mediante `MODEL_STREAM_REGEX`: el orden de evaluación sitúa normativamente "Flash Lite" antes de "Flash" para prevenir cortocircuitos de expresión regular.
+   - La píldora flotante cede foco y visibilidad (`hide()`) mientras el menú está abierto y se restituye (`show()`) al cerrarse.
+
+2. **Auto-Limpieza Determinista del Banner de Arranque:**
+   - Incorporación de la bandera one-shot `_hasAutoCleared` en el constructor de `CleanAgentTerminal`.
+   - Detección reactiva del primer prompt interactivo de `agy` mediante `AGY_PROMPT_READY_REGEX` (`/^>(?:\s*$|\s(?!\s*\d+\.))/m`) con lookahead negativo que descarta menús numerados del onboarding.
+   - Disparo de `terminal.clear()` tras una pausa de $100\,\text{ms}$, purgando limpiamente el banner ASCII y dejando el viewport despejado con foco en la conversación.
+   - Rearme incondicional de `_hasAutoCleared = false` en `restartSession()`.
+
+3. **Píldora de Entrada Flotante Pulida con Seguimiento de Viewport:**
+   - Seguimiento dinámico del teclado virtual mediante suscripción a `window.visualViewport` (`resize` y `scroll`), reanclando dinámicamente la píldora por encima del teclado con offset mínimo de $16\,\text{px} + \text{env(safe-area-inset-bottom)}$.
+   - Desuscripción incondicional en `dismiss()`, eliminando cualquier fuga de memoria.
+   - Transiciones cinemáticas fluidas a 144Hz: `slide-up 0.25s cubic-bezier(0.4, 0, 0.2, 1)`, `bottom 0.15s ease` y halo de foco `:focus-within` (`border-color: rgba(138, 180, 248, 0.35)`).
+
+4. **Empaquetado y Certificación Oficial v2.6.0:**
+   - Versión `2.6.0` (versionCode `20600`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.6.0-ARM64.apk`** (36.83 MB / 38,616,425 bytes $\le 42.0\,\text{MB}$, SHA256 `615fef8ee1dcf75a9376d71e319305ff4ba757c86104dd5f61c1a3bbb18c3fb6`).
+
+5. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-051` (`AC-MODEL-001` a `AC-MODEL-006`, `AC-CLEAR-001` a `AC-CLEAR-002`, `AC-PILL-009` a `AC-PILL-011`, `AC-UIX-001`, `AC-HARNESS-001`, `AC-BUILD-001`).
+   - *Zero Emojis:* Iconografía 100% vectorial SVG.
+   - *Visual Viewport Adaptive:* Píldora visible y operativa sobre cualquier teclado IME.
+   - *APK Slimness:* Tamaño de 36.83 MB, dentro del umbral estricto $\le 42.0\,\text{MB}$.
+
+#### 4.196 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Control Total de Modelos:** Conmutación fluida de Gemini Flash / Pro / Flash Lite a un solo tap desde la barra principal.
+  - **Experiencia Inmersiva:** Pantalla completamente despejada sin artefactos de terminal ni banners obsoletos.
+  - **Entrada Táctil Confiable:** La barra de entrada flota suavemente por encima del teclado virtual sin quedar sepultada.
+- **Compromisos Operativos:**
+  - `AGY_MODELS` se mantiene estático en esta versión; la introspección dinámica de modelos desde `agy` se diferirá a releases futuros.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -3052,6 +3110,7 @@ Se formaliza e implementa la arquitectura de la Barra de Entrada Flotante (`Floa
 | **SPEC-048** | Top App Bar Dedicada de 48px y Menú de Cuenta Material 3 para Google Antigravity Mobile | `specs/48-top-app-bar-and-material3-account-menu.md` | `APPROVED` | 6 ACs |
 | **SPEC-049** | Transición Continua sin Fuga Visual en Onboarding y Purga Profunda en Cierre de Sesión | `specs/49-seamless-onboarding-transition-and-deep-logout.md` | `APPROVED` | 6 ACs |
 | **SPEC-050** | Barra de Entrada Flotante (Floating Input Pill) para Google Antigravity Mobile | `specs/50-floating-input-pill.md` | `APPROVED` | 8 ACs |
+| **SPEC-051** | Selector de Modelo en Top App Bar, Auto-Limpieza del Banner de Arranque y Pulido de la Píldora de Entrada | `specs/51-model-selector-autoclear-banner-polished-pill.md` | `APPROVED` | 14 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
