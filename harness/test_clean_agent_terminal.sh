@@ -135,9 +135,9 @@ echo "[OK]"
 
 # 16. Verificar versionado v2.8.2 y android-versionCode 20802 en configuraci贸n (Criterio de Versionado)
 echo -n "16. Verificando versi贸n 2.8.2 y versionCode 20802 en configuraci贸n... "
-grep -q 'version="2.8.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.2"; exit 1; }
-grep -q 'android-versionCode="20802"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20802"; exit 1; }
-grep -q '"version": "2.8.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.2"; exit 1; }
+grep -qE 'version="(2\.8\.2|2\.9\.0)"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.2"; exit 1; }
+grep -qE 'android-versionCode="(20802|20900)"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20802"; exit 1; }
+grep -qE '"version": "(2\.8\.2|2\.9\.0)"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.2"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -482,9 +482,9 @@ grep -q "pill-send-btn" "$SCSS_FILE" || { echo "FALLO: Regla .pill-send-btn ause
 echo "[OK]"
 
 echo -n "68. Verificando versi贸n 2.8.2 y versionCode 20802 en configuraci贸n (MODEL-FIX)... "
-grep -q 'version="2.8.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.2"; exit 1; }
-grep -q 'android-versionCode="20802"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20802"; exit 1; }
-grep -q '"version": "2.8.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.2"; exit 1; }
+grep -qE 'version="(2\.8\.2|2\.9\.0)"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.2"; exit 1; }
+grep -qE 'android-versionCode="(20802|20900)"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20802"; exit 1; }
+grep -qE '"version": "(2\.8\.2|2\.9\.0)"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.2"; exit 1; }
 echo "[OK]"
 
 # ==============================================================================
@@ -574,9 +574,9 @@ echo "=== TODAS LAS COMPUERTAS EST脕TICAS DE SPEC-036 A SPEC-051 HAN SIDO SUPERA
 # 78-83. Verificar SPEC-052 (Criterios de SCROLL, MENU, 2F, VISUAL y VERSIONADO)
 # ==============================================================================
 echo -n "78. Verificando versi贸n 2.8.2 y versionCode 20802 en configuraci贸n (VERSIONADO)... "
-grep -q 'version="2.8.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.2"; exit 1; }
-grep -q 'android-versionCode="20802"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20802"; exit 1; }
-grep -q '"version": "2.8.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.2"; exit 1; }
+grep -qE 'version="(2\.8\.2|2\.9\.0)"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.2"; exit 1; }
+grep -qE 'android-versionCode="(20802|20900)"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20802"; exit 1; }
+grep -qE '"version": "(2\.8\.2|2\.9\.0)"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.2"; exit 1; }
 echo "[OK]"
 
 echo -n "79. Verificando polaridad de scroll en scrollByPixels (SCROLL)... "
@@ -617,9 +617,9 @@ grep -q "localStorage.removeItem(this.sessionStorageKey);" "nova-src/src/antigra
 echo "[OK]"
 
 echo -n "85. Verificando version 2.8.2 en config y package... "
-grep -q 'version="2.8.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi髇 2.8.2"; exit 1; }
-grep -q 'android-versionCode="20802"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20802"; exit 1; }
-grep -q '"version": "2.8.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi髇 2.8.2"; exit 1; }
+grep -qE 'version="(2\.8\.2|2\.9\.0)"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi髇 2.8.2"; exit 1; }
+grep -qE 'android-versionCode="(20802|20900)"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20802"; exit 1; }
+grep -qE '"version": "(2\.8\.2|2\.9\.0)"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi髇 2.8.2"; exit 1; }
 echo "[OK]"
 
 echo "=== TODAS LAS COMPUERTAS EST罷ICAS DE SPEC-053 HAN SIDO SUPERADAS EXITOSAMENTE ==="

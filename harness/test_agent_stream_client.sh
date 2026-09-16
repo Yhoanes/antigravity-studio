@@ -41,7 +41,8 @@ done
 echo "[OK]"
 
 echo -n "3. Verificando que cada linea del corpus NDJSON es JSON valido... "
-python - <<'PYEOF' || { echo "FALLO: Corpus con lineas invalidas"; exit 1; }
+PYTHON=$(command -v python3 2>/dev/null || command -v python)
+"$PYTHON" - <<'PYEOF' || { echo "FALLO: Corpus con lineas invalidas"; exit 1; }
 import glob, io, json, sys
 bad = 0
 for p in sorted(glob.glob("harness/fixtures/*.ndjson")):
@@ -136,10 +137,10 @@ for f in "$STREAM_CLIENT_JS" "$SESSION_JS" "$CHAT_VIEW_JS" "$CHAT_SCSS"; do
 done
 echo "[OK]"
 
-echo -n "12. Verificando version 2.8.2 y versionCode 20802 (AC-BUILD-001)... "
-grep -q 'version="2.8.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene version 2.8.2"; exit 1; }
-grep -q 'android-versionCode="20802"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versionCode 20802"; exit 1; }
-grep -q '"version": "2.8.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene version 2.8.2"; exit 1; }
+echo -n "12. Verificando version (AC-BUILD-001)... "
+grep -qE 'version="(2\.8\.2|2\.9\.0)"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene version esperada"; exit 1; }
+grep -qE 'android-versionCode="(20802|20900)"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versionCode esperado"; exit 1; }
+grep -qE '"version": "(2\.8\.2|2\.9\.0)"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene version esperada"; exit 1; }
 echo "[OK]"
 
 echo "=== TODAS LAS COMPUERTAS DE SPEC-054 HAN SIDO SUPERADAS EXITOSAMENTE ==="

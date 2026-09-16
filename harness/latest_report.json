@@ -1,5 +1,5 @@
 {
-  "timestamp": "2026-09-16T19:54:54.805647+00:00",
+  "timestamp": "2026-09-16T20:37:01.998062+00:00",
   "target_spec": null,
   "overall_status": "PASS",
   "summary": {
@@ -7,20 +7,20 @@
     "passed_suites": 3,
     "failed_suites": 0,
     "skipped_suites": 0,
-    "total_duration_ms": 4047.09
+    "total_duration_ms": 4829.69
   },
   "suites": [
     {
       "name": "spec_validator",
       "display_name": "SDD Spec Compliance Suite",
       "status": "PASS",
-      "duration_ms": 231.58,
-      "summary": "55/55 especificaciones SDD válidas | 435 Criterios de Aceptación (AC) verificados",
+      "duration_ms": 251.96,
+      "summary": "56/56 especificaciones SDD válidas | 443 Criterios de Aceptación (AC) verificados",
       "details": {
-        "total_specs": 55,
-        "passed_specs": 55,
+        "total_specs": 56,
+        "passed_specs": 56,
         "failed_specs": 0,
-        "total_acceptance_criteria": 435,
+        "total_acceptance_criteria": 443,
         "reports": [
           {
             "file_path": "specs/00-system-architecture.md",
@@ -4056,6 +4056,80 @@
             "contract_count": 4,
             "errors": [],
             "warnings": []
+          },
+          {
+            "file_path": "specs/55-default-chat-view-and-persistence.md",
+            "is_valid": true,
+            "metadata": {
+              "id": "SPEC-055",
+              "title": "Vista de Chat Nativa por Defecto, Conmutación Bidireccional Limpia y Persistencia de Modo de Pantalla",
+              "author": "@spec-architect",
+              "status": "APPROVED FOR IMPLEMENTATION",
+              "target_device": "Xiaomi Pad 6 (Qualcomm Snapdragon 870, ARM64-v8a, 6-8 GB RAM, 11\" 2.8K $2880\\times 1800$, 144Hz, Xiaomi HyperOS / Android 13/14) y Ecosistema Android Móvil (API 26+)",
+              "runtime_target": "Cordova Android WebView / PRoot Linux Sandbox / AXS PTY Daemon (puerto 8767) / Antigravity CLI (`agy`) 1.2.4 en modo `--print` y PTY interactivo"
+            },
+            "acceptance_criteria": [
+              {
+                "id": "AC-STARTUP-001",
+                "module": "CleanAgentTerminal.js",
+                "description": "Con `localStorage` vacío (`null` o sin la clave `antigravity_view_mode`), la aplicación inicia directamente en modo Chat: `AgentChatView` visible, `containerEl.style.display === \"none\"`, la consola clásica permanece oculta.",
+                "verification_method": "Test unitario Vitest (JSDOM) y verificación en arnés.",
+                "line_number": 290
+              },
+              {
+                "id": "AC-STARTUP-002",
+                "module": "CleanAgentTerminal.js",
+                "description": "Con `localStorage.getItem(\"antigravity_view_mode\") === \"terminal\"`, la aplicación respeta la preferencia y arranca en modo terminal: `containerEl.style.display !== \"none\"`, `agentChatView` oculta o no montada.",
+                "verification_method": "Test unitario Vitest (JSDOM).",
+                "line_number": 291
+              },
+              {
+                "id": "AC-TOGGLE-001",
+                "module": "`AgentChatView.js` / `CleanAgentTerminal.js`",
+                "description": "Al hacer clic en el botón `[>_]` (`#agent-chat-to-terminal`) en la vista de Chat, la vista de chat se oculta (`hide()`), el contenedor de terminal se muestra (`containerEl.style.display = \"\"`), se persiste `\"terminal\"` en `localStorage`, y se invocan `fitAddon.fit()`, `notifyServerResize` y `terminal.refresh` en $t_1 = \\text{rAF}$ y $t_2 = 150\\,\\text{ms}$.",
+                "verification_method": "Test unitario Vitest con espías de métodos y temporizadores simulados.",
+                "line_number": 292
+              },
+              {
+                "id": "AC-TOGGLE-002",
+                "module": "CleanAgentTerminal.js",
+                "description": "Al hacer clic en `#chat-view-btn` (o `#top-bar-to-chat`) en la Top Bar de la terminal, `containerEl.style.display` pasa a `\"none\"`, `AgentChatView.show()` es invocado, `floatingPill` se oculta, y se persiste `\"chat\"` en `localStorage`.",
+                "verification_method": "Test unitario Vitest con espías de métodos.",
+                "line_number": 293
+              },
+              {
+                "id": "AC-PERSIST-001",
+                "module": "CleanAgentTerminal.js",
+                "description": "La clave de almacenamiento es exactamente `\"antigravity_view_mode\"`. Valores espurios (`\"\"`, `\"foo\"`, `undefined`) o almacenamiento inaccesible resuelven siempre a `\"chat\"`.",
+                "verification_method": "Test unitario Vitest para `resolveInitialViewMode`.",
+                "line_number": 294
+              },
+              {
+                "id": "AC-COEX-001",
+                "module": "CleanAgentTerminal.js",
+                "description": "El daemon PTY (AXS) y el backend PRoot inician en segundo plano mediante `connect()` independientemente de que el modo inicial sea `'chat'`. La conexión WebSocket no se bloquea ni se cancela por estar la terminal oculta.",
+                "verification_method": "Inspección estática del ciclo de vida y test de inicialización.",
+                "line_number": 295
+              },
+              {
+                "id": "AC-UIX-001",
+                "module": "Global",
+                "description": "Cero emojis Unicode en los botones conmutadores de ambas vistas. Exclusivamente SVG vectorial.",
+                "verification_method": "Análisis estático de bytes UTF-8 en el arnés.",
+                "line_number": 296
+              },
+              {
+                "id": "AC-BUILD-001",
+                "module": "Build Pipeline",
+                "description": "Versión fijada en `v2.9.0` (versionCode `20900`), artefacto binario `GoogleAntigravity-v2.9.0-ARM64.apk` con tamaño $\\le 42.0\\,\\text{MB}$ y sin añadir dependencias NPM en producción.",
+                "verification_method": "Inspección de `config.xml`, `package.json` y compilación Gradle.",
+                "line_number": 297
+              }
+            ],
+            "diagram_count": 1,
+            "contract_count": 5,
+            "errors": [],
+            "warnings": []
           }
         ]
       },
@@ -4067,7 +4141,7 @@
       "name": "code_linter",
       "display_name": "Static Analysis & Syntax Linter Suite",
       "status": "PASS",
-      "duration_ms": 19.06,
+      "duration_ms": 22.55,
       "summary": "Análisis sintáctico completado sin errores en 8 archivos",
       "details": {
         "scanned_files": 8
@@ -4080,7 +4154,7 @@
       "name": "test_suite",
       "display_name": "Automated Unit & Regression Test Suite",
       "status": "PASS",
-      "duration_ms": 3795.72,
+      "duration_ms": 4554.07,
       "summary": "16 pruebas ejecutadas con éxito (0 fallos, 0 errores)",
       "details": {
         "tests_run": 16,

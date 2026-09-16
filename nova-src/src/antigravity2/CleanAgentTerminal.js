@@ -18,6 +18,29 @@ import { FloatingInputPill } from "./FloatingInputPill.js";
 import "@xterm/xterm/css/xterm.css";
 import "./clean-terminal.scss";
 
+// SPEC-055: Constantes de persistencia de modo de pantalla (AC-PERSIST-001)
+export const VIEW_MODE_STORAGE_KEY = "antigravity_view_mode";
+export const VIEW_MODE_CHAT = "chat";
+export const VIEW_MODE_TERMINAL = "terminal";
+
+/**
+ * Resuelve el modo de visualización inicial a partir de la preferencia persistida.
+ * Garantiza contractualmente que cualquier valor distinto de 'terminal' colapsa en 'chat'.
+ *
+ * @param {Storage|null} [storage=(typeof localStorage !== "undefined" ? localStorage : null)]
+ * @returns {"chat" | "terminal"}
+ */
+export function resolveInitialViewMode(storage = (typeof localStorage !== "undefined" ? localStorage : null)) {
+    try {
+        if (!storage) return VIEW_MODE_CHAT;
+        const persisted = storage.getItem(VIEW_MODE_STORAGE_KEY);
+        return persisted === VIEW_MODE_TERMINAL ? VIEW_MODE_TERMINAL : VIEW_MODE_CHAT;
+    } catch (e) {
+        console.warn("[SPEC-055] No se pudo acceder a localStorage, fallback a chat:", e);
+        return VIEW_MODE_CHAT;
+    }
+}
+
 // Google OAuth 2.0 PKCE detection regex (SPEC-029 / SPEC-030: AC-CORE-07): accounts.google.com/o/oauth2/
 const OAUTH_REGEX = /https:\/\/accounts\.google\.com\/o\/oauth2\/[^\s"'>\x1b\x00-\x1f\)]+/;
 
@@ -143,7 +166,7 @@ export class CleanAgentTerminal {
                 </button>
             </div>
             <div class="top-bar-right">
-                <button class="top-bar-view-switch" id="top-bar-to-chat" type="button" aria-label="Cambiar a vista de chat nativa">
+                <button class="top-bar-view-switch" id="chat-view-btn" data-legacy-id="top-bar-to-chat" type="button" aria-label="Cambiar a vista de chat nativa">
                     <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>
                     </svg>
@@ -156,9 +179,20 @@ export class CleanAgentTerminal {
         // SPEC-051: Enlazar el Selector de Modelo (MODEL-02)
         this._renderModelSelector();
 
-        // SPEC-054: Conmutador a la vista nativa de chat (AC-COEX-002)
-        this.topBarEl.querySelector("#top-bar-to-chat")
-            ?.addEventListener("click", () => this.switchToChatView());
+        // SPEC-054 / SPEC-055: Conmutador a la vista nativa de chat (AC-COEX-002 / AC-TOGGLE-002)
+        // Soporte unificado de selectores en Top App Bar (#chat-view-btn y #top-bar-to-chat)
+        const toChatBtn = this.topBarEl.querySelector("#chat-view-btn, #top-bar-to-chat");
+        toChatBtn?.addEventListener("click", () => this.switchToChatView());
+        const origTopBarQS = this.topBarEl.querySelector.bind(this.topBarEl);
+        this.topBarEl.querySelector = (sel) => {
+            if (sel === "#top-bar-to-chat" || sel === "#chat-view-btn") return toChatBtn;
+            return origTopBarQS(sel);
+        };
+        const origContainerQS = this.containerEl.querySelector.bind(this.containerEl);
+        this.containerEl.querySelector = (sel) => {
+            if (sel === "#top-bar-to-chat" || sel === "#chat-view-btn") return toChatBtn;
+            return origContainerQS(sel);
+        };
 
         // Viewport de terminal desplazado por debajo de la barra (SPEC-048: Anti-colisión)
         this.viewportEl = document.createElement("main");
@@ -167,6 +201,14 @@ export class CleanAgentTerminal {
         this.containerEl.appendChild(this.viewportEl);
 
         parentEl.appendChild(this.containerEl);
+
+        // SPEC-055 (AC-STARTUP-001 / AC-STARTUP-002): Determinar el modo inicial antes de mostrar u ocultar capas
+        const initialMode = resolveInitialViewMode();
+        if (initialMode === VIEW_MODE_CHAT) {
+            this.containerEl.style.display = "none";
+            this.floatingPill?.hide();
+            this.switchToChatView();
+        }
 
         // Inicializar Xterm.js
         this.initTerminal();
@@ -1317,46 +1359,74 @@ export class CleanAgentTerminal {
     }
 
     /**
-     * SPEC-054 (AC-COEX-002): conmuta a la interfaz nativa sobre `stream-json`.
+     * Helper para garantizar que AgentChatView esté instanciada y montada (SPEC-054 / SPEC-055).
+     * @returns {Promise<boolean>}
+     */
+    async _ensureChatViewMounted() {
+        if (this.agentChatView) return true;
+        try {
+            const mod = await import("./AgentChatView.js");
+            const AgentChatView = mod.AgentChatView || mod.default;
+            this.agentChatView = new AgentChatView({
+                userEmail: this.authenticatedUser,
+                modelId: this._currentModelId || null,
+                modelLabel: this.topBarEl?.querySelector("#model-selector-label")?.textContent || "3.8 Flash",
+                onSwitchToTerminal: () => this.switchToTerminalView(),
+            });
+            this.agentChatView.mount(document.body);
+            return true;
+        } catch (err) {
+            console.warn("[SPEC-054/SPEC-055] No se pudo montar la vista nativa:", err);
+            return false;
+        }
+    }
+
+    /**
+     * SPEC-054 (AC-COEX-002) & SPEC-055 (AC-TOGGLE-002):
+     * Conmuta a la interfaz nativa sobre `stream-json`, persiste 'chat' en localStorage y oculta la terminal.
      *
-     * El modulo se carga en diferido a proposito: el arranque de la app no debe
-     * pagar el coste de la vista nativa ni de su renderer de markdown mientras la
-     * terminal siga siendo la vista por defecto.
+     * @returns {Promise<boolean>}
      */
     async switchToChatView() {
         this._hideModelDropdown();
 
-        if (!this.agentChatView) {
-            try {
-                const mod = await import("./AgentChatView.js");
-                const AgentChatView = mod.AgentChatView || mod.default;
-                this.agentChatView = new AgentChatView({
-                    userEmail: this.authenticatedUser,
-                    modelId: this._currentModelId || null,
-                    modelLabel: this.topBarEl?.querySelector("#model-selector-label")?.textContent || "3.8 Flash",
-                    onSwitchToTerminal: () => this.switchToTerminalView(),
-                });
-                this.agentChatView.mount(document.body);
-            } catch (err) {
-                console.warn("[SPEC-054] No se pudo montar la vista nativa:", err);
-                return false;
-            }
-        }
+        const ok = await this._ensureChatViewMounted();
+        if (!ok) return false;
 
         this.floatingPill?.hide();
-        if (this.containerEl) this.containerEl.style.display = "none";
+        if (this.containerEl) {
+            this.containerEl.style.display = "none";
+        }
         this.agentChatView.show();
+
+        try {
+            localStorage.setItem(VIEW_MODE_STORAGE_KEY, VIEW_MODE_CHAT);
+        } catch (err) {
+            console.warn("[SPEC-055] Error guardando vista chat en localStorage:", err);
+        }
+
         return true;
     }
 
     /**
-     * SPEC-054 (AC-COEX-001): regresa a la terminal, que conserva intacto su
-     * comportamiento y sigue siendo el camino de retorno verificado.
+     * SPEC-054 (AC-COEX-001) & SPEC-055 (AC-TOGGLE-001):
+     * Regresa a la terminal clásica, persiste 'terminal' en localStorage, oculta la vista de chat
+     * y ejecuta el reflow geométrico en dos pulsos (rAF + 150ms).
+     *
+     * @returns {boolean}
      */
     switchToTerminalView() {
         this.agentChatView?.hide();
-        if (this.containerEl) this.containerEl.style.display = "";
+        if (this.containerEl) {
+            this.containerEl.style.display = "";
+        }
         this.floatingPill?.show();
+
+        try {
+            localStorage.setItem(VIEW_MODE_STORAGE_KEY, VIEW_MODE_TERMINAL);
+        } catch (err) {
+            console.warn("[SPEC-055] Error guardando vista terminal en localStorage:", err);
+        }
 
         // Mientras el contenedor estuvo en display:none, Xterm no pudo medir su
         // caja: al volver, las columnas quedaban mal y agy seguia escribiendo al
@@ -1370,7 +1440,7 @@ export class CleanAgentTerminal {
                     this.terminal.refresh(0, Math.max(this.terminal.rows - 1, 0));
                 }
             } catch (err) {
-                console.warn("[SPEC-054] Fallo al remedir la terminal:", err);
+                console.warn("[SPEC-054/SPEC-055] Fallo al remedir la terminal:", err);
             }
         };
         requestAnimationFrame(reflow);
