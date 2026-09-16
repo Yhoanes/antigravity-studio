@@ -73,6 +73,8 @@ export class OnboardingWizard {
         this.containerEl = null;
         this.currentStep = "step-auth-method";
         this.authUrl = null;
+        this.isWaitingForBrowser = false;
+        this.isAwaitingBrowserLaunch = false;
         this.selectedThemeIndex = 4; // SPEC-045: Dark por defecto (Índice real 4 en agy)
     }
 
@@ -203,12 +205,22 @@ export class OnboardingWizard {
     }
 
     _bindEvents() {
-        // Paso 1: Pure Google First-Party (Despacho Único)
+        // Paso 1: Pure Google First-Party (SPEC-047: Lanzamiento instantáneo de Chrome en 0ms)
         const btnGoogle = this.containerEl.querySelector("#btn-auth-google, #btn-wizard-google");
         btnGoogle?.addEventListener("click", () => {
             if (btnGoogle.disabled) return;
-            btnGoogle.disabled = true;
-            this.onSelectAuthMethod();
+            if (this.authUrl) {
+                btnGoogle.disabled = true;
+                this.onOpenBrowser(this.authUrl);
+                this.goToStep("step-auth-code", this.authUrl);
+            } else {
+                this.isWaitingForBrowser = true;
+                this.isAwaitingBrowserLaunch = true;
+                btnGoogle.disabled = true;
+                btnGoogle.classList.add("loading");
+                btnGoogle.innerHTML = `<span class="auth-spinner-dot"></span> <span>Preparando enlace seguro...</span>`;
+                this.onSelectAuthMethod();
+            }
         });
 
         // Paso 2: Reapertura manual de navegador
@@ -293,6 +305,12 @@ export class OnboardingWizard {
 
     setAuthUrl(url) {
         this.authUrl = url;
+        if (this.isWaitingForBrowser || this.isAwaitingBrowserLaunch) {
+            this.isWaitingForBrowser = false;
+            this.isAwaitingBrowserLaunch = false;
+            this.onOpenBrowser(url);
+            this.goToStep("step-auth-code", url);
+        }
     }
 
     setAuthenticating(msg = "Código detectado con éxito. Conectando cuenta...") {

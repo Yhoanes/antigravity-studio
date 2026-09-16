@@ -472,6 +472,20 @@ html, body {
                     transform: scale(0.98);
                     background: #f1f5f9;
                 }
+
+                &.loading {
+                    background: #f1f5f9 !important;
+                    color: #64748b !important;
+                    cursor: wait;
+
+                    .auth-spinner-dot {
+                        width: 18px;
+                        height: 18px;
+                        border-width: 2px;
+                        border-top-color: #4285F4;
+                        margin-right: 8px;
+                    }
+                }
             }
 
             .btn-secondary-auth {

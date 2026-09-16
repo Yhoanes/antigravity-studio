@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.4.3 y android-versionCode 20403 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.4.3 y versionCode 20403 en configuración... "
-grep -q 'version="2.4.3"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.3"; exit 1; }
-grep -q 'android-versionCode="20403"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20403"; exit 1; }
-grep -q '"version": "2.4.3"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.3"; exit 1; }
+# 16. Verificar versionado v2.4.4 y android-versionCode 20404 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.4.4 y versionCode 20404 en configuración... "
+grep -q 'version="2.4.4"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.4"; exit 1; }
+grep -q 'android-versionCode="20404"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20404"; exit 1; }
+grep -q '"version": "2.4.4"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.4"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -331,7 +331,50 @@ grep -A 5 "onSelectTheme" "$CLEAN_TERM_JS" | grep -q "seq" || {
 }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-046 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 47. Verificar SPEC-047 (Criterios LAUNCH-01 a LAUNCH-06)
+SPEC_FILE_047="specs/47-auto-advance-google-auth-and-instant-browser-launch.md"
+
+echo -n "47. Verificando documento SPEC-047... "
+[ -f "$SPEC_FILE_047" ] || { echo "FALLO: No existe $SPEC_FILE_047"; exit 1; }
+echo "[OK]"
+
+echo -n "48. Verificando auto-despacho incondicional de Enter para Opción 1 (LAUNCH-01)... "
+grep -A 10 "Select login method" "$CLEAN_TERM_JS" | grep -q "_hasAutoSelectedLogin" || {
+    echo "FALLO: Auto-despacho incondicional ausente en _handleAutoResponderStream"; exit 1;
+}
+echo "[OK]"
+
+echo -n "49. Verificando precarga de URL y apertura instantánea de navegador (LAUNCH-02 y LAUNCH-03)... "
+grep -A 15 "btn-auth-google" "$WIZARD_JS" | grep -q "this.authUrl" || {
+    echo "FALLO: Apertura instantánea con this.authUrl ausente en OnboardingWizard.js"; exit 1;
+}
+grep -A 10 "setAuthUrl" "$WIZARD_JS" | grep -q "onOpenBrowser" || {
+    echo "FALLO: Lanzamiento reactivo ausente en setAuthUrl de OnboardingWizard.js"; exit 1;
+}
+echo "[OK]"
+
+echo -n "50. Verificando estado de carga del botón en clean-terminal.scss (LAUNCH-03)... "
+grep -A 25 "btn-primary-auth" "$SCSS_FILE" | grep -q "loading" || {
+    echo "FALLO: Selector .loading ausente en .btn-primary-auth de clean-terminal.scss"; exit 1;
+}
+echo "[OK]"
+
+echo -n "51. Verificando ausencia total de emojis en UI (LAUNCH-04)... "
+grep -q "⏳" "$WIZARD_JS" && { echo "FALLO: Emoji reloj de arena detectado en OnboardingWizard.js"; exit 1; }
+grep -q "🚀" "$WIZARD_JS" && { echo "FALLO: Emoji cohete detectado en OnboardingWizard.js"; exit 1; }
+echo "[OK]"
+
+echo -n "52. Verificando secuencia espaciada y fadeOut(350) (LAUNCH-05)... "
+grep -A 25 "onAcceptTerms" "$CLEAN_TERM_JS" | grep -q "setTimeout" || {
+    echo "FALLO: Retardo espaciado ausente en onAcceptTerms"; exit 1;
+}
+grep -A 10 "btn-start-coding" "$WIZARD_JS" | grep -q "fadeOut(350)" || {
+    echo "FALLO: fadeOut(350) ausente en botón de términos"; exit 1;
+}
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-047 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+
 
 
 

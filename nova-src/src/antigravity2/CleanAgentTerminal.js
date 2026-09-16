@@ -468,10 +468,15 @@ export class CleanAgentTerminal {
                     this.websocket.send(data);
                 }
             },
-            onSelectAuthMethod: (method) => {
-                if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                    const seq = method === "token" ? "\x1b[B\r" : "\r";
-                    this.websocket.send(seq);
+            onSelectAuthMethod: () => {
+                if (this.activeOAuthUrl) {
+                    this._hasAutoOpenedBrowser = true;
+                    this.openInBrowser(this.activeOAuthUrl);
+                    if (this.onboardingWizard) {
+                        this.onboardingWizard.goToStep("step-auth-code", this.activeOAuthUrl);
+                    }
+                } else if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                    this.websocket.send("\r");
                 }
             },
             onOpenBrowser: (url) => {
@@ -551,18 +556,19 @@ export class CleanAgentTerminal {
         if (!this.websocket || this.websocket.readyState !== WebSocket.OPEN) return;
         if (!text || typeof text !== "string") return;
 
-        // SPEC-043: Sincronización reactiva con OnboardingWizard (Paso 1: Método de Login)
+        // SPEC-047: Auto-despacho incondicional de Google OAuth (Opción 1) y pre-cálculo de URL en <= 5ms
         if (text.includes("Select login method:") || text.includes("> 1. Google OAuth") || text.includes("1. Google OAuth") || /Select login method:/i.test(text)) {
-            if (this.onboardingWizard) {
-                this.onboardingWizard.goToStep("step-auth-method");
-            } else if (!this._hasAutoSelectedLogin) {
-                console.log("[AUTO-RESPONDER] 'Select login method' detectado. Enviando Enter (Opción 1)...");
+            if (!this._hasAutoSelectedLogin) {
+                console.log("[AUTO-RESPONDER] 'Select login method' detectado. Enviando Enter inmediato a opción 1...");
                 this._hasAutoSelectedLogin = true;
                 setTimeout(() => {
                     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
                         this.websocket.send("\r");
                     }
                 }, 50);
+            }
+            if (this.onboardingWizard && this.onboardingWizard.currentStep !== "step-auth-code") {
+                this.onboardingWizard.goToStep("step-auth-method");
             }
         }
 
@@ -683,14 +689,9 @@ export class CleanAgentTerminal {
                     return;
                 }
 
-                // SPEC-043: Sincronizar OnboardingWizard en Paso 2 y auto-abrir navegador
+                // SPEC-047: Precargar URL en OnboardingWizard y registrar en memoria
                 if (this.onboardingWizard) {
                     this.onboardingWizard.setAuthUrl(candidateUrl);
-                    this.onboardingWizard.goToStep("step-auth-code", candidateUrl);
-                    if (!this._hasAutoOpenedBrowser) {
-                        this._hasAutoOpenedBrowser = true;
-                        this.openInBrowser(candidateUrl);
-                    }
                     return;
                 }
 
