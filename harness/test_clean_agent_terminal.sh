@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.4.4 y android-versionCode 20404 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.4.4 y versionCode 20404 en configuración... "
-grep -q 'version="2.4.4"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.4"; exit 1; }
-grep -q 'android-versionCode="20404"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20404"; exit 1; }
-grep -q '"version": "2.4.4"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.4"; exit 1; }
+# 16. Verificar versionado v2.4.5 y android-versionCode 20405 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.4.5 y versionCode 20405 en configuración... "
+grep -q 'version="2.4.5"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.5"; exit 1; }
+grep -q 'android-versionCode="20405"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20405"; exit 1; }
+grep -q '"version": "2.4.5"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.5"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -373,7 +373,45 @@ grep -A 10 "btn-start-coding" "$WIZARD_JS" | grep -q "fadeOut(350)" || {
 }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-047 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 53. Verificar SPEC-048 (Criterios BAR-01 a BAR-06)
+SPEC_FILE_048="specs/48-top-app-bar-and-material3-account-menu.md"
+ACCOUNT_MODAL_JS="nova-src/src/antigravity2/AccountMenuModal.js"
+
+echo -n "53. Verificando documento SPEC-048... "
+[ -f "$SPEC_FILE_048" ] || { echo "FALLO: No existe $SPEC_FILE_048"; exit 1; }
+echo "[OK]"
+
+echo -n "54. Verificando .clean-agent-top-bar de 48px en SCSS y CleanAgentTerminal.js (BAR-01)... "
+grep -q "clean-agent-top-bar" "$SCSS_FILE" || { echo "FALLO: clean-agent-top-bar ausente en SCSS"; exit 1; }
+grep -q "height: 48px" "$SCSS_FILE" || { echo "FALLO: Altura 48px ausente en SCSS"; exit 1; }
+grep -q "clean-agent-top-bar" "$CLEAN_TERM_JS" || { echo "FALLO: clean-agent-top-bar ausente en CleanAgentTerminal.js"; exit 1; }
+echo "[OK]"
+
+echo -n "55. Verificando desplazamiento anti-colisión calc(100vh - 48px) en viewport (BAR-02)... "
+grep -q "calc(100vh - 48px)" "$SCSS_FILE" || { echo "FALLO: Ajuste anti-colisión ausente en SCSS"; exit 1; }
+grep -q "has-top-bar" "$CLEAN_TERM_JS" || { echo "FALLO: Clase has-top-bar ausente en CleanAgentTerminal.js"; exit 1; }
+echo "[OK]"
+
+echo -n "56. Verificando erradicación total de window.confirm (BAR-04)... "
+grep -q "window\.confirm" "$CLEAN_TERM_JS" && {
+    echo "FALLO: window.confirm aún presente en CleanAgentTerminal.js"; exit 1;
+}
+echo "[OK]"
+
+echo -n "57. Verificando componente AccountMenuModal.js y su integración (BAR-04 y BAR-05)... "
+[ -f "$ACCOUNT_MODAL_JS" ] || { echo "FALLO: No existe AccountMenuModal.js"; exit 1; }
+grep -q "AccountMenuModal" "$CLEAN_TERM_JS" || { echo "FALLO: AccountMenuModal no referenciado en CleanAgentTerminal.js"; exit 1; }
+grep -q "account-menu-overlay" "$ACCOUNT_MODAL_JS" || { echo "FALLO: account-menu-overlay ausente en AccountMenuModal.js"; exit 1; }
+grep -q "account-menu-overlay" "$SCSS_FILE" || { echo "FALLO: account-menu-overlay ausente en SCSS"; exit 1; }
+echo "[OK]"
+
+echo -n "58. Verificando ausencia de emojis en AccountMenuModal.js... "
+grep -q "⏳" "$ACCOUNT_MODAL_JS" && { echo "FALLO: Emoji reloj de arena detectado en AccountMenuModal.js"; exit 1; }
+grep -q "🚀" "$ACCOUNT_MODAL_JS" && { echo "FALLO: Emoji cohete detectado en AccountMenuModal.js"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-048 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+
 
 
 

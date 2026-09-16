@@ -12,7 +12,8 @@ import { WebglAddon } from "@xterm/addon-webgl";
 import TerminalTouchNavigation from "./TerminalTouchNavigation";
 import { ProvisioningLoader } from "./ProvisioningLoader.js";
 import { GoogleAuthCard } from "./GoogleAuthCard.js";
-import { OnboardingWizard } from "./OnboardingWizard.js";
+import { OnboardingWizard, THEME_PRESETS } from "./OnboardingWizard.js";
+import { AccountMenuModal } from "./AccountMenuModal.js";
 import "@xterm/xterm/css/xterm.css";
 import "./clean-terminal.scss";
 
@@ -75,6 +76,7 @@ export class CleanAgentTerminal {
         this._hasAutoConfirmedTrust = false;
         this._hasAutoConfirmedTerms = false;
         this._hasInjectedOAuthCode = false;
+        this.currentThemeId = "dark";
 
         this._setupClipboardAutoInjection();
     }
@@ -83,9 +85,26 @@ export class CleanAgentTerminal {
         this.containerEl = document.createElement("div");
         this.containerEl.className = "clean-agent-container";
 
-        // Viewport de Terminal a Pantalla Completa (SPEC-030: Zero-Decoration Architecture)
+        // SPEC-048: Top App Bar Dedicada de 48px
+        this.topBarEl = document.createElement("header");
+        this.topBarEl.className = "clean-agent-top-bar";
+        this.topBarEl.innerHTML = `
+            <div class="top-bar-left">
+                <svg class="top-bar-logo" viewBox="0 0 48 48" width="22" height="22">
+                    <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+                    <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+                    <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+                    <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+                </svg>
+                <span class="top-bar-title">Antigravity</span>
+            </div>
+            <div class="top-bar-right" id="top-bar-account-container"></div>
+        `;
+        this.containerEl.appendChild(this.topBarEl);
+
+        // Viewport de terminal desplazado por debajo de la barra (SPEC-048: Anti-colisión)
         this.viewportEl = document.createElement("main");
-        this.viewportEl.className = "clean-agent-viewport fullscreen";
+        this.viewportEl.className = "clean-agent-viewport has-top-bar";
         this.viewportEl.id = "terminal-viewport";
         this.containerEl.appendChild(this.viewportEl);
 
@@ -773,30 +792,67 @@ export class CleanAgentTerminal {
     }
 
     /**
-     * SPEC-041: Account Badge en la barra superior (shadrick1212@gmail.com • Google AI Ultra)
+     * SPEC-048: Account Badge en la barra superior (shadrick1212@gmail.com • Google AI Ultra)
      */
     renderAccountBadge(userEmail = "shadrick1212@gmail.com", tier = "Google AI Ultra") {
+        const container = this.containerEl?.querySelector("#top-bar-account-container") || this.containerEl || document.body;
+
         if (this.accountBadgeEl) {
-            const pill = this.accountBadgeEl.querySelector(".account-pill");
+            const pill = this.accountBadgeEl.querySelector(".account-pill-text, .account-pill");
             if (pill) pill.textContent = `${userEmail} • ${tier}`;
             return;
         }
-        this.accountBadgeEl = document.createElement("div");
-        this.accountBadgeEl.className = "clean-agent-account-badge";
-        this.accountBadgeEl.id = "clean-agent-account-badge";
+        this.accountBadgeEl = document.createElement("button");
+        this.accountBadgeEl.className = "clean-agent-account-pill clean-agent-account-badge";
+        this.accountBadgeEl.id = "clean-agent-account-pill";
         this.accountBadgeEl.innerHTML = `
             <span class="badge-dot"></span>
-            <span class="account-pill">${userEmail} • ${tier}</span>
+            <span class="account-pill-text account-pill">${userEmail} • ${tier}</span>
         `;
         this.accountBadgeEl.addEventListener("click", () => this.handleAccountMenu());
-        (this.containerEl || document.body).appendChild(this.accountBadgeEl);
+        container.appendChild(this.accountBadgeEl);
     }
 
+    /**
+     * SPEC-048: Menú de Cuenta Material 3 (Erradicación total de confirm nativo)
+     */
     handleAccountMenu() {
-        const user = this.authenticatedUser || "shadrick1212@gmail.com";
-        const doLogout = window.confirm(`Sesión de Google Antigravity activa:\n${user}\n\n¿Deseas cerrar sesión?`);
-        if (doLogout) {
-            this.logout();
+        const modal = new AccountMenuModal({
+            userEmail: this.authenticatedUser || "shadrick1212@gmail.com",
+            userTier: "Google AI Ultra",
+            modelName: "Gemini 3.8 Flash (High)",
+            workspacePath: "/home/studio/workspace",
+            currentThemeId: this.currentThemeId || "dark",
+            onSelectTheme: (theme) => this.applyTheme(theme),
+            onRestartSession: () => this.restartSession(),
+            onLogout: () => this.logout()
+        });
+        modal.mount(this.containerEl || document.body);
+    }
+
+    /**
+     * SPEC-048: Conmutación de tema en caliente
+     */
+    applyTheme(theme) {
+        if (!theme) return;
+        const themePreset = typeof theme === "string" ? THEME_PRESETS.find(t => t.id === theme) : theme;
+        if (!themePreset) return;
+
+        this.currentThemeId = themePreset.id;
+        if (this.terminal && themePreset.colors) {
+            this.terminal.options.theme = {
+                background: themePreset.colors.bg,
+                foreground: themePreset.colors.fg,
+                cursor: themePreset.colors.accent,
+                selectionBackground: "rgba(96, 165, 250, 0.3)",
+                scrollbarSliderBackground: "transparent",
+                scrollbarSliderHoverBackground: "transparent",
+                scrollbarSliderActiveBackground: "transparent"
+            };
+        }
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            const seq = "\x1b[B".repeat(typeof themePreset.agyIndex === "number" ? themePreset.agyIndex : 4) + "\r";
+            this.websocket.send(seq);
         }
     }
 

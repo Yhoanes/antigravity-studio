@@ -65,6 +65,16 @@ html, body {
         background-color: #0b0f19;
         box-sizing: border-box;
 
+        &.has-top-bar {
+            position: fixed;
+            top: 48px;
+            left: 0;
+            width: 100vw;
+            width: 100%;
+            height: calc(100vh - 48px);
+            height: calc(100dvh - 48px);
+        }
+
         .xterm {
             width: 100%;
             height: 100%;
@@ -347,29 +357,89 @@ html, body {
     }
 }
 
-// Badge de cuenta autenticada en barra superior
-.clean-agent-account-badge {
+// SPEC-048: Top App Bar Dedicada de 48px
+.clean-agent-top-bar {
     position: fixed;
-    top: 12px;
-    left: 16px;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    width: 100%;
+    height: 48px;
+    min-height: 48px;
+    max-height: 48px;
+    background: #0b0f19;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 16px;
+    box-sizing: border-box;
     z-index: 1000;
+    user-select: none;
+
+    .top-bar-left {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+
+        .top-bar-logo {
+            width: 22px;
+            height: 22px;
+            flex-shrink: 0;
+        }
+
+        .top-bar-title {
+            color: #f8fafc;
+            font-size: 14px;
+            font-weight: 600;
+            letter-spacing: -0.01em;
+        }
+    }
+
+    .top-bar-right {
+        display: flex;
+        align-items: center;
+    }
+}
+
+// SPEC-048: Desplazamiento anti-colisión para Xterm.js
+.clean-agent-viewport.has-top-bar {
+    position: fixed;
+    top: 48px;
+    left: 0;
+    width: 100vw;
+    width: 100%;
+    height: calc(100vh - 48px);
+    height: calc(100dvh - 48px);
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    overflow: hidden;
+    background: #0b0f19;
+}
+
+// Píldora de cuenta en barra superior
+.clean-agent-account-pill,
+.clean-agent-account-badge {
+    position: relative;
+    top: auto;
+    left: auto;
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 6px 12px;
-    background: rgba(15, 23, 42, 0.75);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 20px;
-    backdrop-filter: blur(8px);
-    color: #cbd5e1;
+    padding: 5px 12px;
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 16px;
+    color: #e2e8f0;
     font-size: 12px;
     font-weight: 500;
     cursor: pointer;
-    user-select: none;
-    transition: background 0.2s ease;
+    transition: all 0.15s ease;
 
     &:active {
-        background: rgba(30, 41, 59, 0.9);
+        transform: scale(0.97);
+        background: rgba(255, 255, 255, 0.12);
     }
 
     .badge-dot {
@@ -377,6 +447,257 @@ html, body {
         height: 8px;
         border-radius: 50%;
         background: #34a853;
+        box-shadow: 0 0 6px rgba(52, 168, 83, 0.6);
+        flex-shrink: 0;
+    }
+}
+
+// SPEC-048: AccountMenuModal Material 3 Styles
+.account-menu-overlay {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 2000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: opacity 0.2s ease;
+
+    &.fade-out {
+        opacity: 0;
+        pointer-events: none;
+    }
+
+    .account-menu-backdrop {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.65);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+    }
+
+    .account-menu-card {
+        position: relative;
+        z-index: 2001;
+        width: 90%;
+        max-width: 400px;
+        background: #0f172a;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 20px 48px rgba(0, 0, 0, 0.8);
+        box-sizing: border-box;
+
+        .account-card-header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 20px;
+
+            .account-avatar {
+                width: 44px;
+                height: 44px;
+                border-radius: 50%;
+                background: linear-gradient(135deg, #3b82f6, #1d4ed8);
+                color: #ffffff;
+                font-size: 18px;
+                font-weight: 700;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                flex-shrink: 0;
+            }
+
+            .account-user-meta {
+                display: flex;
+                flex-direction: column;
+                gap: 4px;
+                flex: 1;
+                overflow: hidden;
+
+                .account-email {
+                    color: #f8fafc;
+                    font-size: 14px;
+                    font-weight: 600;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis;
+                }
+
+                .account-tier-chip {
+                    display: inline-block;
+                    align-self: flex-start;
+                    font-size: 11px;
+                    padding: 2px 8px;
+                    border-radius: 10px;
+                    background: rgba(59, 130, 246, 0.15);
+                    color: #60a5fa;
+                    border: 1px solid rgba(59, 130, 246, 0.3);
+                }
+            }
+
+            .account-btn-close {
+                background: transparent;
+                border: none;
+                color: #94a3b8;
+                cursor: pointer;
+                padding: 4px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                border-radius: 50%;
+                transition: background 0.15s ease;
+
+                &:active {
+                    background: rgba(255, 255, 255, 0.1);
+                }
+            }
+        }
+
+        .account-card-body {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 12px 0;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            margin-bottom: 20px;
+
+            .account-info-row {
+                display: flex;
+                justify-content: space-between;
+                font-size: 12px;
+
+                .info-label { color: #94a3b8; }
+                .info-value { color: #e2e8f0; font-weight: 500; }
+                .font-mono { font-family: monospace; }
+            }
+        }
+
+        .account-card-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+
+            .account-action-btn {
+                display: flex;
+                align-items: center;
+                gap: 10px;
+                width: 100%;
+                height: 42px;
+                padding: 0 14px;
+                background: rgba(255, 255, 255, 0.05);
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-radius: 12px;
+                color: #e2e8f0;
+                font-size: 13px;
+                font-weight: 500;
+                cursor: pointer;
+                transition: background 0.15s ease;
+                box-sizing: border-box;
+
+                .btn-action-icon {
+                    flex-shrink: 0;
+                    color: #94a3b8;
+                }
+
+                &:active {
+                    background: rgba(255, 255, 255, 0.1);
+                }
+
+                &.btn-danger {
+                    color: #f87171;
+                    border-color: rgba(239, 68, 68, 0.2);
+                    background: rgba(239, 68, 68, 0.08);
+
+                    .btn-action-icon {
+                        color: #f87171;
+                    }
+
+                    &:active {
+                        background: rgba(239, 68, 68, 0.15);
+                    }
+                }
+            }
+
+            &.account-theme-grid {
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+
+                .theme-grid-header {
+                    display: flex;
+                    align-items: center;
+                    justify-content: space-between;
+                    margin-bottom: 4px;
+
+                    .btn-theme-back {
+                        display: flex;
+                        align-items: center;
+                        gap: 6px;
+                        background: transparent;
+                        border: none;
+                        color: #8ab4f8;
+                        font-size: 12px;
+                        font-weight: 600;
+                        cursor: pointer;
+                        padding: 0;
+                    }
+
+                    .theme-grid-title {
+                        font-size: 12px;
+                        color: #94a3b8;
+                        font-weight: 500;
+                    }
+                }
+
+                .theme-options-list {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 6px;
+
+                    .theme-option-item {
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                        padding: 8px 12px;
+                        background: rgba(255, 255, 255, 0.04);
+                        border: 1px solid rgba(255, 255, 255, 0.06);
+                        border-radius: 10px;
+                        cursor: pointer;
+                        color: #cbd5e1;
+                        font-size: 12px;
+                        transition: all 0.15s ease;
+
+                        &:active,
+                        &.active {
+                            background: rgba(56, 189, 248, 0.12);
+                            border-color: #38bdf8;
+                            color: #ffffff;
+                        }
+
+                        .theme-item-swatches {
+                            display: flex;
+                            gap: 4px;
+                            padding: 2px;
+                            border-radius: 6px;
+                            border: 1px solid rgba(255, 255, 255, 0.1);
+
+                            .item-swatch {
+                                width: 10px;
+                                height: 10px;
+                                border-radius: 50%;
+                            }
+                        }
+
+                        .theme-item-label {
+                            font-weight: 500;
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
