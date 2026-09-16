@@ -23,9 +23,13 @@ const OAUTH_REGEX = /https:\/\/accounts\.google\.com\/o\/oauth2\/[^\s"'>\x1b\x00
 
 // SPEC-051: Catálogo de modelos despachables al CLI agy (MODEL-01)
 const AGY_MODELS = [
-    { id: "flash", label: "Gemini 3.8 Flash", command: "/model flash\r" },
-    { id: "pro", label: "Gemini 3.8 Pro", command: "/model pro\r" },
-    { id: "flash-lite", label: "Gemini 3.8 Flash Lite", command: "/model flash-lite\r" },
+    { id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash", shortLabel: "Flash" },
+    { id: "gemini-3.8-flash-medium", label: "Gemini 3.8 Flash (Med)", shortLabel: "Flash Med" },
+    { id: "gemini-3.1-pro-high", label: "Gemini 3.1 Pro", shortLabel: "Pro" },
+    { id: "gemini-3.1-pro-low", label: "Gemini 3.1 Pro (Low)", shortLabel: "Pro Low" },
+    { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", shortLabel: "Sonnet" },
+    { id: "claude-opus-4-6-thinking", label: "Claude Opus 4.6", shortLabel: "Opus" },
+    { id: "gpt-oss-120b-medium", label: "GPT-OSS 120B", shortLabel: "GPT-OSS" },
 ];
 
 // SPEC-051: Detección del modelo activo en el flujo PTY (MODEL-05).
@@ -152,7 +156,7 @@ export class CleanAgentTerminal {
             terminal: this.terminal,
             swipeThreshold: 28,
             deadzone: 10,
-            longPressMs: 400,
+            longPressMs: 800,
             friction: 0.92,
             minVelocity: 0.5,
             onArrowUp: () => {
@@ -702,10 +706,10 @@ export class CleanAgentTerminal {
     _selectModel(model) {
         if (!model) return;
         if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            this.websocket.send(model.command);
+            this.websocket.send(`/model ${model.id}\r`);
         }
-        this._currentModel = model.label;
-        this._updateModelLabel(model.label);
+        this._currentModel = model.id;
+        this._updateModelLabel(model.shortLabel || model.label);
         this._hideModelDropdown();
     }
 
@@ -713,8 +717,11 @@ export class CleanAgentTerminal {
      * SPEC-051: Determina si un modelo del catálogo corresponde al modelo activo detectado.
      */
     _isModelActive(model) {
-        if (!this._currentModel) return model.id === "flash";
-        return this._shortModelName(this._currentModel).toLowerCase() === this._shortModelName(model.label).toLowerCase();
+        if (!this._currentModel) return model.id === "gemini-3.8-flash-high";
+        return this._currentModel === model.id
+            || this._currentModel === model.label
+            || this._currentModel === model.shortLabel
+            || this._shortModelName(this._currentModel).toLowerCase() === this._shortModelName(model.label).toLowerCase();
     }
 
     /**
@@ -734,7 +741,14 @@ export class CleanAgentTerminal {
         const label = this.topBarEl?.querySelector("#model-selector-label")
             || document.getElementById("model-selector-label");
         if (!label) return;
-        label.textContent = this._shortModelName(fullName) || "Flash";
+        const matched = AGY_MODELS.find(m =>
+            m.label === fullName ||
+            m.id === fullName ||
+            m.shortLabel === fullName ||
+            m.label.toLowerCase() === String(fullName).toLowerCase() ||
+            m.id.toLowerCase() === String(fullName).toLowerCase()
+        );
+        label.textContent = matched ? matched.shortLabel : (this._shortModelName(fullName) || "Flash");
     }
 
     /**
@@ -872,6 +886,20 @@ export class CleanAgentTerminal {
             }
         }
 
+        // SPEC-051 CLEAR-01: Auto-limpieza del banner de arranque al detectar primer prompt interactivo
+        if (!this._hasAutoCleared) {
+            // Limpiar secuencias ANSI para detectar el prompt real
+            const cleanText = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "");
+            if (/^>\s/m.test(cleanText) || /\n>\s/m.test(cleanText)) {
+                this._hasAutoCleared = true;
+                setTimeout(() => {
+                    if (this.terminal) {
+                        this.terminal.clear();
+                    }
+                }, 100);
+            }
+        }
+
         // SPEC-049: SEAM-02 / SEAM-03 Detección reactiva de bienvenida y revelado sin destello
         if (this._termsAccepted && (
             text.includes("What would you like to do") ||
@@ -891,21 +919,6 @@ export class CleanAgentTerminal {
         if (modelMatch) {
             this._currentModel = modelMatch[0];
             this._updateModelLabel(this._currentModel);
-        }
-
-        // SPEC-051: Auto-limpieza one-shot del banner de arranque al primer prompt listo (CLEAR-01).
-        // Se exige onboarding superado para no consumir el disparo con los menús previos al login.
-        if (!this._hasAutoCleared
-            && (this._termsAccepted || this.authenticatedUser)
-            && AGY_PROMPT_READY_REGEX.test(text)) {
-            this._hasAutoCleared = true;
-            console.log("[AUTO-CLEAR] Primer prompt de agy detectado. Purgando banner de arranque...");
-            setTimeout(() => {
-                if (this.terminal) {
-                    // Xterm.clear() descarta el scrollback y preserva la línea de prompt vigente
-                    this.terminal.clear();
-                }
-            }, 100);
         }
     }
 
@@ -1029,7 +1042,7 @@ export class CleanAgentTerminal {
 
     /**
      * SPEC-030: AC-TOUCH-03 Pegado directo desde el portapapeles
-     * Invocado por gestos de pulsación prolongada (long-press 400ms) o doble toque.
+     * Invocado por gestos de pulsación prolongada (long-press 800ms).
      */
     async pasteFromClipboard() {
         let text = "";
@@ -1046,7 +1059,7 @@ export class CleanAgentTerminal {
         }
 
         if (text && text.trim() && this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            this.websocket.send(`${text.trim()}\r`);
+            this.websocket.send(text.trim());
         }
     }
 

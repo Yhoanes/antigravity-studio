@@ -133,11 +133,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.6.0 y android-versionCode 20600 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.6.0 y versionCode 20600 en configuración... "
-grep -q 'version="2.6.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.0"; exit 1; }
-grep -q 'android-versionCode="20600"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20600"; exit 1; }
-grep -q '"version": "2.6.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.0"; exit 1; }
+# 16. Verificar versionado v2.6.1 y android-versionCode 20601 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.6.1 y versionCode 20601 en configuración... "
+grep -q 'version="2.6.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.1"; exit 1; }
+grep -q 'android-versionCode="20601"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20601"; exit 1; }
+grep -q '"version": "2.6.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.1"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -481,10 +481,10 @@ grep -q "has-input-pill" "$SCSS_FILE" || { echo "FALLO: Regla .has-input-pill au
 grep -q "pill-send-btn" "$SCSS_FILE" || { echo "FALLO: Regla .pill-send-btn ausente en SCSS"; exit 1; }
 echo "[OK]"
 
-echo -n "68. Verificando versión 2.6.0 y versionCode 20600 en configuración (PILL-08)... "
-grep -q 'version="2.6.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.0"; exit 1; }
-grep -q 'android-versionCode="20600"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20600"; exit 1; }
-grep -q '"version": "2.6.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.0"; exit 1; }
+echo -n "68. Verificando versión 2.6.1 y versionCode 20601 en configuración (HOTFIX-3X)... "
+grep -q 'version="2.6.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.1"; exit 1; }
+grep -q 'android-versionCode="20601"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20601"; exit 1; }
+grep -q '"version": "2.6.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.1"; exit 1; }
 echo "[OK]"
 
 # ==============================================================================
@@ -494,11 +494,12 @@ echo -n "69. Verificando documento SPEC-051... "
 [ -f "$SPEC_FILE_051" ] || { echo "FALLO: No existe $SPEC_FILE_051"; exit 1; }
 echo "[OK]"
 
-echo -n "70. Verificando catálogo AGY_MODELS y comandos /model (MODEL-01)... "
+echo -n "70. Verificando catálogo AGY_MODELS con IDs reales y comandos /model (MODEL-01)... "
 grep -q "AGY_MODELS" "$CLEAN_TERM_JS" || { echo "FALLO: Catálogo AGY_MODELS ausente en CleanAgentTerminal.js"; exit 1; }
-grep -qF '"/model flash\r"' "$CLEAN_TERM_JS" || { echo "FALLO: Comando /model flash ausente"; exit 1; }
-grep -qF '"/model pro\r"' "$CLEAN_TERM_JS" || { echo "FALLO: Comando /model pro ausente"; exit 1; }
-grep -qF '"/model flash-lite\r"' "$CLEAN_TERM_JS" || { echo "FALLO: Comando /model flash-lite ausente"; exit 1; }
+grep -qF '"gemini-3.8-flash-high"' "$CLEAN_TERM_JS" || { echo "FALLO: Modelo gemini-3.8-flash-high ausente"; exit 1; }
+grep -qF '"gemini-3.1-pro-high"' "$CLEAN_TERM_JS" || { echo "FALLO: Modelo gemini-3.1-pro-high ausente"; exit 1; }
+grep -qF '"claude-sonnet-4-6"' "$CLEAN_TERM_JS" || { echo "FALLO: Modelo claude-sonnet-4-6 ausente"; exit 1; }
+grep -qF '"gpt-oss-120b-medium"' "$CLEAN_TERM_JS" || { echo "FALLO: Modelo gpt-oss-120b-medium ausente"; exit 1; }
 echo "[OK]"
 
 echo -n "71. Verificando chip selector en el markup de la Top App Bar (MODEL-02)... "
@@ -512,8 +513,8 @@ echo -n "72. Verificando ciclo de vida del menú de modelos y despacho PTY (MODE
 grep -q "_showModelDropdown" "$CLEAN_TERM_JS" || { echo "FALLO: Método _showModelDropdown ausente"; exit 1; }
 grep -q "_hideModelDropdown" "$CLEAN_TERM_JS" || { echo "FALLO: Método _hideModelDropdown ausente"; exit 1; }
 grep -q "model-selector-scrim" "$CLEAN_TERM_JS" || { echo "FALLO: Scrim de cierre táctil ausente"; exit 1; }
-grep -A 8 "_selectModel(model)" "$CLEAN_TERM_JS" | grep -q "websocket.send(model.command)" || {
-    echo "FALLO: Despacho de model.command al WebSocket ausente en _selectModel"; exit 1;
+grep -A 8 "_selectModel(model)" "$CLEAN_TERM_JS" | grep -q 'this.websocket.send(`/model ${model.id}\\r`)' || {
+    echo "FALLO: Despacho de /model al WebSocket ausente en _selectModel"; exit 1;
 }
 grep -A 12 "_showModelDropdown()" "$CLEAN_TERM_JS" | grep -q "floatingPill?.hide()" || {
     echo "FALLO: La píldora no cede el foco al abrir el menú de modelos"; exit 1;
@@ -533,12 +534,9 @@ grep -q "_hasAutoCleared = false" "$CLEAN_TERM_JS" || { echo "FALLO: Bandera _ha
 [ "$(grep -c '_hasAutoCleared = false' "$CLEAN_TERM_JS")" -ge 2 ] || {
     echo "FALLO: _hasAutoCleared no se rearma en restartSession (CLEAR-02)"; exit 1;
 }
-grep -q "AGY_PROMPT_READY_REGEX" "$CLEAN_TERM_JS" || { echo "FALLO: AGY_PROMPT_READY_REGEX ausente"; exit 1; }
-grep -A 10 "!this._hasAutoCleared" "$CLEAN_TERM_JS" | grep -q "this.terminal.clear()" || {
+grep -q "cleanText" "$CLEAN_TERM_JS" || { echo "FALLO: Limpieza ANSI cleanText ausente"; exit 1; }
+grep -A 15 "!this._hasAutoCleared" "$CLEAN_TERM_JS" | grep -q "this.terminal.clear()" || {
     echo "FALLO: Invocación de terminal.clear() ausente en el bloque de auto-limpieza"; exit 1;
-}
-grep -A 4 "!this._hasAutoCleared" "$CLEAN_TERM_JS" | grep -q "_termsAccepted || this.authenticatedUser" || {
-    echo "FALLO: Compuerta de onboarding ausente; el disparo one-shot se consumiría con los menús previos al login"; exit 1;
 }
 echo "[OK]"
 

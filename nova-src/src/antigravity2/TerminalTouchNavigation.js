@@ -30,7 +30,7 @@ export class TerminalTouchNavigation {
         this.options = {
             swipeThreshold: options.swipeThreshold || 28,
             deadzone: options.deadzone || 10,
-            longPressMs: options.longPressMs || 400,
+            longPressMs: options.longPressMs || 800,
             friction: options.friction || 0.92,
             minVelocity: options.minVelocity || 0.5,
             onArrowUp: options.onArrowUp || (() => {}),
@@ -180,17 +180,11 @@ export class TerminalTouchNavigation {
         this.scrollRemainder = 0;
         this.isLongPressTriggered = false;
 
-        // Doble Toque (<300ms) para Pegado Rápido
+        // Doble Toque descartado para evitar pegados accidentales
         const now = Date.now();
-        if (now - this.lastTapTime < 300) {
-            this.cancelLongPress();
-            this.options.onPaste();
-            this.lastTapTime = 0;
-            return;
-        }
         this.lastTapTime = now;
 
-        // Temporizador Long-Press (400ms)
+        // Temporizador Long-Press (800ms)
         this.longPressTimer = setTimeout(() => {
             this.isLongPressTriggered = true;
             if (navigator.vibrate) {

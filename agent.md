@@ -3053,6 +3053,27 @@ Se formaliza e implementa la arquitectura de interfaz de usuario mejorada bajo e
 - **Compromisos Operativos:**
   - `AGY_MODELS` se mantiene estático en esta versión; la introspección dinámica de modelos desde `agy` se diferirá a releases futuros.
 
+### 4.197 Registro de Decisión Arquitectónica (ADR-052): Hotfix v2.6.1 (Model IDs, Anti-Accidental Paste & Robust Auto-Clear)
+- **Fecha:** 2026-09-16
+- **Estado:** `APPROVED` / `IMPLEMENTED`
+- **Contexto:** En validación real en Xiaomi Pad 6, se identificaron 3 fricciones operativas críticas:
+  1. Los IDs de modelo en `AGY_MODELS` (`flash`, `pro`, `flash-lite`) eran alias no reconocidos directamente por el comando `/model` del CLI `agy`, provocando rechazo.
+  2. La función `pasteFromClipboard()` emitía automáticamente un retorno de carro (`\r`), despachando accidentalmente prompts incompletos, complementado por falsos positivos del doble toque táctil.
+  3. El auto-limpiador del banner ASCII dependía de evaluar secuencias de texto raw sin retirar códigos de escape ANSI y exigía flags que diferían el limpiado.
+- **Decisiones Quirúrgicas Aplicadas:**
+  1. **Catálogo Oficial de IDs de Modelos:** Sustitución de `AGY_MODELS` por identificadores canónicos aceptados por `agy` (`gemini-3.8-flash-high`, `gemini-3.8-flash-medium`, `gemini-3.1-pro-high`, `gemini-3.1-pro-low`, `claude-sonnet-4-6`, `claude-opus-4-6-thinking`, `gpt-oss-120b-medium`), despacho de `/model ${model.id}\r` y visualización del `shortLabel` en el Top Bar chip.
+  2. **Erradicación de Pegado Accidental:**
+     - Eliminación del `\r` automático en `pasteFromClipboard()` (despacha texto raw recortado).
+     - Elevación del umbral de pulsación prolongada `longPressMs` de 400ms a 800ms.
+     - Supresión total de la rama de doble toque para pegado rápido en `TerminalTouchNavigation.js`.
+  3. **Auto-Limpieza Resiliente de Banner con Purga ANSI:**
+     - Inserción de detector previo a SEAM-02 con saneamiento regex `cleanText = text.replace(/\x1b\[[0-9;]*[a-zA-Z]/g, "")`.
+     - Detección inmediata mediante `/^>\s/m.test(cleanText) || /\n>\s/m.test(cleanText)`.
+     - Disparo determinista de `terminal.clear()` y rearme de `_hasAutoCleared = false` en `restartSession()`.
+- **Empaquetado y Certificación Oficial v2.6.1:**
+  - Versión `2.6.1` (versionCode `20601`), targetSdkVersion 36.
+  - Binario: `GoogleAntigravity-v2.6.1-ARM64.apk` (36.83 MB / 38,616,509 bytes $\le 42.0\,\text{MB}$, SHA256 `f5ea589f8c3685a5270d72b91df32631138e540feefbb916e7a1609454786bee`).
+
 ---
 
 ## 5. Catálogo de Especificaciones SDD Registradas
