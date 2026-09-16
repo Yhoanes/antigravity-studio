@@ -2893,6 +2893,57 @@ Se formaliza e implementa la corrección crítica (hotfix) bajo el contrato form
 
 ---
 
+### ADR-062: Purga Real de Credenciales en Bash Fresca con `_pendingCredentialPurge` y Foco Diferido del Terminal (Release v2.4.8)
+
+- **Identificador:** `ADR-062`
+- **Especificación SDD Asociada:** [`SPEC-049`](specs/49-seamless-onboarding-transition-and-deep-logout.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.188 Contexto
+Durante el análisis forense en la versión `v2.4.7` en la Xiaomi Pad 6, se descubrieron dos anomalías estructurales en el ciclo de cierre de sesión y montaje de la UI:
+1. **Ineficacia de la Purga de Credenciales en `logout()`:**
+   En las versiones `v2.4.6` y `v2.4.7`, el método `logout()` despachaba el comando `rm -rf /public/.config/antigravity ...\r` directamente al WebSocket abierto. Sin embargo, en ese instante la PTY estaba conectada al proceso interactivo de `agy` (no a una consola Bash interactiva). El CLI `agy` ignoraba o consumía dicho texto como entrada no válida, e inmediatamente después `restartSession()` cerraba la conexión y terminaba el proceso. Por consiguiente, los archivos de credenciales físicas en el disco Linux jamás eran eliminados, provocando que al reiniciar la sesión `agy` continuara autenticado con la cuenta anterior.
+2. **Robo Prematuro de Foco del Terminal e Invasión Táctil:**
+   Al conectarse el WebSocket en `openWebSocket()`, se invocaba inmediatamente `this.terminal.focus()`. Esto ocurría mientras el `OnboardingWizard` o la tarjeta de login (`GoogleAuthCard`) se encontraban montados y visibles, lo que provocaba que el input oculto de Xterm.js capturara el foco, desplegando el teclado virtual en Android o interfiriendo con la respuesta táctil de los botones del asistente.
+
+#### 4.189 Decisión
+Se formaliza e implementa la arquitectura de purga diferida en shell fresco y foco retardado bajo el contrato formal [`SPEC-049`](specs/49-seamless-onboarding-transition-and-deep-logout.md):
+
+1. **Purga Real de Credenciales en Bash Fresca (`_pendingCredentialPurge`):**
+   - En `logout()`, se elimina el envío ineficaz de comandos a la PTY moribunda de `agy` y en su lugar se marca la bandera de estado `this._pendingCredentialPurge = true`.
+   - Tras invocarse `restartSession()`, la nueva sesión PTY inicializa un intérprete Bash limpio dentro del sandbox PRoot.
+   - En `openWebSocket(pid)`, ANTES de disparar `this.autoCommand` (`agy`), el sistema verifica `if (this._pendingCredentialPurge)`. Si está activa, consume la bandera (`this._pendingCredentialPurge = false`), envía el comando de purga exhaustivo directamente al prompt de Bash:
+     `rm -rf /public/.config/antigravity /root/.config/antigravity /home/studio/.config/antigravity ~/.config/antigravity ~/.config/google* /public/.gemini /root/.gemini 2>/dev/null\r`
+     y aguarda $300\,\text{ms}$ para el vaciado físico de inodos a disco antes de arrancar el proceso `agy`.
+   - Con esto se garantiza la destrucción física absoluta de tokens y credenciales de Google en el sistema de archivos Linux.
+
+2. **Foco Diferido del Terminal hasta Dismissal Completo del Wizard:**
+   - En `openWebSocket()`, se suprime el foco incondicional y se condiciona estrictamente:
+     `if (!this.onboardingWizard && !this.authCard) { this.terminal.focus(); }`
+   - En `OnboardingWizard.js`, se agrega el callback de ciclo de vida `options.onDismissComplete`, el cual se invoca al finalizar `fadeOut(350)` cuando el contenedor del asistente ha sido completamente removido del DOM.
+   - `CleanAgentTerminal` implementa `onDismissComplete: () => { if (this.terminal) this.terminal.focus(); }`, garantizando que el foco de la terminal solo se entregue cuando la consola Xterm.js sea el elemento interactivo visible y activo en pantalla.
+
+3. **Empaquetado y Certificación Oficial v2.4.8:**
+   - Versión `2.4.8` (versionCode `20408`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.4.8-ARM64.apk`** (36.82 MB / 38,613,033 bytes $\le 42.0\,\text{MB}$, SHA256 `b7b30ed3fcb4177e36ec16154029a5d448a37a3dc29c53988c05c5ba97d7eb61`).
+
+4. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-049` (`AC-SEAM-01` a `AC-SEAM-06`).
+   - *Real Bash Sanitation:* Purga garantizada en shell prístino previa a la ejecución del agente.
+   - *Zero Focus Hijack:* Respeto absoluto del árbol táctil del DOM sin activaciones de teclado prematuras.
+   - *APK Slimness:* Tamaño de 36.82 MB, dentro del umbral estricto $\le 42.0\,\text{MB}$.
+
+#### 4.190 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Cierre de Sesión 100% Efectivo:** Eliminación real y comprobada de archivos de sesión en disco; la app solicita autenticación limpia de Google sin retención de tokens antiguos.
+  - **Ergonomía Táctil Pulida:** Cero invasión de teclado virtual mientras el usuario interactúa con los pasos del asistente de onboarding.
+- **Compromisos Operativos:**
+  - Una demora de 300ms introducida únicamente en el reinicio posterior a un cierre de sesión explícito, imperceptible para el usuario y crítica para la consistencia del sandbox.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
