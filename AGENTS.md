@@ -10,6 +10,10 @@
   3. Ejecutar y supervisar los bucles de evaluación (**Harness Loops**).
   4. Mantener la coherencia del sistema y la memoria a largo plazo.
 
+### Protocolo Estricto de Compilación (Anti-Drift)
+- Queda terminantemente PROHIBIDO invocar `gradlew` en la raíz del repositorio para generar APKs de entrega.
+- Toda compilación de la aplicación de producción se ejecuta ÚNICA Y EXCLUSIVAMENTE mediante `scripts/build_release.ps1`, el cual asegura el pipeline atómico `config.js` -> `rspack` -> `cordova build`.
+
 ## 2. Metodología: Spec-Driven Development (SDD)
 - **Ninguna línea de código de producción se escribe sin una especificación previa aprobada.**
 - Las especificaciones se ubican en `specs/`:
