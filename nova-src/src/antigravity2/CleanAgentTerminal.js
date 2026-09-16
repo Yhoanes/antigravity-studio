@@ -76,6 +76,7 @@ export class CleanAgentTerminal {
         this._hasAutoConfirmedTrust = false;
         this._hasAutoConfirmedTerms = false;
         this._hasInjectedOAuthCode = false;
+        this._termsAccepted = false;
         this.currentThemeId = "dark";
 
         this._setupClipboardAutoInjection();
@@ -509,6 +510,7 @@ export class CleanAgentTerminal {
                 }
             },
             onAcceptTerms: async () => {
+                this._termsAccepted = true;
                 if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
                     // UX-04: Secuencia atómica espaciada: Tab -> 80ms -> Flecha Derecha -> 80ms -> Enter
                     this.websocket.send("\t");
@@ -645,13 +647,12 @@ export class CleanAgentTerminal {
         }
 
         // SPEC-049: SEAM-02 / SEAM-03 Detección reactiva de bienvenida y revelado sin destello
-        if (
+        if (this._termsAccepted && (
             text.includes("What would you like to do") ||
             text.includes("? What would") ||
-            text.includes("Antigravity") ||
             text.includes("agy>") ||
-            /(?:What would you like to do|Antigravity|agy>)/i.test(text)
-        ) {
+            /(?:What would you like to do|agy>)/i.test(text)
+        )) {
             if (this.onboardingWizard) {
                 console.log("[SEAMLESS] agy interactive prompt detectado. Disipando wizard con cero destello...");
                 this.onboardingWizard.fadeOut(350);
@@ -908,6 +909,7 @@ export class CleanAgentTerminal {
         this._hasAutoConfirmedTheme = false;
         this._hasAutoConfirmedTrust = false;
         this._hasAutoConfirmedTerms = false;
+        this._termsAccepted = false;
         this.activeOAuthUrl = null;
         this._lastOAuthUrl = null;
 
@@ -947,6 +949,7 @@ export class CleanAgentTerminal {
         this._hasAutoConfirmedTrust = false;
         this._hasAutoConfirmedTerms = false;
         this._hasInjectedOAuthCode = false;
+        this._termsAccepted = false;
         if (this.terminal) {
             this.terminal.clear();
         }

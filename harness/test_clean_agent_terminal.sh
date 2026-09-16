@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.4.6 y android-versionCode 20406 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.4.6 y versionCode 20406 en configuración... "
-grep -q 'version="2.4.6"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.6"; exit 1; }
-grep -q 'android-versionCode="20406"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20406"; exit 1; }
-grep -q '"version": "2.4.6"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.6"; exit 1; }
+# 16. Verificar versionado v2.4.7 y android-versionCode 20407 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.4.7 y versionCode 20407 en configuración... "
+grep -q 'version="2.4.7"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.7"; exit 1; }
+grep -q 'android-versionCode="20407"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20407"; exit 1; }
+grep -q '"version": "2.4.7"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.7"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -425,7 +425,10 @@ grep -A 10 "btn-start-coding" "$WIZARD_JS" | grep -q "fadeOut(350)" && {
 }
 echo "[OK]"
 
-echo -n "61. Verificando detección de ready prompt y safety timeout (1400ms) (SEAM-02)... "
+echo -n "61. Verificando detección de ready prompt con _termsAccepted y safety timeout (1400ms) (SEAM-02)... "
+grep -q "_termsAccepted" "$CLEAN_TERM_JS" || {
+    echo "FALLO: Guardia _termsAccepted ausente en CleanAgentTerminal.js"; exit 1;
+}
 grep -q "What would you like to do" "$CLEAN_TERM_JS" || {
     echo "FALLO: Prompt 'What would you like to do' no monitoreado en CleanAgentTerminal.js"; exit 1;
 }
@@ -446,10 +449,10 @@ grep -A 20 "async logout()" "$CLEAN_TERM_JS" | grep -q "clipboard.copy" || {
 }
 echo "[OK]"
 
-echo -n "64. Verificando versión 2.4.6 y versionCode 20406 en configuración (SEAM-06)... "
-grep -q 'version="2.4.6"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.6"; exit 1; }
-grep -q 'android-versionCode="20406"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20406"; exit 1; }
-grep -q '"version": "2.4.6"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.6"; exit 1; }
+echo -n "64. Verificando versión 2.4.7 y versionCode 20407 en configuración (SEAM-06)... "
+grep -q 'version="2.4.7"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.7"; exit 1; }
+grep -q 'android-versionCode="20407"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20407"; exit 1; }
+grep -q '"version": "2.4.7"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.7"; exit 1; }
 echo "[OK]"
 
 echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-049 HAN SIDO SUPERADAS EXITOSAMENTE ==="
