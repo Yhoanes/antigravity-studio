@@ -69,6 +69,7 @@ export class OnboardingWizard {
         });
         // SPEC-043 / SPEC-046: Secuencia de aceptación de términos
         this.onAcceptTerms = options.onAcceptTerms || (() => this.onAction("accept_terms", "\t\x1b[C\r"));
+        this.onDismissComplete = options.onDismissComplete || (() => {});
 
         this.containerEl = null;
         this.currentStep = "step-auth-method";
@@ -342,6 +343,7 @@ export class OnboardingWizard {
             this.containerEl.parentNode.removeChild(this.containerEl);
         }
         this.containerEl = null;
+        this.onDismissComplete();
     }
 }
 

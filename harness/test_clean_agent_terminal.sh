@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.4.7 y android-versionCode 20407 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.4.7 y versionCode 20407 en configuración... "
-grep -q 'version="2.4.7"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.7"; exit 1; }
-grep -q 'android-versionCode="20407"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20407"; exit 1; }
-grep -q '"version": "2.4.7"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.7"; exit 1; }
+# 16. Verificar versionado v2.4.8 y android-versionCode 20408 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.4.8 y versionCode 20408 en configuración... "
+grep -q 'version="2.4.8"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.8"; exit 1; }
+grep -q 'android-versionCode="20408"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20408"; exit 1; }
+grep -q '"version": "2.4.8"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.8"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -437,9 +437,12 @@ grep -A 25 "onAcceptTerms" "$CLEAN_TERM_JS" | grep -q "1400" || {
 }
 echo "[OK]"
 
-echo -n "62. Verificando purga de credenciales Linux en logout() (SEAM-04)... "
-grep -A 20 "async logout()" "$CLEAN_TERM_JS" | grep -q "rm -rf" || {
-    echo "FALLO: Comando de purga rm -rf ausente en logout()"; exit 1;
+echo -n "62. Verificando purga diferida de credenciales Linux con _pendingCredentialPurge (SEAM-04)... "
+grep -q "_pendingCredentialPurge" "$CLEAN_TERM_JS" || {
+    echo "FALLO: Bandera _pendingCredentialPurge ausente en CleanAgentTerminal.js"; exit 1;
+}
+grep -A 15 "_pendingCredentialPurge" "$CLEAN_TERM_JS" | grep -q "rm -rf" || {
+    echo "FALLO: Comando rm -rf ausente en bloque de purga diferida"; exit 1;
 }
 echo "[OK]"
 
@@ -449,10 +452,10 @@ grep -A 20 "async logout()" "$CLEAN_TERM_JS" | grep -q "clipboard.copy" || {
 }
 echo "[OK]"
 
-echo -n "64. Verificando versión 2.4.7 y versionCode 20407 en configuración (SEAM-06)... "
-grep -q 'version="2.4.7"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.7"; exit 1; }
-grep -q 'android-versionCode="20407"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20407"; exit 1; }
-grep -q '"version": "2.4.7"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.7"; exit 1; }
+echo -n "64. Verificando versión 2.4.8 y versionCode 20408 en configuración (SEAM-06)... "
+grep -q 'version="2.4.8"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.8"; exit 1; }
+grep -q 'android-versionCode="20408"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20408"; exit 1; }
+grep -q '"version": "2.4.8"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.8"; exit 1; }
 echo "[OK]"
 
 echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-049 HAN SIDO SUPERADAS EXITOSAMENTE ==="

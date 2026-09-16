@@ -77,6 +77,7 @@ export class CleanAgentTerminal {
         this._hasAutoConfirmedTerms = false;
         this._hasInjectedOAuthCode = false;
         this._termsAccepted = false;
+        this._pendingCredentialPurge = false;
         this.currentThemeId = "dark";
 
         this._setupClipboardAutoInjection();
@@ -305,6 +306,15 @@ export class CleanAgentTerminal {
                 localStorage.setItem(this.sessionStorageKey, String(this.pid));
                 await this.openWebSocket(this.pid);
 
+                // SPEC-049: Purga profunda de credenciales en bash fresca ANTES de lanzar agy
+                if (this._pendingCredentialPurge) {
+                    this._pendingCredentialPurge = false;
+                    if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+                        this.websocket.send("rm -rf /public/.config/antigravity /root/.config/antigravity /home/studio/.config/antigravity ~/.config/antigravity ~/.config/google* /public/.gemini /root/.gemini 2>/dev/null\r");
+                        await new Promise((r) => setTimeout(r, 300));
+                    }
+                }
+
                 if (this.autoCommand) {
                     setTimeout(() => {
                         if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
@@ -437,7 +447,10 @@ export class CleanAgentTerminal {
                 }
                 this.attachAddon = new AttachAddon(this.websocket);
                 this.terminal.loadAddon(this.attachAddon);
-                this.terminal.focus();
+                // Solo dar foco si no hay wizard ni auth card cubriendo la terminal
+                if (!this.onboardingWizard && !this.authCard) {
+                    this.terminal.focus();
+                }
                 this.fitAddon.fit();
                 resolve();
             };
@@ -532,6 +545,11 @@ export class CleanAgentTerminal {
                         this.onboardingWizard = null;
                     }
                 }, 1400);
+            },
+            onDismissComplete: () => {
+                if (this.terminal) {
+                    this.terminal.focus();
+                }
             }
         });
         this.onboardingWizard.mount(this.containerEl || document.body);
@@ -697,6 +715,9 @@ export class CleanAgentTerminal {
                 if (this.authCard) {
                     this.authCard.fadeOut(250);
                     this.authCard = null;
+                }
+                if (this.terminal) {
+                    this.terminal.focus();
                 }
             }
 
@@ -892,13 +913,6 @@ export class CleanAgentTerminal {
             try { await navigator.clipboard.writeText(""); } catch (_) {}
         }
 
-        // SEAM-04: Purga en el sistema de archivos Linux antes de cerrar PTY
-        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            const purgeCmd = "rm -rf /public/.config/antigravity /root/.config/antigravity /home/studio/.config/antigravity ~/.config/antigravity ~/.config/google* /public/.gemini /root/.gemini 2>/dev/null\r";
-            this.websocket.send(purgeCmd);
-            await new Promise((r) => setTimeout(r, 200));
-        }
-
         // Purgar credenciales y banderas locales
         localStorage.removeItem(this.authenticatedUserStorageKey);
         localStorage.removeItem(this.sessionStorageKey);
@@ -917,6 +931,9 @@ export class CleanAgentTerminal {
             this.accountBadgeEl.parentNode.removeChild(this.accountBadgeEl);
             this.accountBadgeEl = null;
         }
+
+        // Marcar purga pendiente para la próxima sesión bash fresca
+        this._pendingCredentialPurge = true;
 
         await this.restartSession();
     }
