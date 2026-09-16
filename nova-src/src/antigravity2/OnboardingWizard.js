@@ -1,28 +1,82 @@
 /**
  * OnboardingWizard - Asistente Visual Multi-Paso Nativo para Google Antigravity
- * Conforme a SPEC-043: Material 3 Multi-Step Onboarding Wizard y Enmascaramiento Opaco de Terminal.
+ * Conforme a SPEC-043, SPEC-044 & SPEC-045: Pure Google Auth & Multi-Theme Palette Selector
  */
+
+export const THEME_PRESETS = [
+    {
+        id: "dark",
+        name: "dark",
+        agyIndex: 4,
+        index: 4,
+        label: "Dark (Recomendado)",
+        desc: "Oscuro / Recomendado",
+        isDefault: true,
+        colors: { bg: "#1e1e2e", fg: "#cdd6f4", accent: "#89b4fa" }
+    },
+    {
+        id: "tokyo-night",
+        name: "tokyo-night",
+        agyIndex: 7,
+        index: 7,
+        label: "Tokyo Night",
+        desc: "Púrpura y Neón",
+        isDefault: false,
+        colors: { bg: "#1a1b26", fg: "#a9b1d6", accent: "#7aa2f7" }
+    },
+    {
+        id: "solarized-dark",
+        name: "solarized-dark",
+        agyIndex: 5,
+        index: 5,
+        label: "Solarized Dark",
+        desc: "Azul Petróleo",
+        isDefault: false,
+        colors: { bg: "#002b36", fg: "#839496", accent: "#268bd2" }
+    },
+    {
+        id: "terminal",
+        name: "terminal",
+        agyIndex: 0,
+        index: 0,
+        label: "Terminal Clásico",
+        desc: "Verde Matrix",
+        isDefault: false,
+        colors: { bg: "#000000", fg: "#22c55e", accent: "#16a34a" }
+    },
+    {
+        id: "light",
+        name: "light",
+        agyIndex: 1,
+        index: 1,
+        label: "Light (Claro)",
+        desc: "Claro Estándar",
+        isDefault: false,
+        colors: { bg: "#ffffff", fg: "#1e293b", accent: "#2563eb" }
+    }
+];
 
 export class OnboardingWizard {
     constructor(options = {}) {
         this.onAction = options.onAction || (() => {});
-        this.onSelectAuthMethod = options.onSelectAuthMethod || ((m) => {
-            if (m === "google") this.onAction("select_auth", "\r");
-            else this.onAction("select_auth", "\x1b[B\r");
-        });
+        this.onSelectAuthMethod = options.onSelectAuthMethod || (() => this.onAction("select_auth", "\r"));
         this.onOpenBrowser = options.onOpenBrowser || ((url) => this.onAction("open_browser", url));
-        this.onSelectTheme = options.onSelectTheme || ((theme) => {
-            let keySequence = "\r";
-            if (theme === "terminal" || theme === 1) keySequence = "\x1b[B\r";
-            else if (theme === "light" || theme === 2) keySequence = "\x1b[B\x1b[B\r";
-            this.onAction("confirm_theme", keySequence);
+        this.onSelectTheme = options.onSelectTheme || ((agyIndex) => {
+            const idx = typeof agyIndex === "number" ? agyIndex : 4;
+            const seq = "\x1b[B".repeat(idx) + "\r";
+            this.onAction("confirm_theme", seq);
         });
         this.onAcceptTerms = options.onAcceptTerms || (() => this.onAction("accept_terms", "\t\x1b[C\r"));
 
         this.containerEl = null;
         this.currentStep = "step-auth-method";
         this.authUrl = null;
-        this.selectedThemeIndex = 0; // 0: Dark, 1: Terminal, 2: Light
+        this.selectedThemeIndex = 4; // SPEC-045: Dark por defecto (Índice real 4 en agy)
+    }
+
+    _getThemeAnsiSequence(agyIndex) {
+        const idx = typeof agyIndex === "number" ? agyIndex : 4;
+        return "\x1b[B".repeat(idx) + "\r";
     }
 
     mount(parentEl = document.body) {
@@ -34,7 +88,7 @@ export class OnboardingWizard {
 
         this.containerEl.innerHTML = `
             <div class="wizard-card" id="wizard-card">
-                <!-- Paso 1: Selección de Método -->
+                <!-- Paso 1: Selección de Método (SPEC-045: Pure Google First-Party) -->
                 <div class="wizard-step" id="step-auth-method">
                     <div class="wizard-logo-wrap">
                         <svg class="wizard-logo" viewBox="0 0 48 48" width="64" height="64">
@@ -45,7 +99,7 @@ export class OnboardingWizard {
                         </svg>
                     </div>
                     <h2 class="wizard-title">Google Antigravity</h2>
-                    <p class="wizard-subtitle">Inicia sesión para sincronizar tus proyectos y asistencia de desarrollo</p>
+                    <p class="wizard-subtitle">Inicia sesión con tu cuenta de Google para comenzar a desarrollar</p>
                     <div class="wizard-actions">
                         <button class="btn-primary-auth" id="btn-auth-google">
                             <svg class="btn-g-logo" viewBox="0 0 48 48" width="20" height="20">
@@ -55,9 +109,6 @@ export class OnboardingWizard {
                                 <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
                             </svg>
                             <span>Continuar con Google</span>
-                        </button>
-                        <button class="btn-secondary-auth" id="btn-auth-token">
-                            <span>Ingresar Token / API Key</span>
                         </button>
                     </div>
                 </div>
@@ -81,22 +132,50 @@ export class OnboardingWizard {
                     <button class="btn-open-browser" id="btn-open-browser">Abrir navegador de nuevo</button>
                 </div>
 
-                <!-- Paso 3: Selector de Tema -->
+                <!-- Paso 3: Selector de Tema (SPEC-045: Cuadrícula Visual 5 Temas con Swatches) -->
                 <div class="wizard-step" id="step-theme-selector" style="display: none;">
                     <h2 class="wizard-title">Elige tu Tema de Interfaz</h2>
                     <p class="wizard-subtitle">Personaliza el contraste y la paleta de color para tu pantalla</p>
                     <div class="theme-options-grid">
-                        <div class="theme-card active" data-theme-index="0" data-theme-name="dark">
-                            <div class="theme-preview dark-theme"></div>
-                            <span>Dark (Recomendado)</span>
+                        <div class="theme-card active selected" data-theme-index="4" data-theme-name="dark">
+                            <div class="theme-swatches" style="background: #1e1e2e;">
+                                <span class="swatch-circle swatch" style="background: #1e1e2e;"></span>
+                                <span class="swatch-circle swatch" style="background: #cdd6f4;"></span>
+                                <span class="swatch-circle swatch" style="background: #89b4fa;"></span>
+                            </div>
+                            <span class="theme-label">Dark (Recomendado)</span>
                         </div>
-                        <div class="theme-card" data-theme-index="1" data-theme-name="terminal">
-                            <div class="theme-preview classic-theme"></div>
-                            <span>Terminal Clásico</span>
+                        <div class="theme-card" data-theme-index="7" data-theme-name="tokyo-night">
+                            <div class="theme-swatches" style="background: #1a1b26;">
+                                <span class="swatch-circle swatch" style="background: #1a1b26;"></span>
+                                <span class="swatch-circle swatch" style="background: #a9b1d6;"></span>
+                                <span class="swatch-circle swatch" style="background: #7aa2f7;"></span>
+                            </div>
+                            <span class="theme-label">Tokyo Night</span>
                         </div>
-                        <div class="theme-card" data-theme-index="2" data-theme-name="light">
-                            <div class="theme-preview light-theme"></div>
-                            <span>Light (Claro)</span>
+                        <div class="theme-card" data-theme-index="5" data-theme-name="solarized-dark">
+                            <div class="theme-swatches" style="background: #002b36;">
+                                <span class="swatch-circle swatch" style="background: #002b36;"></span>
+                                <span class="swatch-circle swatch" style="background: #839496;"></span>
+                                <span class="swatch-circle swatch" style="background: #268bd2;"></span>
+                            </div>
+                            <span class="theme-label">Solarized Dark</span>
+                        </div>
+                        <div class="theme-card" data-theme-index="0" data-theme-name="terminal">
+                            <div class="theme-swatches" style="background: #000000;">
+                                <span class="swatch-circle swatch" style="background: #000000;"></span>
+                                <span class="swatch-circle swatch" style="background: #22c55e;"></span>
+                                <span class="swatch-circle swatch" style="background: #16a34a;"></span>
+                            </div>
+                            <span class="theme-label">Terminal Clásico</span>
+                        </div>
+                        <div class="theme-card" data-theme-index="1" data-theme-name="light">
+                            <div class="theme-swatches" style="background: #ffffff; border: 1px solid #cbd5e1;">
+                                <span class="swatch-circle swatch" style="background: #ffffff; border: 1px solid #cbd5e1;"></span>
+                                <span class="swatch-circle swatch" style="background: #1e293b;"></span>
+                                <span class="swatch-circle swatch" style="background: #2563eb;"></span>
+                            </div>
+                            <span class="theme-label">Light (Claro)</span>
                         </div>
                     </div>
                     <button class="btn-wizard-next" id="btn-confirm-theme">Continuar</button>
@@ -122,17 +201,11 @@ export class OnboardingWizard {
     }
 
     _bindEvents() {
-        // Paso 1
+        // Paso 1: Pure Google First-Party
         const btnGoogle = this.containerEl.querySelector("#btn-auth-google, #btn-wizard-google");
         btnGoogle?.addEventListener("click", () => {
-            this.onSelectAuthMethod("google");
+            this.onSelectAuthMethod();
             this.onAction("select_auth", "\r");
-        });
-
-        const btnToken = this.containerEl.querySelector("#btn-auth-token, #btn-wizard-token");
-        btnToken?.addEventListener("click", () => {
-            this.onSelectAuthMethod("token");
-            this.onAction("select_auth", "\x1b[B\r");
         });
 
         // Paso 2
@@ -144,25 +217,25 @@ export class OnboardingWizard {
             }
         });
 
-        // Paso 3
+        // Paso 3: SPEC-045 Selección de 5 temas
         const themeCards = this.containerEl.querySelectorAll(".theme-card");
         themeCards.forEach(card => {
             card.addEventListener("click", () => {
-                themeCards.forEach(c => c.classList.remove("active"));
+                themeCards.forEach(c => {
+                    c.classList.remove("active");
+                    c.classList.remove("selected");
+                });
                 card.classList.add("active");
-                this.selectedThemeIndex = parseInt(card.dataset.themeIndex || "0", 10);
+                card.classList.add("selected");
+                this.selectedThemeIndex = parseInt(card.dataset.themeIndex || "4", 10);
             });
         });
 
         const btnTheme = this.containerEl.querySelector("#btn-confirm-theme, #btn-wizard-theme-continue");
         btnTheme?.addEventListener("click", () => {
-            const themes = ["dark", "terminal", "light"];
-            const chosen = themes[this.selectedThemeIndex] || "dark";
-            let keySequence = "\r";
-            if (this.selectedThemeIndex === 1) keySequence = "\x1b[B\r";
-            else if (this.selectedThemeIndex === 2) keySequence = "\x1b[B\x1b[B\r";
-            this.onSelectTheme(chosen);
-            this.onAction("confirm_theme", keySequence);
+            const seq = this._getThemeAnsiSequence(this.selectedThemeIndex);
+            this.onSelectTheme(this.selectedThemeIndex);
+            this.onAction("confirm_theme", seq);
         });
 
         // Paso 4: WIZ-05 - Secuencia exacta de Inquirer: Tab -> Flecha Derecha -> Enter

@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.4.1 y android-versionCode 20401 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.4.1 y versionCode 20401 en configuración... "
-grep -q 'version="2.4.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.1"; exit 1; }
-grep -q 'android-versionCode="20401"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20401"; exit 1; }
-grep -q '"version": "2.4.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.1"; exit 1; }
+# 16. Verificar versionado v2.4.2 y android-versionCode 20402 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.4.2 y versionCode 20402 en configuración... "
+grep -q 'version="2.4.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.2"; exit 1; }
+grep -q 'android-versionCode="20402"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20402"; exit 1; }
+grep -q '"version": "2.4.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.2"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -260,5 +260,36 @@ grep -A 35 "openWebSocket" "$CLEAN_TERM_JS" | grep -q "_setupOnboardingWizard" |
 }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-044 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# 36. Verificar SPEC-045 (Criterios THEME-01 a THEME-06)
+SPEC_FILE_045="specs/45-pure-google-auth-and-multi-theme-palette-selector.md"
+
+echo -n "36. Verificando documento SPEC-045... "
+[ -f "$SPEC_FILE_045" ] || { echo "FALLO: No existe $SPEC_FILE_045"; exit 1; }
+echo "[OK]"
+
+echo -n "37. Verificando exclusión de botón API Key en OnboardingWizard.js (THEME-01)... "
+grep -q "btn-auth-token" "$WIZARD_JS" && {
+    echo "FALLO: btn-auth-token aún está presente en OnboardingWizard.js"; exit 1;
+}
+echo "[OK]"
+
+echo -n "38. Verificando temas 'tokyo-night' y 'dark' (índice 4) en OnboardingWizard.js (THEME-02)... "
+grep -q "tokyo-night" "$WIZARD_JS" || { echo "FALLO: 'tokyo-night' no encontrado en OnboardingWizard.js"; exit 1; }
+grep -q 'data-theme-index="4"' "$WIZARD_JS" || { echo "FALLO: Índice 4 para Dark no encontrado"; exit 1; }
+echo "[OK]"
+
+echo -n "39. Verificando secuencia ANSI de Dark en auto-responder de CleanAgentTerminal.js (THEME-04)... "
+grep -A 10 "_hasAutoConfirmedTheme" "$CLEAN_TERM_JS" | grep -F -q "\x1b[B\x1b[B\x1b[B\x1b[B\r" || \
+grep -A 10 "_hasAutoConfirmedTheme" "$CLEAN_TERM_JS" | grep -q "\\\\x1b\\\\[B\\\\x1b\\\\[B\\\\x1b\\\\[B\\\\x1b\\\\[B\\\\r" || {
+    echo "FALLO: Secuencia de auto-responder para Dark no contiene 4 flechas abajo + Enter"; exit 1;
+}
+echo "[OK]"
+
+echo -n "40. Verificando z-index 1000010 y fondo opaco (THEME-05)... "
+grep -q "1000010" "$SCSS_FILE" || { echo "FALLO: z-index 1000010 del loader ausente"; exit 1; }
+grep -q "background: #0b0f19 !important" "$SCSS_FILE" || { echo "FALLO: Opacidad sólida del wizard ausente"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-045 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+
 

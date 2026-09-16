@@ -2614,6 +2614,52 @@ Se implementa la reestructuración arquitectónica del ciclo de vida bajo el con
 
 ---
 
+### ADR-056: Autenticación First-Party Pura de Google y Selector Gráfico Multi-Tema (Release v2.4.2)
+
+- **Identificador:** `ADR-056`
+- **Especificación SDD Asociada:** [`SPEC-045`](specs/45-pure-google-auth-and-multi-theme-palette-selector.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.170 Contexto
+En pruebas de campo en la tablet física Xiaomi Pad 6, se evidenciaron dos inconsistencias de interacción táctil y alineación estética:
+1. **Pulsaciones Accidentales en Paso 1:** El botón secundario *"Ingresar Token / API Key"* inducía a toques accidentales sobre la pantalla de 11", conduciendo a un flujo de consola interactiva no deseado que bloqueaba el asistente visual.
+2. **Desajuste de Índices de Tema del CLI:** La auditoría del prompt interactivo `Choose your color scheme` del binario oficial `agy` reveló el catálogo canónico de 8 opciones: `[0] terminal`, `[1] light`, `[2] solarized light`, `[3] colorblind-friendly light`, `[4] dark`, `[5] solarized dark`, `[6] colorblind-friendly dark`, `[7] tokyo night`. La versión anterior asumía que *"Dark"* correspondía al índice 0 (`\r`), seleccionando involuntariamente el tema monocromático verde de consola `terminal` en lugar del tema oscuro moderno. Asimismo, temas populares como `Tokyo Night` (índice 7) carecían de representación gráfica.
+
+#### 4.171 Decisión
+Se diseña e implementa la arquitectura de autenticación first-party pura y paleta visual multi-tema bajo el contrato formal [`SPEC-045`](specs/45-pure-google-auth-and-multi-theme-palette-selector.md):
+1. **Autenticación First-Party Pura de Google (Paso 1):**
+   - Remoción incondicional del botón de API Key en `OnboardingWizard.js`.
+   - Embudo de bienvenida unificado con botón exclusivo oficial de Google `[ G ] Continuar con Google` (`#btn-auth-google`), garantizando un inicio de sesión libre de desvíos accidentales.
+2. **Cuadrícula Visual Multi-Tema con Micro-Paletas Cromáticas (Paso 3):**
+   - Implementación de 5 tarjetas interactivas de alta fidelidad: *Dark (Recomendado)* (índice 4), *Tokyo Night* (índice 7), *Solarized Dark* (índice 5), *Terminal Clásico* (índice 0) y *Light (Claro)* (índice 1).
+   - Cada tarjeta incorpora muestras de color reales (swatches de fondo, texto y acento).
+   - Preselección activa por defecto en *Dark* (`data-theme-index="4"`).
+3. **Mapeo Determinista a Secuencias ANSI VT100:**
+   - La selección táctil despacha exactamente `"\x1b[B".repeat(index) + "\r"` al socket PTY.
+   - En modo reactivo o desatendido, `CleanAgentTerminal.js` envía incondicionalmente la secuencia de Dark (`\x1b[B\x1b[B\x1b[B\x1b[B\r`, 4 flechas abajo + Enter) ante prompts de esquema de color.
+4. **Preservación Inviolable de Aislamiento Óptico:**
+   - Fondo 100% sólido opaco (`#0b0f19`) en `.onboarding-wizard-overlay`, prioridad visual del loader en `z-index: 1000010 !important;` y auto-detección de portapapeles OAuth (`^4/`).
+5. **Empaquetado y Certificación Oficial v2.4.2:**
+   - Versión `2.4.2` (versionCode `20402`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.4.2-ARM64.apk`** (36.82 MB / 38,608,097 bytes $\le 42.0\,\text{MB}$, SHA256 `0ef8c1ae9469728be119e67f89e2736199cad798e5b1c6e13a717ff105867700`).
+6. **Invariantes Reafirmados:**
+   - *Pure-Google-Auth:* Embudo unificado sin bifurcaciones accidentales.
+   - *5-theme visual grid:* Micro-paletas reales y selección predeterminada Dark (índice 4).
+   - *Exact ANSI index mapping:* Mapeo matemático determinista a la PTY.
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-045` (`AC-THEME-01` a `AC-THEME-06`).
+
+#### 4.172 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia de Incorporación Impecable:** Flujo lineal sin botones que conduzcan a pantallas de error.
+  - **Fidelidad Estética de Alto Nivel:** El usuario obtiene el tema visual seleccionado de forma fidedigna en la consola PTY, disfrutando por defecto del diseño moderno Dark.
+  - **Identidad Corporativa de Google:** Coherencia total con los estándares visuales de Material 3 y la experiencia de usuario móvil.
+- **Compromisos Operativos:**
+  - Los índices de tema quedan acoplados a la versión de `agy`; si futuras versiones del CLI alteran el orden del menú Inquirer, el array `THEME_PRESETS` debe actualizarse mediante una nueva especificación SDD.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2663,6 +2709,7 @@ Se implementa la reestructuración arquitectónica del ciclo de vida bajo el con
 | **SPEC-042** | Auto-Respondedor Reactivo de Stream WebSocket y Auto-Inyección de Token OAuth desde Portapapeles | `specs/42-stream-auto-responder-and-auto-clipboard-oauth.md` | `APPROVED` | 6 ACs |
 | **SPEC-043** | Asistente Visual Multi-Paso Nativo (Material 3 Onboarding Wizard) y Enmascaramiento Opaco de Terminal | `specs/43-native-material3-multi-step-onboarding-wizard.md` | `APPROVED` | 6 ACs |
 | **SPEC-044** | Corrección del Ciclo de Vida del Loader de Aprovisionamiento y Orden de Montaje Diferido del Onboarding Wizard | `specs/44-fix-provisioning-loader-lifecycle-and-wizard-mount-order.md` | `APPROVED` | 6 ACs |
+| **SPEC-045** | Autenticación First-Party Pura de Google y Selector Visual Multi-Tema para Google Antigravity Mobile | `specs/45-pure-google-auth-and-multi-theme-palette-selector.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*

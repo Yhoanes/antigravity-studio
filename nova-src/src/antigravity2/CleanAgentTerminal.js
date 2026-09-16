@@ -478,11 +478,10 @@ export class CleanAgentTerminal {
                 this._hasAutoOpenedBrowser = true;
                 this.openInBrowser(url);
             },
-            onSelectTheme: (theme) => {
+            onSelectTheme: (themeIndex) => {
+                const idx = typeof themeIndex === "number" ? themeIndex : 4;
+                const seq = "\x1b[B".repeat(idx) + "\r";
                 if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                    let seq = "\r";
-                    if (theme === "terminal" || theme === 1) seq = "\x1b[B\r";
-                    else if (theme === "light" || theme === 2) seq = "\x1b[B\x1b[B\r";
                     this.websocket.send(seq);
                 }
             },
@@ -559,16 +558,17 @@ export class CleanAgentTerminal {
             }
         }
 
-        // SPEC-043: Sincronización reactiva con OnboardingWizard (Paso 3: Selector de Tema)
+        // SPEC-043 & SPEC-045: Sincronización reactiva con OnboardingWizard (Paso 3: Selector de Tema)
         if (text.includes("color scheme") || text.includes("Choose your color scheme") || text.includes("Select theme:") || /(?:Choose your color scheme|color scheme)/i.test(text)) {
             if (this.onboardingWizard) {
                 this.onboardingWizard.goToStep("step-theme-selector");
             } else if (!this._hasAutoConfirmedTheme) {
-                console.log("[AUTO-RESPONDER] Prompt de tema detectado. Enviando Enter...");
+                console.log("[AUTO-RESPONDER] Prompt de tema detectado. Enviando Dark (Índice 4: 4 flechas abajo + Enter)...");
                 this._hasAutoConfirmedTheme = true;
                 setTimeout(() => {
                     if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-                        this.websocket.send("\r");
+                        // SPEC-045: Índice 4 en agy = Dark (4 flechas abajo + Enter)
+                        this.websocket.send("\x1b[B\x1b[B\x1b[B\x1b[B\r");
                     }
                 }, 50);
             }
