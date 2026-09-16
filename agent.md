@@ -2791,6 +2791,59 @@ Se formaliza e implementa la arquitectura de Top App Bar dedicada y modal de cue
 
 ---
 
+### ADR-060: Transición Continua sin Fuga Visual en Onboarding y Purga Profunda en Cierre de Sesión (Release v2.4.6)
+
+- **Identificador:** `ADR-060`
+- **Especificación SDD Asociada:** [`SPEC-049`](specs/49-seamless-onboarding-transition-and-deep-logout.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.182 Contexto
+Durante las pruebas de validación de campo en el hardware físico Xiaomi Pad 6 ejecutando la versión `v2.4.5`, se identificaron dos imperfecciones operativas críticas que afectaban la experiencia de usuario y la privacidad de las credenciales:
+
+1. **Destello Prematuro de Terminal Cruda (Terminal Flash):**
+   En `v2.4.5`, al presionar el botón *"Comenzar a programar"* en el Paso 4 del `OnboardingWizard`, el manejador ejecutaba inmediatamente `this.fadeOut(350)`, desmontando el velo protector opaco (`#0b0f19`) antes de que el CLI `agy` completara su secuencia de inicio dentro del sandbox PRoot (que requiere entre 800ms y 1200ms). Durante aproximadamente un segundo se exponía la consola cruda, secuencias de escape ANSI no procesadas y el cursor parpadeante sin contexto, antes de que el agente estuviera listo para interactuar.
+
+2. **Cierre de Sesión Superficial y Persistencia de Credenciales (Auto-Login no Deseado):**
+   Al pulsar *"Cerrar Sesión"* en `AccountMenuModal`, el sistema eliminaba las referencias en `localStorage` y memoria, pero **no eliminaba los tokens y credenciales de Google persistidos en el sistema de archivos Linux** (`~/.config/antigravity`, `~/.gemini`), y **no limpiaba el portapapeles nativo de Android**, que aún conservaba el token OAuth previo (`4/0A...`). Como consecuencia, al pulsar *"Conectar con Google"* o reiniciar la sesión, el escuchador de foco (`_checkAndInjectClipboardOAuth`) detectaba el token en el portapapeles o el CLI leía la sesión previa de disco, reconectando la cuenta automáticamente en segundo plano sin solicitar credenciales.
+
+#### 4.183 Decisión
+Se formaliza e implementa la arquitectura de transición continua sin destello y protocolo de purga profunda de credenciales bajo el contrato formal [`SPEC-049`](specs/49-seamless-onboarding-transition-and-deep-logout.md):
+
+1. **Retención del Velo Protector y Salida Sincronizada (Zero Terminal Flash):**
+   - En `OnboardingWizard.js`, el manejador de clic de `#btn-start-coding` no ejecuta `fadeOut(350)` síncrono. Deshabilita el botón, despliega el spinner `.auth-spinner-dot` con el texto *"Iniciando Google Antigravity..."* y retiene el velo protector opaco (`#0b0f19`, `z-index: 1000005`).
+   - En `CleanAgentTerminal.js`, `_handleAutoResponderStream(text)` detecta reactivamente el prompt de bienvenida interactivo de `agy` (`What would you like to do`, `? What would`, `Antigravity`, `agy>`) y dispara `this.onboardingWizard.fadeOut(350)`.
+   - Se incorpora un temporizador de seguridad de $1400\,\text{ms}$ en `onAcceptTerms` como red de seguridad (*safety fallback*) en caso de variaciones inesperadas de red o texto de bienvenida.
+
+2. **Protocolo de Purga Profunda (Deep Logout Protocol):**
+   - **Vaciado Mandatorio de Portapapeles de Android:** Al ejecutar `logout()`, se invoca `cordova.plugins.clipboard.copy("")` y `navigator.clipboard.writeText("")`, eliminando inmediatamente cualquier código OAuth residual (`4/0A...`).
+   - **Purga en Sistema de Archivos Linux Sandbox:** Se despacha por la PTY activa el comando de eliminación recursiva y silenciosa:
+     `rm -rf /public/.config/antigravity /root/.config/antigravity /home/studio/.config/antigravity ~/.config/antigravity ~/.config/google* /public/.gemini /root/.gemini 2>/dev/null`
+     con una pausa de vaciado (*I/O flush delay*) de $200\,\text{ms}$ antes de cerrar la conexión del WebSocket.
+   - **Reseteo Total de Memoria y LocalStorage:** Eliminación de claves `authenticatedUserStorageKey` y `sessionStorageKey`, reseteo exhaustivo de banderas (`_hasInjectedOAuthCode`, `_hasAutoSelectedLogin`, `_hasAutoOpenedBrowser`, `_hasAutoConfirmedTheme`, `_hasAutoConfirmedTrust`, `_hasAutoConfirmedTerms`, `activeOAuthUrl`, `_lastOAuthUrl`) a sus valores iniciales.
+   - **Reinicio Limpio de PTY:** Generación de nuevo UUID de sesión, arranque de proceso `agy` en sandbox prístino y reapertura del `OnboardingWizard` en el Paso 1 sin riesgo de auto-login.
+
+3. **Empaquetado y Certificación Oficial v2.4.6:**
+   - Versión `2.4.6` (versionCode `20406`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.4.6-ARM64.apk`** (36.82 MB / 38,612,901 bytes $\le 42.0\,\text{MB}$, SHA256 `d89497b3887dcd78965d5a6ec1d924a03b38eae516226fa6bb66f6d90b4bddf2`).
+
+4. **Invariantes Reafirmados:**
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-049` (`AC-SEAM-01` a `AC-SEAM-06`).
+   - *Zero terminal flash:* Continuidad visual absoluta a 144Hz entre onboarding y sesión interactiva.
+   - *Deep credential sanitation:* Vaciado integral de portapapeles y almacenamiento persistente en logout.
+   - *APK Slimness:* Tamaño de 36.82 MB, dentro del umbral estricto $\le 42.0\,\text{MB}$.
+
+#### 4.184 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Experiencia de Usuario Ininterrumpida:** Transición fluida y profesional desde el wizard hasta el prompt de bienvenida, sin exhibir artefactos ni secuencias crudas de consola.
+  - **Privacidad y Aislamiento Estricto:** Capacidad real de alternar cuentas o desloguear sin que el dispositivo recuerde ni reutilice silenciosamente tokens en portapapeles o disco.
+  - **Resiliencia Operativa:** Fallback de 1400ms previene cualquier congelamiento indefinido si el CLI cambia de prompt o demora en responder.
+- **Compromisos Operativos:**
+  - El cierre de sesión requiere una latencia adicional de 200ms para asegurar la correcta sincronización de inodos en el filesystem Linux antes del corte del WebSocket.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2844,6 +2897,7 @@ Se formaliza e implementa la arquitectura de Top App Bar dedicada y modal de cue
 | **SPEC-046** | Transiciones Optimistas Fluidas en Onboarding Wizard y Erradicación de Emojis | `specs/46-smooth-optimistic-wizard-transitions-and-emoji-purging.md` | `APPROVED` | 6 ACs |
 | **SPEC-047** | Avance Automático a Google OAuth y Lanzamiento Instantáneo de Navegador | `specs/47-auto-advance-google-auth-and-instant-browser-launch.md` | `APPROVED` | 6 ACs |
 | **SPEC-048** | Top App Bar Dedicada de 48px y Menú de Cuenta Material 3 para Google Antigravity Mobile | `specs/48-top-app-bar-and-material3-account-menu.md` | `APPROVED` | 6 ACs |
+| **SPEC-049** | Transición Continua sin Fuga Visual en Onboarding y Purga Profunda en Cierre de Sesión | `specs/49-seamless-onboarding-transition-and-deep-logout.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
