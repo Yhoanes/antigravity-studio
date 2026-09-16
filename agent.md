@@ -3112,6 +3112,35 @@ Se formaliza e implementa la corrección crítica (hotfix) bajo el contrato form
 - **Compromisos Operativos:**
   - El pegado por pulsación prolongada ahora requiere presionar durante 800ms, proporcionando mayor control a cambio de una fracción de segundo de retardo intencional.
 
+### 4.200 Registro de Decisión Arquitectónica (ADR-066): Sincronización Canónica de AGY_MODELS con Selector Nativo de agy y Checkmark Único Determinista (v2.6.2)
+- **Identificador:** `ADR-066`
+- **Especificación SDD Asociada:** [`SPEC-051`](specs/51-model-selector-autoclear-banner-polished-pill.md)
+- **Fecha:** 2026-09-16
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@android-core` (Implementación y Compilación), `@MemoryKeeper` (Gobernanza)
+
+#### 4.201 Contexto y Diagnóstico
+1. **Discrepancia de Modelos con el Selector Nativo de `agy`:** La lista en `v2.6.1` no reflejaba fielmente la oferta disponible en el CLI interactivo de `agy`, faltando modelos soportados como Gemini 3.7 Flash y Gemini 3.6 Flash.
+2. **Doble Checkmark Simultáneo por Matching Parcial:** `_isModelActive(model)` evaluaba substrings sobre nombres de modelo, lo que causaba que al estar seleccionado "Gemini 3.8 Flash (High)", coincidiera tanto con "Flash" como con "Flash Med", desplegando checkmarks duplicados en el menú modal de selección.
+
+#### 4.202 Decisión
+1. **Alineación de Catálogo `AGY_MODELS`:** Se adopta el conjunto exacto del selector nativo con effort "high" por defecto:
+   - `gemini-3.8-flash-high` ("Gemini 3.8 Flash", shortLabel: "3.8 Flash")
+   - `gemini-3.7-flash-high` ("Gemini 3.7 Flash", shortLabel: "3.7 Flash")
+   - `gemini-3.6-flash-high` ("Gemini 3.6 Flash", shortLabel: "3.6 Flash")
+   - `gemini-3.1-pro-high` ("Gemini 3.1 Pro", shortLabel: "Pro")
+   - `claude-sonnet-4-6` ("Claude Sonnet 4.6", shortLabel: "Sonnet")
+   - `claude-opus-4-6-thinking` ("Claude Opus 4.6", shortLabel: "Opus")
+   - `gpt-oss-120b-medium` ("GPT-OSS 120B", shortLabel: "GPT-OSS")
+2. **Checkmark Único mediante Comparación Estricta por ID:**
+   - Introducción de variable de estado `this._currentModelId = null` en el constructor y reseteo en `restartSession()`.
+   - `_isModelActive(model)` valida estrictamente `this._currentModelId === model.id` (por defecto `gemini-3.8-flash-high` si es nulo), erradicando colisiones de coincidencia parcial.
+   - En `_selectModel(model)`, asignación inmediata de `this._currentModelId = model.id` y actualización del chip mediante `model.shortLabel`.
+   - Sniffer de stream enriquecido para capturar `Model set to X` / `Model already set to X` y enlazar `_currentModelId`.
+3. **Empaquetado v2.6.2:**
+   - Versión `2.6.2` (versionCode `20602`), targetSdkVersion 36.
+   - Binario: `GoogleAntigravity-v2.6.2-ARM64.apk` (36.83 MB / 38,616,569 bytes $\le 42.0\,\text{MB}$, SHA256 `4b8bb61b9d59532bded8c1428f5952652fc3cfd335539dabc24e0cbc73860968`).
+
 ---
 
 ## 5. Catálogo de Especificaciones SDD Registradas

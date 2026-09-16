@@ -133,11 +133,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.6.1 y android-versionCode 20601 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.6.1 y versionCode 20601 en configuración... "
-grep -q 'version="2.6.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.1"; exit 1; }
-grep -q 'android-versionCode="20601"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20601"; exit 1; }
-grep -q '"version": "2.6.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.1"; exit 1; }
+# 16. Verificar versionado v2.6.2 y android-versionCode 20602 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.6.2 y versionCode 20602 en configuración... "
+grep -q 'version="2.6.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.2"; exit 1; }
+grep -q 'android-versionCode="20602"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20602"; exit 1; }
+grep -q '"version": "2.6.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.2"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -481,10 +481,10 @@ grep -q "has-input-pill" "$SCSS_FILE" || { echo "FALLO: Regla .has-input-pill au
 grep -q "pill-send-btn" "$SCSS_FILE" || { echo "FALLO: Regla .pill-send-btn ausente en SCSS"; exit 1; }
 echo "[OK]"
 
-echo -n "68. Verificando versión 2.6.1 y versionCode 20601 en configuración (HOTFIX-3X)... "
-grep -q 'version="2.6.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.1"; exit 1; }
-grep -q 'android-versionCode="20601"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20601"; exit 1; }
-grep -q '"version": "2.6.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.1"; exit 1; }
+echo -n "68. Verificando versión 2.6.2 y versionCode 20602 en configuración (MODEL-FIX)... "
+grep -q 'version="2.6.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.6.2"; exit 1; }
+grep -q 'android-versionCode="20602"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20602"; exit 1; }
+grep -q '"version": "2.6.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.6.2"; exit 1; }
 echo "[OK]"
 
 # ==============================================================================

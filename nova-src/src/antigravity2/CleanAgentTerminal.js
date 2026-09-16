@@ -23,10 +23,10 @@ const OAUTH_REGEX = /https:\/\/accounts\.google\.com\/o\/oauth2\/[^\s"'>\x1b\x00
 
 // SPEC-051: Catálogo de modelos despachables al CLI agy (MODEL-01)
 const AGY_MODELS = [
-    { id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash", shortLabel: "Flash" },
-    { id: "gemini-3.8-flash-medium", label: "Gemini 3.8 Flash (Med)", shortLabel: "Flash Med" },
+    { id: "gemini-3.8-flash-high", label: "Gemini 3.8 Flash", shortLabel: "3.8 Flash" },
+    { id: "gemini-3.7-flash-high", label: "Gemini 3.7 Flash", shortLabel: "3.7 Flash" },
+    { id: "gemini-3.6-flash-high", label: "Gemini 3.6 Flash", shortLabel: "3.6 Flash" },
     { id: "gemini-3.1-pro-high", label: "Gemini 3.1 Pro", shortLabel: "Pro" },
-    { id: "gemini-3.1-pro-low", label: "Gemini 3.1 Pro (Low)", shortLabel: "Pro Low" },
     { id: "claude-sonnet-4-6", label: "Claude Sonnet 4.6", shortLabel: "Sonnet" },
     { id: "claude-opus-4-6-thinking", label: "Claude Opus 4.6", shortLabel: "Opus" },
     { id: "gpt-oss-120b-medium", label: "GPT-OSS 120B", shortLabel: "GPT-OSS" },
@@ -104,6 +104,7 @@ export class CleanAgentTerminal {
 
         // SPEC-051: Selector de Modelo en Top App Bar y auto-limpieza del banner de arranque
         this._currentModel = null;
+        this._currentModelId = null;
         this._modelDropdownEl = null;
         this._hasAutoCleared = false;
 
@@ -127,7 +128,7 @@ export class CleanAgentTerminal {
                 </svg>
                 <span class="top-bar-title">Antigravity</span>
                 <button class="model-selector-btn" id="model-selector-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Seleccionar modelo">
-                    <span class="model-selector-label" id="model-selector-label">Flash</span>
+                    <span class="model-selector-label" id="model-selector-label">3.8 Flash</span>
                     <svg class="model-selector-chevron" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">
                         <path d="M7 10l5 5 5-5z"/>
                     </svg>
@@ -705,27 +706,24 @@ export class CleanAgentTerminal {
      */
     _selectModel(model) {
         if (!model) return;
+        this._currentModelId = model.id;
         if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
             this.websocket.send(`/model ${model.id}\r`);
         }
-        this._currentModel = model.id;
-        this._updateModelLabel(model.shortLabel || model.label);
+        this._updateModelLabel(model.shortLabel);
         this._hideModelDropdown();
     }
 
     /**
-     * SPEC-051: Determina si un modelo del catálogo corresponde al modelo activo detectado.
+     * SPEC-051: Determina si un modelo del catálogo corresponde al modelo activo detectado (comparación exacta por ID).
      */
     _isModelActive(model) {
-        if (!this._currentModel) return model.id === "gemini-3.8-flash-high";
-        return this._currentModel === model.id
-            || this._currentModel === model.label
-            || this._currentModel === model.shortLabel
-            || this._shortModelName(this._currentModel).toLowerCase() === this._shortModelName(model.label).toLowerCase();
+        if (!this._currentModelId) return model.id === "gemini-3.8-flash-high";
+        return this._currentModelId === model.id;
     }
 
     /**
-     * SPEC-051: Reduce "Gemini 3.8 Flash Lite (High)" a "Flash Lite" para el chip de 12px.
+     * SPEC-051: Reduce nombres largos para el chip de la Top Bar.
      */
     _shortModelName(fullName) {
         return String(fullName || "")
@@ -748,7 +746,7 @@ export class CleanAgentTerminal {
             m.label.toLowerCase() === String(fullName).toLowerCase() ||
             m.id.toLowerCase() === String(fullName).toLowerCase()
         );
-        label.textContent = matched ? matched.shortLabel : (this._shortModelName(fullName) || "Flash");
+        label.textContent = matched ? matched.shortLabel : (this._shortModelName(fullName) || fullName || "3.8 Flash");
     }
 
     /**
@@ -915,10 +913,25 @@ export class CleanAgentTerminal {
         }
 
         // SPEC-051: Sincronización del chip selector con el modelo activo anunciado por agy (MODEL-05)
-        const modelMatch = text.match(MODEL_STREAM_REGEX);
-        if (modelMatch) {
-            this._currentModel = modelMatch[0];
-            this._updateModelLabel(this._currentModel);
+        const modelSetMatch = text.match(/Model (?:set to|already set to)\s+(.+?)(?:\s*$|\n)/m);
+        if (modelSetMatch) {
+            const modelName = modelSetMatch[1].trim();
+            // Buscar el modelo por nombre parcial
+            const found = AGY_MODELS.find(m => modelName.includes(m.label.replace(" 4.6", "").replace(" 120B", "")));
+            if (found) {
+                this._currentModelId = found.id;
+                this._updateModelLabel(found.shortLabel);
+            }
+        } else {
+            const modelMatch = text.match(MODEL_STREAM_REGEX);
+            if (modelMatch) {
+                const modelName = modelMatch[0].trim();
+                const found = AGY_MODELS.find(m => modelName.includes(m.label.replace(" 4.6", "").replace(" 120B", "")));
+                if (found) {
+                    this._currentModelId = found.id;
+                    this._updateModelLabel(found.shortLabel);
+                }
+            }
         }
     }
 
@@ -1229,6 +1242,7 @@ export class CleanAgentTerminal {
         this._termsAccepted = false;
         // SPEC-051: Rearmar el disparo one-shot de auto-limpieza para la nueva sesión (CLEAR-02)
         this._hasAutoCleared = false;
+        this._currentModelId = null;
         if (this.terminal) {
             this.terminal.clear();
         }
