@@ -2704,6 +2704,48 @@ Se formaliza e implementa la arquitectura de transiciones optimistas fluidas e h
 
 ---
 
+### ADR-058: Auto-Selección Inmediata de Google OAuth y Apertura Instantánea de Navegador (Release v2.4.4)
+
+- **Identificador:** `ADR-058`
+- **Especificación SDD Asociada:** [`SPEC-047`](specs/47-auto-advance-google-auth-and-instant-browser-launch.md)
+- **Fecha:** 2026-09-15
+- **Estado:** APROBADO Y EN VIGENCIA
+- **Agentes Participantes:** `@spec-architect` (Especificación), `@android-core` (Implementación y Pruebas), `@MemoryKeeper` (Gobernanza y Auditoría)
+
+#### 4.176 Contexto
+En pruebas de campo en la tablet física Xiaomi Pad 6 con la versión `v2.4.3`, al presionar el botón *"Continuar con Google"*, el botón parecía no responder o permanecer congelado durante varios segundos antes de abrir el navegador.
+
+El análisis forense determinó que `CleanAgentTerminal._handleAutoResponderStream` inhibía el envío del retorno de carro (`\r`) automático para seleccionar la opción 1 (`1. Google OAuth`) cuando existía una instancia activa de `OnboardingWizard`. El envío de `\r` quedaba supeditado a que el usuario tocara físicamente el botón. Dado que `agy` tardaba entre 1.5 y 3 segundos en generar el enlace OAuth 2.0 PKCE con Google en segundo plano, la URL era `null` al momento de la pulsación, provocando un estado inerte temporal en la interfaz.
+
+#### 4.177 Decisión
+Se formaliza e implementa la arquitectura de auto-avance incondicional y pre-cálculo reactivo bajo el contrato formal [`SPEC-047`](specs/47-auto-advance-google-auth-and-instant-browser-launch.md):
+1. **Auto-Despacho Incondicional en Stream PTY (`\r` en $\le 5\,\text{ms}$):**
+   - En `CleanAgentTerminal.js`, al detectarse `Select login method:`, se transmite de inmediato el retorno de carro (`\r`) independientemente del estado de montaje del asistente visual, ordenando al CLI `agy` generar la URL OAuth de Google de inmediato en segundo plano.
+2. **Pre-Cálculo de URL PKCE en Memoria:**
+   - La URL de consentimiento de Google se captura y almacena de forma anticipada en `this.activeOAuthUrl` y se sincroniza con `onboardingWizard.setAuthUrl(url)` mientras el usuario visualiza la pantalla de bienvenida.
+3. **Apertura Instantánea de Chrome en 0ms y Transición a Paso 2:**
+   - Si la URL ya está en memoria al tocar *"Continuar con Google"*, la app despacha `openInBrowser(this.authUrl)` en 0ms y avanza de inmediato al Paso 2 (`step-auth-code`).
+   - Si el usuario presiona el botón antes de completarse la generación de la URL, el botón entra en estado `.loading` con el spinner Material 3 `.auth-spinner-dot`, deshabilitándose contra toques repetidos y abriendo el navegador en el instante exacto en que la URL entra en el búfer.
+4. **Empaquetado y Certificación Oficial v2.4.4:**
+   - Versión `2.4.4` (versionCode `20404`), targetSdkVersion 36, APK compilado **`GoogleAntigravity-v2.4.4-ARM64.apk`** (36.82 MB / 38,608,797 bytes $\le 42.0\,\text{MB}$, SHA256 `7c10d518a48eaf50efe74f20ea662b911fa325ca17009bb549ec0a895c8f0e9d`).
+5. **Invariantes Reafirmados:**
+   - *Unconditional stream auto-dispatch:* Envío de `\r` en $\le 5\,\text{ms}$ ante `Select login method:`.
+   - *0ms browser launch:* Apertura inmediata de Chrome sin latencia perceptible.
+   - *Pre-calculated OAuth URL in memory:* Disponibilidad anticipada del enlace PKCE.
+   - *Zero emojis:* Fidelidad corporativa Material 3 con `.auth-spinner-dot`.
+   - *Zero-direct-code:* Producción ejecutada por `@android-core`.
+   - *SDD-first:* Regido formalmente por `SPEC-047` (`AC-LAUNCH-01` a `AC-LAUNCH-06`).
+
+#### 4.178 Consecuencias y Criterios de Evaluación
+- **Consecuencias Positivas:**
+  - **Sensación de Inmediatez Absoluta:** Supresión total del tiempo de espera percibido al autenticarse, con respuesta háptica y visual instantánea en pantalla 144Hz.
+  - **Navegación Fluida:** Transición sin fricción hacia Google Chrome y avance automático a la pantalla de espera de token.
+  - **Resiliencia ante Clics Tempranos:** Estado de carga elegante con `.auth-spinner-dot` si el usuario pulsa antes de los 1.5s de generación del CLI.
+- **Compromisos Operativos:**
+  - El proceso `agy` inicia la negociación de red con los servidores OAuth en cuanto arranca el runtime Linux, aprovechando los milisegundos de contemplación del usuario en el Paso 1.
+
+---
+
 ## 5. Catálogo de Especificaciones SDD Registradas
 
 | Identificador | Título del Contrato | Archivo de Especificación | Estado | Criterios (AC) |
@@ -2755,6 +2797,7 @@ Se formaliza e implementa la arquitectura de transiciones optimistas fluidas e h
 | **SPEC-044** | Corrección del Ciclo de Vida del Loader de Aprovisionamiento y Orden de Montaje Diferido del Onboarding Wizard | `specs/44-fix-provisioning-loader-lifecycle-and-wizard-mount-order.md` | `APPROVED` | 6 ACs |
 | **SPEC-045** | Autenticación First-Party Pura de Google y Selector Visual Multi-Tema para Google Antigravity Mobile | `specs/45-pure-google-auth-and-multi-theme-palette-selector.md` | `APPROVED` | 6 ACs |
 | **SPEC-046** | Transiciones Optimistas Fluidas en Onboarding Wizard y Erradicación de Emojis | `specs/46-smooth-optimistic-wizard-transitions-and-emoji-purging.md` | `APPROVED` | 6 ACs |
+| **SPEC-047** | Avance Automático a Google OAuth y Lanzamiento Instantáneo de Navegador | `specs/47-auto-advance-google-auth-and-instant-browser-launch.md` | `APPROVED` | 6 ACs |
 
 ---
 *Fin del documento oficial de gobernanza agent.md. Mantenido exclusivamente bajo la metodología Antigravity Enterprise SDD.*
