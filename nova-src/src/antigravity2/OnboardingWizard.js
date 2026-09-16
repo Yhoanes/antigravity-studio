@@ -259,7 +259,7 @@ export class OnboardingWizard {
             this.onSelectTheme(this.selectedThemeIndex, seq);
         });
 
-        // Paso 4: SPEC-046 Aceptación de Términos y Disipación Inmediata (fadeOut 350ms)
+        // Paso 4: SPEC-046 & SPEC-049 Aceptación de Términos (Retención del velo opaco)
         const btnTerms = this.containerEl.querySelector("#btn-start-coding, #btn-wizard-terms-done");
         btnTerms?.addEventListener("click", () => {
             if (btnTerms.disabled) return;
@@ -267,9 +267,8 @@ export class OnboardingWizard {
             btnTerms.style.opacity = "0.7";
             btnTerms.innerHTML = `<span class="auth-spinner-dot"></span> Iniciando Google Antigravity...`;
 
-            // AC-UX-04: Transmitir secuencia espaciada y disipar wizard inmediatamente
+            // SEAM-01: Disparar la secuencia espaciada hacia la PTY reteniendo el velo opaco
             this.onAcceptTerms();
-            this.fadeOut(350);
         });
     }
 

@@ -521,6 +521,15 @@ export class CleanAgentTerminal {
                         }
                     }
                 }
+
+                // SEAM-02: Safety fallback timeout (1400ms) si agy no emite el prompt esperado
+                setTimeout(() => {
+                    if (this.onboardingWizard) {
+                        console.log("[SEAMLESS] Safety fallback timeout alcanzado (1400ms). Disipando wizard...");
+                        this.onboardingWizard.fadeOut(350);
+                        this.onboardingWizard = null;
+                    }
+                }, 1400);
             }
         });
         this.onboardingWizard.mount(this.containerEl || document.body);
@@ -632,6 +641,21 @@ export class CleanAgentTerminal {
                         this.websocket.send("\r");
                     }
                 }, 50);
+            }
+        }
+
+        // SPEC-049: SEAM-02 / SEAM-03 Detección reactiva de bienvenida y revelado sin destello
+        if (
+            text.includes("What would you like to do") ||
+            text.includes("? What would") ||
+            text.includes("Antigravity") ||
+            text.includes("agy>") ||
+            /(?:What would you like to do|Antigravity|agy>)/i.test(text)
+        ) {
+            if (this.onboardingWizard) {
+                console.log("[SEAMLESS] agy interactive prompt detectado. Disipando wizard con cero destello...");
+                this.onboardingWizard.fadeOut(350);
+                this.onboardingWizard = null;
             }
         }
     }
@@ -857,15 +881,41 @@ export class CleanAgentTerminal {
     }
 
     async logout() {
+        console.log("[DEEP-LOGOUT] Iniciando protocolo de purga profunda de credenciales...");
+
+        // SEAM-05: Vaciado inmediato del portapapeles de Android
+        if (window.cordova?.plugins?.clipboard) {
+            try { cordova.plugins.clipboard.copy(""); } catch (_) {}
+        }
+        if (navigator.clipboard?.writeText) {
+            try { await navigator.clipboard.writeText(""); } catch (_) {}
+        }
+
+        // SEAM-04: Purga en el sistema de archivos Linux antes de cerrar PTY
+        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
+            const purgeCmd = "rm -rf /public/.config/antigravity /root/.config/antigravity /home/studio/.config/antigravity ~/.config/antigravity ~/.config/google* /public/.gemini /root/.gemini 2>/dev/null\r";
+            this.websocket.send(purgeCmd);
+            await new Promise((r) => setTimeout(r, 200));
+        }
+
+        // Purgar credenciales y banderas locales
         localStorage.removeItem(this.authenticatedUserStorageKey);
+        localStorage.removeItem(this.sessionStorageKey);
         this.authenticatedUser = null;
+        this._hasInjectedOAuthCode = false;
+        this._hasAutoSelectedLogin = false;
+        this._hasAutoOpenedBrowser = false;
+        this._hasAutoConfirmedTheme = false;
+        this._hasAutoConfirmedTrust = false;
+        this._hasAutoConfirmedTerms = false;
+        this.activeOAuthUrl = null;
+        this._lastOAuthUrl = null;
+
         if (this.accountBadgeEl && this.accountBadgeEl.parentNode) {
             this.accountBadgeEl.parentNode.removeChild(this.accountBadgeEl);
             this.accountBadgeEl = null;
         }
-        if (this.websocket && this.websocket.readyState === WebSocket.OPEN) {
-            this.websocket.send("agy auth logout\r");
-        }
+
         await this.restartSession();
     }
 

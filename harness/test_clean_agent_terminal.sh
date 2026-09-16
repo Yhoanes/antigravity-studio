@@ -130,11 +130,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.4.5 y android-versionCode 20405 en configuración (Criterio de Versionado)
-echo -n "16. Verificando versión 2.4.5 y versionCode 20405 en configuración... "
-grep -q 'version="2.4.5"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.5"; exit 1; }
-grep -q 'android-versionCode="20405"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20405"; exit 1; }
-grep -q '"version": "2.4.5"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.5"; exit 1; }
+# 16. Verificar versionado v2.4.6 y android-versionCode 20406 en configuración (Criterio de Versionado)
+echo -n "16. Verificando versión 2.4.6 y versionCode 20406 en configuración... "
+grep -q 'version="2.4.6"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.6"; exit 1; }
+grep -q 'android-versionCode="20406"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20406"; exit 1; }
+grep -q '"version": "2.4.6"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.6"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -316,12 +316,12 @@ grep -A 20 "btn-confirm-theme" "$WIZARD_JS" | grep -q "this.onAction(\"confirm_t
 }
 echo "[OK]"
 
-echo -n "45. Verificando secuencia espaciada de Inquirer y disipación inmediata fadeOut(350) (AC-UX-04)... "
+echo -n "45. Verificando secuencia espaciada de Inquirer en onAcceptTerms (AC-UX-04)... "
 grep -A 25 "onAcceptTerms" "$CLEAN_TERM_JS" | grep -q "setTimeout" || {
     echo "FALLO: Retardo setTimeout espaciado ausente en onAcceptTerms"; exit 1;
 }
-grep -A 15 "btn-start-coding" "$WIZARD_JS" | grep -q "fadeOut(350)" || {
-    echo "FALLO: fadeOut(350) inmediato ausente en click de btnTerms"; exit 1;
+grep -A 15 "btn-start-coding" "$WIZARD_JS" | grep -q "onAcceptTerms" || {
+    echo "FALLO: onAcceptTerms ausente en click de btnTerms"; exit 1;
 }
 echo "[OK]"
 
@@ -364,12 +364,12 @@ grep -q "⏳" "$WIZARD_JS" && { echo "FALLO: Emoji reloj de arena detectado en O
 grep -q "🚀" "$WIZARD_JS" && { echo "FALLO: Emoji cohete detectado en OnboardingWizard.js"; exit 1; }
 echo "[OK]"
 
-echo -n "52. Verificando secuencia espaciada y fadeOut(350) (LAUNCH-05)... "
+echo -n "52. Verificando secuencia espaciada en onAcceptTerms y botón de términos (LAUNCH-05)... "
 grep -A 25 "onAcceptTerms" "$CLEAN_TERM_JS" | grep -q "setTimeout" || {
     echo "FALLO: Retardo espaciado ausente en onAcceptTerms"; exit 1;
 }
-grep -A 10 "btn-start-coding" "$WIZARD_JS" | grep -q "fadeOut(350)" || {
-    echo "FALLO: fadeOut(350) ausente en botón de términos"; exit 1;
+grep -A 10 "btn-start-coding" "$WIZARD_JS" | grep -q "onAcceptTerms" || {
+    echo "FALLO: onAcceptTerms ausente en botón de términos"; exit 1;
 }
 echo "[OK]"
 
@@ -410,7 +410,49 @@ grep -q "⏳" "$ACCOUNT_MODAL_JS" && { echo "FALLO: Emoji reloj de arena detecta
 grep -q "🚀" "$ACCOUNT_MODAL_JS" && { echo "FALLO: Emoji cohete detectado en AccountMenuModal.js"; exit 1; }
 echo "[OK]"
 
-echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-048 HAN SIDO SUPERADAS EXITOSAMENTE ==="
+# ==============================================================================
+# 59-64. Verificar SPEC-049 (Criterios SEAM-01 a SEAM-06)
+# ==============================================================================
+SPEC_FILE_049="specs/49-seamless-onboarding-transition-and-deep-logout.md"
+
+echo -n "59. Verificando documento SPEC-049... "
+[ -f "$SPEC_FILE_049" ] || { echo "FALLO: No existe $SPEC_FILE_049"; exit 1; }
+echo "[OK]"
+
+echo -n "60. Verificando retención de velo protector en OnboardingWizard.js (SEAM-01)... "
+grep -A 10 "btn-start-coding" "$WIZARD_JS" | grep -q "fadeOut(350)" && {
+    echo "FALLO: btn-start-coding aún invoca fadeOut(350) directamente en el click"; exit 1;
+}
+echo "[OK]"
+
+echo -n "61. Verificando detección de ready prompt y safety timeout (1400ms) (SEAM-02)... "
+grep -q "What would you like to do" "$CLEAN_TERM_JS" || {
+    echo "FALLO: Prompt 'What would you like to do' no monitoreado en CleanAgentTerminal.js"; exit 1;
+}
+grep -A 25 "onAcceptTerms" "$CLEAN_TERM_JS" | grep -q "1400" || {
+    echo "FALLO: Timeout de seguridad de 1400ms ausente en onAcceptTerms"; exit 1;
+}
+echo "[OK]"
+
+echo -n "62. Verificando purga de credenciales Linux en logout() (SEAM-04)... "
+grep -A 20 "async logout()" "$CLEAN_TERM_JS" | grep -q "rm -rf" || {
+    echo "FALLO: Comando de purga rm -rf ausente en logout()"; exit 1;
+}
+echo "[OK]"
+
+echo -n "63. Verificando vaciado de portapapeles Android en logout() (SEAM-05)... "
+grep -A 20 "async logout()" "$CLEAN_TERM_JS" | grep -q "clipboard.copy" || {
+    echo "FALLO: Vaciado de portapapeles ausente en logout()"; exit 1;
+}
+echo "[OK]"
+
+echo -n "64. Verificando versión 2.4.6 y versionCode 20406 en configuración (SEAM-06)... "
+grep -q 'version="2.4.6"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versión 2.4.6"; exit 1; }
+grep -q 'android-versionCode="20406"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20406"; exit 1; }
+grep -q '"version": "2.4.6"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versión 2.4.6"; exit 1; }
+echo "[OK]"
+
+echo "=== TODAS LAS COMPUERTAS ESTÁTICAS DE SPEC-036 A SPEC-049 HAN SIDO SUPERADAS EXITOSAMENTE ==="
 
 
 
