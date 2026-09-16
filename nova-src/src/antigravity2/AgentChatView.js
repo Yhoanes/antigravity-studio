@@ -190,7 +190,11 @@ export class AgentChatView {
     }
 
     _handleStateChange(state) {
-        this.containerEl?.classList.toggle("is-running", state === "running");
+        const running = state === "running";
+        this.containerEl?.classList.toggle("is-running", running);
+        // Sin esto el usuario escribia y pulsaba enviar sin que pasara nada.
+        this.pill?.setBusy(running);
+        if (!running) this._hidePending();
     }
 
     /**
@@ -199,7 +203,6 @@ export class AgentChatView {
      */
     _upsertStep(step) {
         if (!this._turnEl) return;
-        this._hidePending();
 
         let node = this._stepNodes.get(step.index);
         if (!node) {
@@ -222,15 +225,58 @@ export class AgentChatView {
                 break;
             case STEP_TYPE.USER_INPUT:
                 // Ya pintado por _appendUserMessage.
-                node.remove();
-                this._stepNodes.delete(step.index);
+                this._dropStep(step.index, node);
                 return;
+
+            case STEP_TYPE.SYSTEM_MESSAGE:
+                // agy emite este paso al abrir cada turno. Si no trae texto no
+                // debe ocupar sitio: mostrarlo como "paso no reconocido" hacia
+                // pensar que el mensaje habia fallado.
+                if (!step.text) {
+                    this._dropStep(step.index, node);
+                    return;
+                }
+                node.className = "agent-chat-step agent-chat-notice agent-chat-notice-info";
+                node.textContent = step.text;
+                break;
+
             default:
-                node.className = "agent-chat-step agent-chat-step-unknown";
-                node.textContent = `Paso no reconocido: ${step.type}`;
+                // Un step_type nuevo del protocolo no es un error del usuario.
+                // Se registra en consola y, si trae texto, se pinta como mensaje.
+                console.warn(`[SPEC-054] step_type no contemplado: ${step.type}`, step);
+                if (!step.text) {
+                    this._dropStep(step.index, node);
+                    return;
+                }
+                node.className = "agent-chat-step agent-chat-msg agent-chat-msg-agent";
+                node.innerHTML = `<div class="agent-chat-markdown">${renderMarkdown(step.text)}</div>`;
+        }
+
+        // El indicador de espera solo se retira cuando hay contenido real en
+        // pantalla. Antes se ocultaba con el primer paso de metadatos, que llega
+        // de inmediato, y la respuesta tardaba un minuto sin ninguna senal.
+        const hasContent = (step.type === STEP_TYPE.AGENT_RESPONSE && step.text)
+            || step.type === STEP_TYPE.TOOL;
+        if (hasContent) {
+            this._hidePending();
+        } else {
+            this._movePendingToEnd();
         }
 
         this._scrollToBottom();
+    }
+
+    _dropStep(index, node) {
+        node.remove();
+        this._stepNodes.delete(index);
+        this._movePendingToEnd();
+    }
+
+    /** Mantiene el indicador al final del turno, por debajo de lo ya pintado. */
+    _movePendingToEnd() {
+        if (this._pendingEl && this._turnEl) {
+            this._turnEl.appendChild(this._pendingEl);
+        }
     }
 
     /**

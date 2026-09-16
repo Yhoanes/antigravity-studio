@@ -11,6 +11,9 @@ export class FloatingInputPill {
         this.inputEl = null;
         this.visible = false;
         this._viewportHandler = null;
+        this.busy = false;
+        this.idlePlaceholder = options.placeholder || "Pregúntale a Antigravity...";
+        this.busyPlaceholder = options.busyPlaceholder || "Antigravity está respondiendo...";
     }
 
     mount(parentEl = document.body) {
@@ -83,6 +86,13 @@ export class FloatingInputPill {
     _handleSend() {
         const text = (this.inputEl?.value || "").trim();
         if (!text) return;
+
+        // SPEC-054: un envio rechazado por turno en curso debe ser VISIBLE. Antes
+        // se descartaba en silencio y el usuario escribia sin que pasara nada.
+        if (this.busy) {
+            this._shake();
+            return;
+        }
         const accepted = this.onSend(text);
         if (accepted) {
             if (this.inputEl) {
@@ -93,11 +103,34 @@ export class FloatingInputPill {
         }
     }
 
+    /**
+     * SPEC-054: bloquea la entrada mientras hay un turno en curso y lo comunica,
+     * en lugar de aceptar texto que nunca se enviara.
+     */
+    setBusy(busy) {
+        this.busy = !!busy;
+        if (!this.containerEl) return;
+        this.containerEl.classList.toggle("is-busy", this.busy);
+        if (this.inputEl) {
+            this.inputEl.placeholder = this.busy ? this.busyPlaceholder : this.idlePlaceholder;
+        }
+        this._updateSendButton();
+    }
+
+    _shake() {
+        if (!this.containerEl) return;
+        this.containerEl.classList.remove("shake");
+        // Reinicia la animacion forzando reflow.
+        void this.containerEl.offsetWidth;
+        this.containerEl.classList.add("shake");
+        setTimeout(() => this.containerEl?.classList.remove("shake"), 400);
+    }
+
     _updateSendButton() {
         const btn = this.containerEl?.querySelector(".pill-send-btn");
         if (btn) {
             const hasText = (this.inputEl?.value || "").trim().length > 0;
-            btn.classList.toggle("visible", hasText);
+            btn.classList.toggle("visible", hasText && !this.busy);
         }
     }
 

@@ -136,10 +136,10 @@ for f in "$STREAM_CLIENT_JS" "$SESSION_JS" "$CHAT_VIEW_JS" "$CHAT_SCSS"; do
 done
 echo "[OK]"
 
-echo -n "12. Verificando version 2.8.1 y versionCode 20801 (AC-BUILD-001)... "
-grep -q 'version="2.8.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene version 2.8.1"; exit 1; }
-grep -q 'android-versionCode="20801"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versionCode 20801"; exit 1; }
-grep -q '"version": "2.8.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene version 2.8.1"; exit 1; }
+echo -n "12. Verificando version 2.8.2 y versionCode 20802 (AC-BUILD-001)... "
+grep -q 'version="2.8.2"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene version 2.8.2"; exit 1; }
+grep -q 'android-versionCode="20802"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versionCode 20802"; exit 1; }
+grep -q '"version": "2.8.2"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene version 2.8.2"; exit 1; }
 echo "[OK]"
 
 echo "=== TODAS LAS COMPUERTAS DE SPEC-054 HAN SIDO SUPERADAS EXITOSAMENTE ==="

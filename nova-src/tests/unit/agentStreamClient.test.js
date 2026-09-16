@@ -603,3 +603,36 @@ describe("AgentStreamClient - ingestLine (transporte line-delimited)", () => {
 		expect(events).toHaveLength(0);
 	});
 });
+
+
+describe("AgentStreamClient - step_type system_message (visto en dispositivo)", () => {
+	// agy emite este paso al abrir cada turno. No estaba en el corpus capturado y
+	// v2.8.1 lo pintaba como "Paso no reconocido", haciendo creer que el mensaje
+	// habia fallado.
+	it("expone system_message como tipo conocido", () => {
+		expect(STEP_TYPE.SYSTEM_MESSAGE).toBe("system_message");
+	});
+
+	it("decodifica un system_message sin marcarlo corrupto", () => {
+		const { client, events } = makeRecordingClient();
+		client.ingestLine('{"event":"step_update","step_update":{"conversation_id":"c1","step_index":0,"state":"DONE","step_type":"system_message"}}');
+
+		expect(client.malformedCount).toBe(0);
+		expect(events).toHaveLength(1);
+		expect(events[0].type).toBe("system_message");
+
+		const step = client.getSteps()[0];
+		expect(step.type).toBe(STEP_TYPE.SYSTEM_MESSAGE);
+		expect(step.text).toBe("");
+	});
+
+	it("un system_message no interrumpe el turno posterior", () => {
+		const { client, events } = makeRecordingClient();
+		client.ingestLine('{"event":"step_update","step_update":{"conversation_id":"c1","step_index":0,"state":"DONE","step_type":"system_message"}}');
+		client.ingestLine('{"event":"step_update","step_update":{"conversation_id":"c1","step_index":1,"state":"ACTIVE","step_type":"agent_response","text_delta":"hola"}}');
+		client.ingestLine('{"event":"result","result":{"conversation_id":"c1","status":"SUCCESS","response":"hola"}}');
+
+		expect(client.malformedCount).toBe(0);
+		expect(events.map((e) => e.kind)).toEqual(["step", "step", "result"]);
+	});
+});

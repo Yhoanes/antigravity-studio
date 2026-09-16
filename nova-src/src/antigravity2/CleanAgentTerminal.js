@@ -1357,11 +1357,26 @@ export class CleanAgentTerminal {
         this.agentChatView?.hide();
         if (this.containerEl) this.containerEl.style.display = "";
         this.floatingPill?.show();
-        if (this.fitAddon) {
-            setTimeout(() => {
-                try { this.fitAddon.fit(); } catch (_) {}
-            }, 50);
-        }
+
+        // Mientras el contenedor estuvo en display:none, Xterm no pudo medir su
+        // caja: al volver, las columnas quedaban mal y agy seguia escribiendo al
+        // ancho antiguo, partiendo las lineas ("? for sho / rtcuts"). Hay que
+        // remedir, avisar al PTY del nuevo tamano y repintar.
+        const reflow = () => {
+            try {
+                this.fitAddon?.fit();
+                if (this.terminal) {
+                    this.notifyServerResize(this.terminal.cols, this.terminal.rows);
+                    this.terminal.refresh(0, Math.max(this.terminal.rows - 1, 0));
+                }
+            } catch (err) {
+                console.warn("[SPEC-054] Fallo al remedir la terminal:", err);
+            }
+        };
+        requestAnimationFrame(reflow);
+        // Segunda pasada: en la tablet el reflow del WebView puede llegar tarde.
+        setTimeout(reflow, 150);
+
         this.terminal?.focus();
         return true;
     }

@@ -29,6 +29,9 @@ export const STEP_TYPE = {
     AGENT_RESPONSE: "agent_response",
     TOOL: "tool",
     ERROR_MESSAGE: "error_message",
+    // Observado en dispositivo (v2.8.1): agy emite este paso al inicio de cada
+    // turno. No se habia visto en el corpus capturado.
+    SYSTEM_MESSAGE: "system_message",
 };
 
 export const RESULT_STATUS = {
