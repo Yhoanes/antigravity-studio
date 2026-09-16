@@ -133,11 +133,11 @@ grep -A 5 "refreshAxsSymlink" "$PROCESS_MANAGER_JAVA" | grep -q "isFdroidBuild()
 }
 echo "[OK]"
 
-# 16. Verificar versionado v2.8.0 y android-versionCode 20800 en configuraci贸n (Criterio de Versionado)
-echo -n "16. Verificando versi贸n 2.8.0 y versionCode 20800 en configuraci贸n... "
-grep -q 'version="2.8.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.0"; exit 1; }
-grep -q 'android-versionCode="20800"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20800"; exit 1; }
-grep -q '"version": "2.8.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.0"; exit 1; }
+# 16. Verificar versionado v2.8.1 y android-versionCode 20801 en configuraci贸n (Criterio de Versionado)
+echo -n "16. Verificando versi贸n 2.8.1 y versionCode 20801 en configuraci贸n... "
+grep -q 'version="2.8.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.1"; exit 1; }
+grep -q 'android-versionCode="20801"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20801"; exit 1; }
+grep -q '"version": "2.8.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.1"; exit 1; }
 echo "[OK]"
 
 # 17. Verificar SPEC-040 (Criterios PREM-01 a PREM-04)
@@ -481,10 +481,10 @@ grep -q "has-input-pill" "$SCSS_FILE" || { echo "FALLO: Regla .has-input-pill au
 grep -q "pill-send-btn" "$SCSS_FILE" || { echo "FALLO: Regla .pill-send-btn ausente en SCSS"; exit 1; }
 echo "[OK]"
 
-echo -n "68. Verificando versi贸n 2.8.0 y versionCode 20800 en configuraci贸n (MODEL-FIX)... "
-grep -q 'version="2.8.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.0"; exit 1; }
-grep -q 'android-versionCode="20800"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20800"; exit 1; }
-grep -q '"version": "2.8.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.0"; exit 1; }
+echo -n "68. Verificando versi贸n 2.8.1 y versionCode 20801 en configuraci贸n (MODEL-FIX)... "
+grep -q 'version="2.8.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.1"; exit 1; }
+grep -q 'android-versionCode="20801"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20801"; exit 1; }
+grep -q '"version": "2.8.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.1"; exit 1; }
 echo "[OK]"
 
 # ==============================================================================
@@ -573,10 +573,10 @@ echo "=== TODAS LAS COMPUERTAS EST脕TICAS DE SPEC-036 A SPEC-051 HAN SIDO SUPERA
 # ==============================================================================
 # 78-83. Verificar SPEC-052 (Criterios de SCROLL, MENU, 2F, VISUAL y VERSIONADO)
 # ==============================================================================
-echo -n "78. Verificando versi贸n 2.8.0 y versionCode 20800 en configuraci贸n (VERSIONADO)... "
-grep -q 'version="2.8.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.0"; exit 1; }
-grep -q 'android-versionCode="20800"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20800"; exit 1; }
-grep -q '"version": "2.8.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.0"; exit 1; }
+echo -n "78. Verificando versi贸n 2.8.1 y versionCode 20801 en configuraci贸n (VERSIONADO)... "
+grep -q 'version="2.8.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi贸n 2.8.1"; exit 1; }
+grep -q 'android-versionCode="20801"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20801"; exit 1; }
+grep -q '"version": "2.8.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi贸n 2.8.1"; exit 1; }
 echo "[OK]"
 
 echo -n "79. Verificando polaridad de scroll en scrollByPixels (SCROLL)... "
@@ -616,10 +616,10 @@ grep -q "_autoRecoverSession" "nova-src/src/antigravity2/CleanAgentTerminal.js" 
 grep -q "localStorage.removeItem(this.sessionStorageKey);" "nova-src/src/antigravity2/CleanAgentTerminal.js" || { echo "FALLO: localStorage.removeItem ausente en onclose"; exit 1; }
 echo "[OK]"
 
-echo -n "85. Verificando version 2.8.0 en config y package... "
-grep -q 'version="2.8.0"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi髇 2.8.0"; exit 1; }
-grep -q 'android-versionCode="20800"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20800"; exit 1; }
-grep -q '"version": "2.8.0"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi髇 2.8.0"; exit 1; }
+echo -n "85. Verificando version 2.8.1 en config y package... "
+grep -q 'version="2.8.1"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene versi髇 2.8.1"; exit 1; }
+grep -q 'android-versionCode="20801"' "$CONFIG_XML" || { echo "FALLO: config.xml no tiene android-versionCode 20801"; exit 1; }
+grep -q '"version": "2.8.1"' "$PACKAGE_JSON" || { echo "FALLO: package.json no tiene versi髇 2.8.1"; exit 1; }
 echo "[OK]"
 
 echo "=== TODAS LAS COMPUERTAS EST罷ICAS DE SPEC-053 HAN SIDO SUPERADAS EXITOSAMENTE ==="

@@ -84,12 +84,23 @@ export class AgentStreamClient {
 
     /**
      * Comando de shell completo para el transporte. `Executor.start()` acepta una
-     * cadena, no un argv, asi que el armado se hace aqui con cita segura.
+     * cadena y la ejecuta por `sh -c`, de ahi la cita POSIX de cada argumento.
+     *
+     * `opts.binary`:
+     *   - omitido  -> "agy" (invocacion directa, p.ej. desde el host)
+     *   - ""/null  -> SIN binario, solo el argv
+     *
+     * El caso sin binario es el que usa AgentSession: al entrar por el sandbox
+     * Alpine, `init-alpine.sh` ya hace `exec agy "$@"`, asi que incluir "agy"
+     * produce `agy agy -p ...` y el CLI responde
+     * `unexpected argument "agy"`. El contrato del script de entrada es recibir
+     * los ARGUMENTOS de agy, no el binario.
      */
     buildCommand(promptText, opts = {}) {
-        const argv = this.buildArgv(promptText, opts);
-        const binary = opts.binary || "agy";
-        return [binary].concat(argv.map((a) => AgentStreamClient.shellQuote(a))).join(" ");
+        const quoted = this.buildArgv(promptText, opts)
+            .map((a) => AgentStreamClient.shellQuote(a));
+        const binary = opts.binary === undefined ? "agy" : opts.binary;
+        return (binary ? [binary].concat(quoted) : quoted).join(" ");
     }
 
     /**
@@ -98,6 +109,9 @@ export class AgentStreamClient {
      * invocaciones en el transporte de proceso-por-turno (AC-STREAM-005).
      */
     buildArgv(promptText, opts = {}) {
+        // "-p" debe ir primero y con UN solo guion. `init-alpine.sh` evalua
+        // [ "${1#--}" = "$1" ]: si el primer argumento empieza por "--", omite
+        // el `exec agy "$@"` y la invocacion no llega a ejecutarse nunca.
         const argv = ["-p", String(promptText ?? ""), "--output-format", "stream-json"];
 
         const conversationId = opts.conversationId || this.conversationId;

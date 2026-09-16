@@ -24,6 +24,11 @@ export class AgentSession {
         // `agy` vive en el rootfs Alpine bajo PRoot, no en el host Android.
         this.alpine = options.alpine !== false;
 
+        // Sin binario a proposito: al entrar por el sandbox, `init-alpine.sh` ya
+        // hace `exec agy "$@"`. Incluir "agy" produce `agy agy -p ...` y el CLI
+        // responde `unexpected argument "agy"`.
+        this.binary = options.binary !== undefined ? options.binary : "";
+
         this.onInit = options.onInit || (() => {});
         this.onStep = options.onStep || (() => {});
         this.onResult = options.onResult || (() => {});
@@ -91,7 +96,7 @@ export class AgentSession {
 
         this._setState(SESSION_STATE.RUNNING);
 
-        const command = this.client.buildCommand(text);
+        const command = this.client.buildCommand(text, { binary: this.binary });
 
         try {
             this.activeUuid = await this.executor.start(

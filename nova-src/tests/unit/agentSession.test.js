@@ -15,6 +15,18 @@ function readFixture(name) {
  * Doble del plugin nativo `window.Executor`. Reproduce su contrato documentado:
  * `start()` resuelve con un UUID y luego entrega `('stdout'|'stderr'|'exit', linea)`
  * con el salto de linea ya consumido.
+ *
+ * `resolveArgv()` modela la cadena REAL del sandbox, que es lo que v2.8.0 no
+ * verifico y por lo que salio roto en dispositivo:
+ *
+ *   ProcessManager.createProcessBuilder:
+ *     sh -c "source $PREFIX/init-sandbox.sh <cmd>"
+ *   init-sandbox.sh:
+ *     exec proot ... /bin/sh init-alpine.sh "$@"
+ *   init-alpine.sh:
+ *     [ $# -gt 0 ] && [ "${1#--}" = "$1" ] && exec agy "$@"
+ *
+ * O sea: el script de entrada PREPONE `agy`. El comando debe traer solo el argv.
  */
 function makeFakeExecutor(options = {}) {
 	const calls = [];
@@ -39,6 +51,20 @@ function makeFakeExecutor(options = {}) {
 		emit(type, data) {
 			onData(type, data);
 		},
+
+		/** argv efectivo que recibiria `agy` tras pasar por init-alpine.sh. */
+		resolveArgv(index = 0) {
+			const cmd = calls[index].command;
+			const words = cmd.match(/'(?:[^']|'"'"')*'|\S+/g) || [];
+			const argv = words.map((w) =>
+				w.startsWith("'") && w.endsWith("'")
+					? w.slice(1, -1).split(`'"'"'`).join("'")
+					: w,
+			);
+			// init-alpine.sh omite el exec si el primer argumento empieza por "--".
+			if (argv.length && argv[0].startsWith("--")) return null;
+			return ["agy"].concat(argv);
+		},
 	};
 	return executor;
 }
@@ -54,10 +80,61 @@ describe("AgentSession - ciclo de vida del turno", () => {
 		expect(executor.start).toHaveBeenCalledTimes(1);
 
 		const { command, alpine } = executor.calls[0];
-		expect(command.startsWith("agy '-p' 'di hola'")).toBe(true);
+
+		// El comando NO debe traer el binario: init-alpine.sh hace `exec agy "$@"`.
+		// Incluirlo produjo `agy agy -p ...` y el CLI respondio
+		// `unexpected argument "agy"` (regresion de v2.8.0).
+		expect(command.startsWith("agy ")).toBe(false);
+		expect(command.startsWith("'-p' 'di hola'")).toBe(true);
 		expect(command).toContain("'--output-format' 'stream-json'");
+
 		// agy vive en el rootfs Alpine bajo PRoot, no en el host Android.
 		expect(alpine).toBe(true);
+	});
+
+	it("el argv que recibe agy tras el sandbox es el correcto, sin binario duplicado", () => {
+		// Esta es la asercion que faltaba en v2.8.0.
+		const executor = makeFakeExecutor();
+		const session = new AgentSession({ executor });
+
+		return session.send("di hola").then(() => {
+			const argv = executor.resolveArgv(0);
+
+			expect(argv, "init-alpine.sh omitiria el exec: el primer argumento empieza por --").not.toBeNull();
+			expect(argv[0]).toBe("agy");
+			expect(argv[1]).toBe("-p");
+			expect(argv[2]).toBe("di hola");
+			// Un solo "agy" en todo el argv.
+			expect(argv.filter((a) => a === "agy")).toHaveLength(1);
+		});
+	});
+
+	it("el primer argumento nunca empieza por doble guion", () => {
+		// init-alpine.sh evalua [ "${1#--}" = "$1" ]: si empieza por "--", omite
+		// el exec de agy entero y el turno no se ejecuta nunca.
+		const executor = makeFakeExecutor();
+		const session = new AgentSession({
+			executor,
+			model: "claude-sonnet-4-6",
+			effort: "high",
+			mode: "plan",
+		});
+
+		return session.send("con todas las opciones").then(() => {
+			expect(executor.calls[0].command.startsWith("'-p'")).toBe(true);
+			expect(executor.resolveArgv(0)).not.toBeNull();
+		});
+	});
+
+	it("un prompt con comillas y metacaracteres llega intacto al argv", () => {
+		const executor = makeFakeExecutor();
+		const session = new AgentSession({ executor });
+		const hostil = `o'reilly; rm -rf / $(x) \`y\` "z"`;
+
+		return session.send(hostil).then(() => {
+			const argv = executor.resolveArgv(0);
+			expect(argv[2]).toBe(hostil);
+		});
 	});
 
 	it("pasa de idle a running y vuelve a idle al salir el proceso", async () => {
